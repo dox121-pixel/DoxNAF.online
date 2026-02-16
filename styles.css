@@ -49,8 +49,8 @@ header img {
   position: absolute;
   left: 50%;
   top: 40%;
-  transform: translate(-50%,-50%) scale(1);
-  width: 120px;
+  transform: translate(-50%,-50%) scale(.82);
+  width: 110px;
   transition: transform .55s cubic-bezier(.22,1,.36,1),
               left .55s cubic-bezier(.22,1,.36,1),
               top .55s cubic-bezier(.22,1,.36,1);
@@ -81,7 +81,7 @@ header.shrink {
 header.shrink img {
   left: 0;
   top: 50%;
-  transform: translate(0,-50%) scale(.6);
+  transform: translate(0,-50%) scale(.46);
 }
 
 /* NAV RIGHT INLINE */
