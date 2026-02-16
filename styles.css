@@ -19,7 +19,7 @@ nav a:hover { color:var(--red); }
 .hero h1 { font-size:2.8em; letter-spacing:3px; margin-bottom:10px; }
 .hero p { color:#bbb; max-width:600px; margin:auto; }
 
-section { padding:60px 20px; max-width:1100px; margin:auto; }
+section { padding:60px 20px; max-width:1100px; margin:0 auto; }
 h2 { text-align:center; margin-bottom:30px; color:var(--red); letter-spacing:2px; }
 
 /* GRID */
@@ -38,14 +38,20 @@ h2 { text-align:center; margin-bottom:30px; color:var(--red); letter-spacing:2px
 .card-link:hover { text-decoration:none; }
 .card-link:hover .card { border-color:var(--red); transform:translateY(-6px); }
 
-/* COUNTERS */
-.stats { background:#050505; border-top:2px solid var(--red); border-bottom:2px solid var(--red); }
-.counter-container { display:flex; justify-content:space-around; flex-wrap:wrap; gap:40px; }
-.counter-box { text-align:center; }
-.counter { font-size:3em; color:var(--red); font-weight:bold; display:block; }
+/* STATS SECTION */
+.stats { background:#050505; border-top:2px solid var(--red); border-bottom:2px solid var(--red); text-align:center; }
+.counter-container { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:80px; margin-top:30px; }
+.counter-box { min-width:160px; }
+.counter { font-size:3em; color:var(--red); font-weight:bold; display:block; margin-bottom:8px; }
+.counter-box p { color:#cfcfcf; }
 
+/* RECRUIT */
 .recruit { text-align:center; background:#090909; border-top:2px solid var(--red); border-bottom:2px solid var(--red); }
 .btn { display:inline-block; margin-top:20px; padding:12px 28px; border:2px solid var(--red); color:white; text-decoration:none; transition:.25s; }
 .btn:hover { background:var(--red); }
+
+/* CONTACT */
+#contact { text-align:center; }
+#contact p { margin:6px 0; color:#cfcfcf; }
 
 footer { text-align:center; padding:25px; background:#000; font-size:.9em; color:#888; }
