@@ -84,7 +84,9 @@ function updateOnScroll() {
 
   // TOP OF PAGE FIX
   if (currentScrollY < 100) {
-    current = sections[0]?.getAttribute("id") || "";
+    if (sections.length > 0) {
+      current = sections[0].getAttribute("id") || "";
+    }
   } else {
     sections.forEach(section => {
       const rect = section.getBoundingClientRect();
@@ -95,15 +97,17 @@ function updateOnScroll() {
 
     // BOTTOM OF PAGE FIX
     if ((window.innerHeight + currentScrollY) >= document.body.offsetHeight - 5) {
-      const lastSection = sections[sections.length - 1];
-      current = lastSection?.getAttribute("id") || "";
+      if (sections.length > 0) {
+        const lastSection = sections[sections.length - 1];
+        current = lastSection.getAttribute("id") || "";
+      }
     }
   }
 
   navLinks.forEach(link => {
     link.classList.remove("active");
     const href = link.getAttribute("href");
-    if (href && href.startsWith("#") && href.includes(current)) {
+    if (href && href === '#' + current) {
       link.classList.add("active");
     }
   });
