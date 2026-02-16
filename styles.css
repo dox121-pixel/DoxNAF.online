@@ -97,6 +97,9 @@ nav a {
   font-weight:bold;
   transition:.2s;
   position: relative;
+
+  padding-top: 6px;
+  padding-bottom: 2px;
 }
 
 nav a:hover,
