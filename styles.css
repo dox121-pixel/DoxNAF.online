@@ -24,43 +24,48 @@ body {
 
 header {
   background: linear-gradient(180deg,#000 0%,#111 100%);
-  padding: 25px 20px;
   border-bottom:3px solid var(--red);
-  text-align:center;
   position: sticky;
   top: 0;
   z-index: 999;
-  transition: all 0.4s ease;
+  padding: 25px 0;
+  transition: background 0.4s ease, padding 0.4s ease;
 }
 
-/* Header Inner Layout */
-header .header-inner {
+/* Inner wrapper */
+.header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  transition: all 0.4s ease;
+  position: relative;
+  transition: all 0.4s cubic-bezier(.25,.8,.25,1);
 }
 
 /* Logo */
 header img {
-  width:120px;
-  margin-bottom:10px;
-  transition: all 0.4s ease;
+  width: 120px;
+  transition: transform 0.4s cubic-bezier(.25,.8,.25,1),
+              width 0.4s cubic-bezier(.25,.8,.25,1);
 }
 
 /* Nav */
 nav {
-  display:flex;
-  justify-content:center;
-  gap:25px;
-  margin-top:10px;
-  flex-wrap:wrap;
-  transition: all 0.4s ease;
+  display: flex;
+  gap: 25px;
+  margin-top: 15px;
+  transition: transform 0.4s cubic-bezier(.25,.8,.25,1),
+              margin 0.4s cubic-bezier(.25,.8,.25,1);
 }
 
+/* ============================= */
 /* SHRUNK STATE */
+/* ============================= */
+
 header.shrink {
-  padding: 10px 30px;
+  padding: 10px 0;
+  backdrop-filter: blur(6px);
 }
 
 header.shrink .header-inner {
@@ -70,18 +75,13 @@ header.shrink .header-inner {
 }
 
 header.shrink img {
-  width:70px;
-  margin-bottom:0;
+  width: 70px;
+  transform: translateX(-10px);
 }
 
 header.shrink nav {
   margin-top: 0;
-}
-
-
-header img {
-  width:120px;
-  margin-bottom:10px;
+  transform: translateX(10px);
 }
 
 nav {
