@@ -56,15 +56,13 @@ header img {
               top .55s cubic-bezier(.22,1,.36,1);
 }
 
-/* NAV — CENTER MODE (always below logo) */
-nav {
+/* LOGO — CENTER MODE */
+header img {
   position: absolute;
   left: 50%;
-  top: 78%;
-  transform: translate(-50%,-50%) scale(1);
-  display:flex;
-  gap:22px;
-  white-space:nowrap;
+  top: 40%;
+  transform: translate(-50%,-50%) scale(.68);
+  width: 100px;
   transition: transform .55s cubic-bezier(.22,1,.36,1),
               left .55s cubic-bezier(.22,1,.36,1),
               top .55s cubic-bezier(.22,1,.36,1);
@@ -79,9 +77,9 @@ header.shrink {
 
 /* LOGO LEFT */
 header.shrink img {
-  left: 0;
+  left: 10px;
   top: 50%;
-  transform: translate(0,-50%) scale(.46);
+  transform: translate(0,-50%) scale(.60);
 }
 
 /* NAV RIGHT INLINE */
