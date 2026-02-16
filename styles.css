@@ -56,13 +56,15 @@ header img {
               top .55s cubic-bezier(.22,1,.36,1);
 }
 
-/* LOGO — CENTER MODE */
-header img {
+/* NAV — ALWAYS BELOW LOGO */
+nav {
   position: absolute;
   left: 50%;
-  top: 40%;
-  transform: translate(-50%,-50%) scale(.68);
-  width: 100px;
+  top: calc(40% + 55px);
+  transform: translate(-50%,-50%) scale(1);
+  display:flex;
+  gap:22px;
+  white-space:nowrap;
   transition: transform .55s cubic-bezier(.22,1,.36,1),
               left .55s cubic-bezier(.22,1,.36,1),
               top .55s cubic-bezier(.22,1,.36,1);
