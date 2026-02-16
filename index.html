@@ -4,22 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Nemesis Armed Forces</title>
+
   <link rel="stylesheet" href="styles.css">
   <script defer src="script.js"></script>
-</head>
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-W9T8N4475G"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
 
-  gtag('config', 'G-W9T8N4475G');
-</script>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-W9T8N4475G"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-W9T8N4475G');
+  </script>
+</head>
+
 <body>
 
 <header>
-  <img src="logo.png" alt="Nemesis Armed Forces Logo" />
+  <img src="logo.png" alt="Nemesis Armed Forces Logo" loading="lazy"/>
   <h1>Nemesis Armed Forces</h1>
   <nav>
     <a href="#about">About</a>
@@ -36,69 +38,82 @@
   <p>Nemesis Armed Forces is a private military organization specializing in high-risk security operations, strategic response, and specialized tactical deployment across hostile environments.</p>
 </section>
 
-<section id="about">
+<section id="about" class="reveal">
   <h2>About Us</h2>
   <p>Founded by former military specialists, Nemesis Armed Forces delivers elite operational capability where conventional forces cannot operate. Our teams are trained for rapid deployment, critical protection, and advanced tactical missions.</p>
 </section>
 
-<section id="operations">
+<section id="operations" class="reveal">
   <h2>Operational Capabilities</h2>
   <div class="cards">
-    <div class="card"><h3>Security Operations</h3><p>High-risk facility and convoy protection.</p></div>
-    <div class="card"><h3>Tactical Response</h3><p>Rapid intervention and crisis containment.</p></div>
-    <div class="card"><h3>Recon & Surveillance</h3><p>Intelligence gathering and monitoring.</p></div>
-    <div class="card"><h3>Training & Consulting</h3><p>Professional tactical instruction programs.</p></div>
+    <div class="card">
+      <h3>Security Operations</h3>
+      <p>High-risk facility and convoy protection.</p>
+    </div>
+    <div class="card">
+      <h3>Tactical Response</h3>
+      <p>Rapid intervention and crisis containment.</p>
+    </div>
+    <div class="card">
+      <h3>Recon & Surveillance</h3>
+      <p>Intelligence gathering and monitoring.</p>
+    </div>
+    <div class="card">
+      <h3>Training & Consulting</h3>
+      <p>Professional tactical instruction programs.</p>
+    </div>
   </div>
 </section>
 
-<section id="divisions">
+<section id="divisions" class="reveal">
   <h2>Main Divisions</h2> 
   <div class="cards">
 
     <a href="vanguard.html" class="card-link">
       <div class="card">
-        <img src="vanlogo.png" alt="Vanguard Company" width="80">
+        <img src="vanlogo.png" alt="Vanguard Company" loading="lazy">
         <h3>Vanguard Company</h3>
         <p>Frontline combat and rapid assault operations.</p>
       </div>
     </a>
 
     <div class="card">
-      <img src="ravlogo.png" alt="Raven Company" width="80">
+      <img src="ravlogo.png" alt="Raven Company" loading="lazy">
       <h3>Raven Company</h3>
       <p>Aerial support and rapid insertion units.</p>
     </div>
 
     <div class="card">
-      <img src="wraithlogo.png" alt="Wraith Company" width="80">
+      <img src="wraithlogo.png" alt="Wraith Company" loading="lazy">
       <h3>Wraith Company</h3>
       <p>Stealth and special reconnaissance specialists.</p>
     </div>
 
     <div class="card">
-      <img src="NSOAlogo.png" alt="NSOA" width="80">
+      <img src="NSOAlogo.png" alt="NSOA" loading="lazy">
       <h3>NSOA | Nemesis Special Operations Administration</h3>
       <p>Command oversight and operational coordination.</p>
     </div>
   </div>
 
   <h2 style="margin-top:60px;">Subdivisions</h2>
+
   <div class="cards">
     <div class="card">
-      <img src="NETAlogo.png" alt="NETA" width="80">
+      <img src="NETAlogo.png" alt="NETA" loading="lazy">
       <h3>NETA | Nemesis Education Training Administration</h3>
       <p>Training, certification, and instructional doctrine.</p>
     </div>
 
     <div class="card">
-      <img src="SIDlogo.png" alt="SID" width="80">
+      <img src="SIDlogo.png" alt="SID" loading="lazy">
       <h3>SID | Shadow Intelligence Directive</h3>
       <p>Intelligence gathering and analysis operations.</p>
     </div>
   </div>
 </section>
 
-<section id="stats" class="stats">
+<section id="stats" class="stats reveal">
   <h2>Operational Statistics</h2>
   <div class="counter-container">
     <div class="counter-box">
@@ -116,13 +131,13 @@
   </div>
 </section>
 
-<section id="recruitment" class="recruit">
+<section id="recruitment" class="reveal recruit">
   <h2>Join the Unit</h2>
   <p>We recruit disciplined, capable individuals ready for demanding operational environments.</p>
   <a class="btn" href="#contact">Apply Now</a>
 </section>
 
-<section id="contact">
+<section id="contact" class="reveal">
   <h2>Contact</h2>
   <p>Email: contact@nemesis-af.example</p>
   <p>Secure Channel: Available upon request</p>
