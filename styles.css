@@ -23,7 +23,7 @@ body {
 }
 
 /* ================================= */
-/* FLICKER-FREE MORPH HEADER         */
+/* TRUE MORPH HEADER (NO DRIFT)      */
 /* ================================= */
 
 header {
@@ -32,13 +32,12 @@ header {
   z-index: 999;
   background: linear-gradient(180deg,#000 0%,#111 100%);
   border-bottom: 3px solid var(--red);
-  height: 130px; /* LOCKED HEIGHT = no reflow */
+  height: 130px;
   transition: backdrop-filter .45s cubic-bezier(.22,1,.36,1),
               box-shadow .45s cubic-bezier(.22,1,.36,1);
-  will-change: backdrop-filter;
 }
 
-/* container becomes positioning stage */
+/* stage */
 .header-inner {
   max-width: 1100px;
   margin: 0 auto;
@@ -46,18 +45,20 @@ header {
   position: relative;
 }
 
-/* LOGO */
+/* LOGO CENTER STATE */
 header img {
   position: absolute;
   left: 50%;
   top: 30px;
-  transform: translateX(-50%) scale(1);
+  transform: translate(-50%,0) scale(1);
   width: 120px;
-  transition: transform .55s cubic-bezier(.22,1,.36,1);
-  will-change: transform;
+  transition: transform .55s cubic-bezier(.22,1,.36,1),
+              left .55s cubic-bezier(.22,1,.36,1),
+              top .55s cubic-bezier(.22,1,.36,1);
+  will-change: transform,left,top;
 }
 
-/* NAV BASE CENTERED */
+/* NAV CENTER STATE */
 nav {
   position: absolute;
   bottom: 18px;
@@ -66,8 +67,10 @@ nav {
   display:flex;
   gap:22px;
   white-space:nowrap;
-  transition: transform .55s cubic-bezier(.22,1,.36,1);
-  will-change: transform;
+  transition: transform .55s cubic-bezier(.22,1,.36,1),
+              left .55s cubic-bezier(.22,1,.36,1),
+              bottom .55s cubic-bezier(.22,1,.36,1);
+  will-change: transform,left,bottom;
 }
 
 /* SHRINK STATE */
@@ -76,14 +79,18 @@ header.shrink {
   box-shadow: 0 5px 20px rgba(0,0,0,.5);
 }
 
-/* logo moves to left */
+/* move logo to left EDGE OF CONTAINER */
 header.shrink img {
-  transform: translate(-520px,-18px) scale(.6);
+  left: 0;
+  top: 50%;
+  transform: translate(0,-50%) scale(.6);
 }
 
-/* nav moves to right */
+/* move nav to right EDGE OF CONTAINER */
 header.shrink nav {
-  transform: translate(420px,-12px) scale(.9);
+  left: 100%;
+  bottom: 50%;
+  transform: translate(-100%,50%) scale(.9);
 }
 
 nav {
