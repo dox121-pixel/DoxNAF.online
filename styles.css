@@ -191,7 +191,7 @@ h2 {
 .card:hover {
   border-color:var(--red);
   transform:translateY(-8px);
-  box-shadow:0 15px 35px rgba(209,0,0,.2);
+  box-shadow:0 15px 35px rgba(255,122,0,.2);
 }
 
 .card-link {
@@ -243,7 +243,7 @@ h2 {
 
 .btn:hover {
   background:var(--red);
-  box-shadow:0 0 20px rgba(209,0,0,.6);
+  box-shadow:0 0 20px rgba(255,122,0,.6);
 }
 
 footer {
