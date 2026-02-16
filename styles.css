@@ -93,14 +93,6 @@ header.shrink nav {
   transform: translate(-100%,50%) scale(.9);
 }
 
-nav {
-  display:flex;
-  justify-content:center;
-  gap:25px;
-  margin-top:10px;
-  flex-wrap:wrap;
-}
-
 nav a {
   color:var(--light);
   text-decoration:none;
