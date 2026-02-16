@@ -66,18 +66,28 @@ const sections = document.querySelectorAll("section");
 const navLinks = document.querySelectorAll("nav a");
 
 window.addEventListener("scroll", () => {
+
   let current = "";
 
   sections.forEach(section => {
-    const sectionTop = section.offsetTop;
-    if (scrollY >= sectionTop - 200) {
+    const rect = section.getBoundingClientRect();
+
+    if (rect.top <= 150 && rect.bottom >= 150) {
       current = section.getAttribute("id");
     }
   });
 
+  // SPECIAL CASE: When at bottom of page
+  if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 5) {
+    const lastSection = sections[sections.length - 1];
+    current = lastSection.getAttribute("id");
+  }
+
   navLinks.forEach(link => {
     link.classList.remove("active");
-    if (link.getAttribute("href").includes(current)) {
+
+    const href = link.getAttribute("href");
+    if (href.startsWith("#") && href.includes(current)) {
       link.classList.add("active");
     }
   });
