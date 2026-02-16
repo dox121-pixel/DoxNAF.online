@@ -24,13 +24,60 @@ body {
 
 header {
   background: linear-gradient(180deg,#000 0%,#111 100%);
-  padding:20px;
+  padding: 25px 20px;
   border-bottom:3px solid var(--red);
   text-align:center;
   position: sticky;
   top: 0;
   z-index: 999;
+  transition: all 0.4s ease;
 }
+
+/* Header Inner Layout */
+header .header-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: all 0.4s ease;
+}
+
+/* Logo */
+header img {
+  width:120px;
+  margin-bottom:10px;
+  transition: all 0.4s ease;
+}
+
+/* Nav */
+nav {
+  display:flex;
+  justify-content:center;
+  gap:25px;
+  margin-top:10px;
+  flex-wrap:wrap;
+  transition: all 0.4s ease;
+}
+
+/* SHRUNK STATE */
+header.shrink {
+  padding: 10px 30px;
+}
+
+header.shrink .header-inner {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+header.shrink img {
+  width:70px;
+  margin-bottom:0;
+}
+
+header.shrink nav {
+  margin-top: 0;
+}
+
 
 header img {
   width:120px;
