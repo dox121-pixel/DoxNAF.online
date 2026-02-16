@@ -69,24 +69,31 @@ window.addEventListener("scroll", () => {
 
   let current = "";
 
-  sections.forEach(section => {
-    const rect = section.getBoundingClientRect();
+  // TOP OF PAGE FIX
+  if (window.scrollY < 100) {
+    current = sections[0].getAttribute("id");
+  } else {
 
-    if (rect.top <= 150 && rect.bottom >= 150) {
-      current = section.getAttribute("id");
+    sections.forEach(section => {
+      const rect = section.getBoundingClientRect();
+
+      if (rect.top <= 150 && rect.bottom >= 150) {
+        current = section.getAttribute("id");
+      }
+    });
+
+    // BOTTOM OF PAGE FIX
+    if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 5) {
+      const lastSection = sections[sections.length - 1];
+      current = lastSection.getAttribute("id");
     }
-  });
-
-  // SPECIAL CASE: When at bottom of page
-  if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 5) {
-    const lastSection = sections[sections.length - 1];
-    current = lastSection.getAttribute("id");
   }
 
   navLinks.forEach(link => {
     link.classList.remove("active");
 
     const href = link.getAttribute("href");
+
     if (href.startsWith("#") && href.includes(current)) {
       link.classList.add("active");
     }
