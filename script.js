@@ -100,13 +100,26 @@ window.addEventListener("scroll", () => {
   });
 });
 
-// SHRINKING HEADER
+// SHRINKING HEADER (NO RAPID TOGGLING)
 const header = document.querySelector("header");
+let last = 0;
+let ticking = false;
 
 window.addEventListener("scroll", () => {
-  if (window.scrollY > 50) {
-    header.classList.add("shrink");
-  } else {
-    header.classList.remove("shrink");
+  last = window.scrollY;
+
+  if (!ticking) {
+    requestAnimationFrame(() => {
+
+      if (last > 60) {
+        header.classList.add("shrink");
+      } else {
+        header.classList.remove("shrink");
+      }
+
+      ticking = false;
+    });
+
+    ticking = true;
   }
 });

@@ -23,7 +23,7 @@ body {
 }
 
 /* ================================= */
-/* FINAL STABLE MORPH HEADER        */
+/* FLICKER-FREE MORPH HEADER         */
 /* ================================= */
 
 header {
@@ -32,80 +32,58 @@ header {
   z-index: 999;
   background: linear-gradient(180deg,#000 0%,#111 100%);
   border-bottom: 3px solid var(--red);
-  padding: 30px 0;
-  transition: all 0.45s cubic-bezier(.22,1,.36,1);
-  backdrop-filter: blur(0px);
+  height: 130px; /* LOCKED HEIGHT = no reflow */
+  transition: backdrop-filter .45s cubic-bezier(.22,1,.36,1),
+              box-shadow .45s cubic-bezier(.22,1,.36,1);
+  will-change: backdrop-filter;
 }
 
-/* Layout container */
+/* container becomes positioning stage */
 .header-inner {
   max-width: 1100px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transition: all 0.45s cubic-bezier(.22,1,.36,1);
+  height: 100%;
+  position: relative;
 }
 
-/* ===================== */
-/* LOGO BASE             */
-/* ===================== */
-
+/* LOGO */
 header img {
+  position: absolute;
+  left: 50%;
+  top: 30px;
+  transform: translateX(-50%) scale(1);
   width: 120px;
-  transition: transform 0.6s cubic-bezier(.22,1,.36,1),
-              width 0.6s cubic-bezier(.22,1,.36,1);
+  transition: transform .55s cubic-bezier(.22,1,.36,1);
+  will-change: transform;
 }
 
-/* ===================== */
-/* NAV BASE              */
-/* ===================== */
-
+/* NAV BASE CENTERED */
 nav {
-  margin-top: 18px;
-  display: flex;
-  gap: 22px;
-  justify-content: center;
-  flex-wrap: nowrap;           /* NEVER WRAP */
-  white-space: nowrap;         /* Extra safety */
-  transition: all 0.6s cubic-bezier(.22,1,.36,1);
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%) scale(1);
+  display:flex;
+  gap:22px;
+  white-space:nowrap;
+  transition: transform .55s cubic-bezier(.22,1,.36,1);
+  will-change: transform;
 }
 
-nav a {
-  transition: transform 0.3s ease, color 0.3s ease;
-}
-
-nav a:hover {
-  transform: translateY(-2px);
-}
-
-/* ===================== */
-/* SHRINK STATE          */
-/* ===================== */
-
+/* SHRINK STATE */
 header.shrink {
-  padding: 10px 0;
   backdrop-filter: blur(8px);
-  box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+  box-shadow: 0 5px 20px rgba(0,0,0,.5);
 }
 
-header.shrink .header-inner {
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-}
-
-/* Logo shrinks & shifts slightly */
+/* logo moves to left */
 header.shrink img {
-  width: 70px;
-  transform: scale(0.9);
+  transform: translate(-520px,-18px) scale(.6);
 }
 
-/* Nav tightens spacing */
+/* nav moves to right */
 header.shrink nav {
-  margin-top: 0;
-  gap: 18px;
-  transform: scale(0.95);
+  transform: translate(420px,-12px) scale(.9);
 }
 
 nav {
