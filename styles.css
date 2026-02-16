@@ -33,7 +33,9 @@ header {
   background: linear-gradient(180deg,#000 0%,#111 100%);
   border-bottom: 3px solid var(--red);
   height: 150px;
-  transition: backdrop-filter .45s cubic-bezier(.22,1,.36,1),
+  will-change: height, backdrop-filter, box-shadow;
+  transition: height .45s cubic-bezier(.22,1,.36,1),
+              backdrop-filter .45s cubic-bezier(.22,1,.36,1),
               box-shadow .45s cubic-bezier(.22,1,.36,1);
 }
 
