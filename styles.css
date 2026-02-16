@@ -60,7 +60,7 @@ header img {
 nav {
   position: absolute;
   left: 50%;
-  top: calc(40% + 55px);
+  top: calc(40% + 45px);
   transform: translate(-50%,-50%) scale(1);
   display:flex;
   gap:22px;
