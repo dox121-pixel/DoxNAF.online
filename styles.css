@@ -140,6 +140,16 @@ h2 {
   letter-spacing:2px;
 }
 
+/* RECRUIT SECTION */
+.recruit {
+  text-align:center;
+}
+
+/* CONTACT SECTION */
+#contact {
+  text-align:center;
+}
+
 /* REVEAL ANIMATION */
 .reveal {
   opacity: 0;
@@ -191,7 +201,7 @@ h2 {
 .card:hover {
   border-color:var(--red);
   transform:translateY(-8px);
-  box-shadow:0 15px 35px rgba(255,122,0,.2);
+  box-shadow:0 15px 35px rgba(209,0,0,.2);
 }
 
 .card-link {
@@ -203,7 +213,7 @@ h2 {
 
 /* STATS */
 .stats {
-  background:#050505;
+  background:#0b0b0b;
   border-top:2px solid var(--red);
   border-bottom:2px solid var(--red);
   text-align:center;
@@ -243,7 +253,7 @@ h2 {
 
 .btn:hover {
   background:var(--red);
-  box-shadow:0 0 20px rgba(255,122,0,.6);
+  box-shadow:0 0 20px rgba(209,0,0,.6);
 }
 
 footer {
