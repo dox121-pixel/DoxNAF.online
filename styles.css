@@ -23,7 +23,7 @@ body {
 }
 
 /* ================================= */
-/* TRUE MORPH HEADER (NO DRIFT)      */
+/* FINAL MORPH HEADER (NO OVERLAP)   */
 /* ================================= */
 
 header {
@@ -32,12 +32,11 @@ header {
   z-index: 999;
   background: linear-gradient(180deg,#000 0%,#111 100%);
   border-bottom: 3px solid var(--red);
-  height: 130px;
+  height: 150px;
   transition: backdrop-filter .45s cubic-bezier(.22,1,.36,1),
               box-shadow .45s cubic-bezier(.22,1,.36,1);
 }
 
-/* stage */
 .header-inner {
   max-width: 1100px;
   margin: 0 auto;
@@ -45,52 +44,51 @@ header {
   position: relative;
 }
 
-/* LOGO CENTER STATE */
+/* LOGO — CENTER MODE */
 header img {
   position: absolute;
   left: 50%;
-  top: 30px;
-  transform: translate(-50%,0) scale(1);
+  top: 40%;
+  transform: translate(-50%,-50%) scale(1);
   width: 120px;
   transition: transform .55s cubic-bezier(.22,1,.36,1),
               left .55s cubic-bezier(.22,1,.36,1),
               top .55s cubic-bezier(.22,1,.36,1);
-  will-change: transform,left,top;
 }
 
-/* NAV CENTER STATE */
+/* NAV — CENTER MODE (always below logo) */
 nav {
   position: absolute;
-  bottom: 18px;
   left: 50%;
-  transform: translateX(-50%) scale(1);
+  top: 78%;
+  transform: translate(-50%,-50%) scale(1);
   display:flex;
   gap:22px;
   white-space:nowrap;
   transition: transform .55s cubic-bezier(.22,1,.36,1),
               left .55s cubic-bezier(.22,1,.36,1),
-              bottom .55s cubic-bezier(.22,1,.36,1);
-  will-change: transform,left,bottom;
+              top .55s cubic-bezier(.22,1,.36,1);
 }
 
-/* SHRINK STATE */
+/* SHRINK */
 header.shrink {
   backdrop-filter: blur(8px);
   box-shadow: 0 5px 20px rgba(0,0,0,.5);
+  height: 80px;
 }
 
-/* move logo to left EDGE OF CONTAINER */
+/* LOGO LEFT */
 header.shrink img {
   left: 0;
   top: 50%;
   transform: translate(0,-50%) scale(.6);
 }
 
-/* move nav to right EDGE OF CONTAINER */
+/* NAV RIGHT INLINE */
 header.shrink nav {
   left: 100%;
-  bottom: 50%;
-  transform: translate(-100%,50%) scale(.9);
+  top: 50%;
+  transform: translate(-100%,-50%) scale(.9);
 }
 
 nav a {
