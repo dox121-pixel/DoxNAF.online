@@ -1,213 +1,169 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Jimbo Jr</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nemesis Armed Forces</title>
+  <style>
+    :root {
+      --red: #d10000;
+      --dark: #0b0b0b;
+      --gray: #1a1a1a;
+      --light: #e5e5e5;
+    }
 
-<style>
-body{
-    margin:0;
-    background:black;
-    color:white;
-    font-family:monospace;
-    overflow:hidden;
-}
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; }
 
-header{
-    position:fixed;
-    top:0;
-    width:100%;
-    padding:10px 20px;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    background:rgba(0,0,0,0.9);
-    border-bottom:1px solid red;
-    z-index:999;
-}
+    body {
+      background: var(--dark);
+      color: var(--light);
+      line-height: 1.6;
+    }
 
-.camera{
-    display:flex;
-    align-items:center;
-    gap:8px;
-}
+    header {
+      background: linear-gradient(180deg, #000 0%, #111 100%);
+      padding: 20px;
+      border-bottom: 3px solid var(--red);
+      text-align: center;
+    }
 
-.dot{
-    width:10px;
-    height:10px;
-    background:lime;
-    border-radius:50%;
-    box-shadow:0 0 10px lime;
-    animation:pulse 1.5s infinite;
-}
+    header img {
+      width: 120px;
+      margin-bottom: 10px;
+    }
 
-@keyframes pulse{
-    0%{opacity:1;}
-    50%{opacity:0.4;}
-    100%{opacity:1;}
-}
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 25px;
+      margin-top: 10px;
+    }
 
-#ping{
-    color:lime;
-}
+    nav a {
+      color: var(--light);
+      text-decoration: none;
+      font-weight: bold;
+      transition: 0.2s;
+    }
 
-.screen{
-    position:absolute;
-    width:100%;
-    height:100%;
-    display:none;
-    flex-direction:column;
-    justify-content:center;
-    align-items:center;
-    text-align:center;
-    padding:20px;
-}
+    nav a:hover { color: var(--red); }
 
-.active{
-    display:flex;
-}
+    .hero {
+      text-align: center;
+      padding: 80px 20px;
+      background: radial-gradient(circle at center, #151515 0%, #050505 100%);
+    }
 
-button{
-    padding:12px 30px;
-    margin-top:25px;
-    background:white;
-    color:black;
-    border:none;
-    font-size:16px;
-    cursor:pointer;
-    transition:0.3s;
-}
+    .hero h1 {
+      font-size: 2.8em;
+      letter-spacing: 3px;
+      margin-bottom: 10px;
+    }
 
-button:hover{
-    background:red;
-    color:white;
-}
+    .hero p {
+      color: #bbb;
+      max-width: 600px;
+      margin: auto;
+    }
 
-video{
-    width:720px;
-    max-width:90%;
-    margin-bottom:20px;
-    border:2px solid white;
-}
+    section { padding: 60px 20px; max-width: 1000px; margin: auto; }
 
-.big{
-    font-size:40px;
-    letter-spacing:4px;
-    text-shadow:0 0 10px red;
-    color:red;
-}
+    h2 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: var(--red);
+      letter-spacing: 2px;
+    }
 
-.reward{
-    font-size:36px;
-    color:gold;
-    text-shadow:0 0 15px gold;
-}
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
 
-.watching{
-    position:absolute;
-    bottom:10px;
-    font-size:12px;
-    opacity:0.5;
-}
-</style>
+    .card {
+      background: var(--gray);
+      padding: 20px;
+      border: 1px solid #2a2a2a;
+      transition: 0.25s;
+    }
+
+    .card:hover { border-color: var(--red); transform: translateY(-5px); }
+
+    .recruit {
+      text-align: center;
+      background: #090909;
+      border-top: 2px solid var(--red);
+      border-bottom: 2px solid var(--red);
+    }
+
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 28px;
+      border: 2px solid var(--red);
+      color: white;
+      text-decoration: none;
+      transition: 0.25s;
+    }
+
+    .btn:hover { background: var(--red); }
+
+    footer {
+      text-align: center;
+      padding: 25px;
+      background: #000;
+      font-size: 0.9em;
+      color: #888;
+    }
+  </style>
 </head>
-
 <body>
+  <header>
+    <img src="logo.png" alt="Nemesis Armed Forces Logo" />
+    <h1>Nemesis Armed Forces</h1>
+    <nav>
+      <a href="#about">About</a>
+      <a href="#operations">Operations</a>
+      <a href="#recruitment">Recruitment</a>
+      <a href="#contact">Contact</a>
+    </nav>
+  </header>
 
-<header>
-    <div class="camera">
-        <div class="dot"></div>
-        <span>CAMERA ACTIVE</span>
+  <section class="hero">
+    <h1>Precision. Discipline. Superiority.</h1>
+    <p>Nemesis Armed Forces is a private military organization specializing in high‑risk security operations, strategic response, and specialized tactical deployment across hostile environments.</p>
+  </section>
+
+  <section id="about">
+    <h2>About Us</h2>
+    <p>Founded by former military specialists, Nemesis Armed Forces delivers elite operational capability where conventional forces cannot operate. Our teams are trained for rapid deployment, critical protection, and advanced tactical missions.</p>
+  </section>
+
+  <section id="operations">
+    <h2>Operational Capabilities</h2>
+    <div class="cards">
+      <div class="card"><h3>Security Operations</h3><p>High‑risk facility and convoy protection.</p></div>
+      <div class="card"><h3>Tactical Response</h3><p>Rapid intervention and crisis containment.</p></div>
+      <div class="card"><h3>Recon & Surveillance</h3><p>Intelligence gathering and monitoring.</p></div>
+      <div class="card"><h3>Training & Consulting</h3><p>Professional tactical instruction programs.</p></div>
     </div>
-    <div>JIMBO JR | PING: <span id="ping">120</span> ms</div>
-</header>
+  </section>
 
-<!-- Screen 1 -->
-<div class="screen active" id="screen1">
-    <video controls>
-        <source src="https://cdn.medal.tv/ugcc/content-social/xVr2-lwcZfb7QREhlxEgLg.mp4?auth=exp=1771266600~data=MTAwODg4NzgsajRQRDFEbEpHalZGdmhMemwsaEFYZGVseDJ0LDM3MzI5NzUyMg~hmac=d4ab5e6b9f282f2b88c6b7f410dd53daad28eaaf528c0dd58ff8f31fcc4d062a" type="video/mp4">
-    </video>
-    <h1>Killing of Jimbo</h1>
-    <button onclick="next(1)">ENTER</button>
-    <div class="watching">im watching</div>
-</div>
+  <section id="recruitment" class="recruit">
+    <h2>Join the Unit</h2>
+    <p>We recruit disciplined, capable individuals ready for demanding operational environments.</p>
+    <a class="btn" href="#contact">Apply Now</a>
+  </section>
 
-<!-- Screen 2 -->
-<div class="screen" id="screen2">
-    <h1>Murder of Ghost</h1>
-    <video controls>
-        <source src="https://cdn.medal.tv/ugcc/content-social/JlqbVYz2Y-5kmkxBW3bGvg.mp4?auth=exp=1771266600~hmac=d65f51b358625b2f8b4564cd779c0d29500b60b14b9b854a5dacf133c67cf3f4" type="video/mp4">
-    </video>
-    <button onclick="next(2)">ENTER</button>
-    <div class="watching">im watching</div>
-</div>
+  <section id="contact">
+    <h2>Contact</h2>
+    <p>Email: contact@nemesis-af.example</p>
+    <p>Secure Channel: Available upon request</p>
+  </section>
 
-<!-- Screen 3 -->
-<div class="screen" id="screen3">
-    <h1>Murder of Roughoulplayer Mobile</h1>
-    <video controls>
-        <source src="https://cdn.medal.tv/ugcc/content-social/fXlhEWNx2_rSaGKpg2UTow.mp4?auth=exp=1771266600~hmac=b19f9e816882c09d5d4f2b665b3486c1171ce2c01e180642dd8de783357201bb" type="video/mp4">
-    </video>
-    <button onclick="next(3)">ENTER</button>
-    <div class="watching">im watching</div>
-</div>
-
-<!-- Screen 4 -->
-<div class="screen" id="screen4">
-    <h2>NAF Personnel File</h2>
-    <p>[MGSGT] Dox "Warden 1-2"</p>
-    <p>[NAF]</p>
-    <p>[B-SGM] Dox [REDACTED]</p>
-    <p>NAF JOIN DATE: Dec 26, 2025</p>
-    <button onclick="next(4)">ENTER</button>
-    <div class="watching">im watching</div>
-</div>
-
-<!-- Screen 5 -->
-<div class="screen" id="screen5">
-    <h2>Charges</h2>
-    <p>Treason</p>
-    <p>Arson</p>
-    <p>Conspiracy</p>
-    <p>War Crimes</p>
-    <button onclick="next(5)">ENTER</button>
-    <div class="watching">im watching</div>
-</div>
-
-<!-- Screen 6 -->
-<div class="screen" id="screen6">
-    <h2>Dox - Last Location</h2>
-    <div class="big">██████ REDACTED ██████</div>
-    <button onclick="next(6)">ENTER</button>
-    <div class="watching">im watching</div>
-</div>
-
-<!-- Screen 7 -->
-<div class="screen" id="screen7">
-    <div class="reward">
-        REWARD FOR FINDING ALL THE CEVAP IN DOX'S WALLET
-    </div>
-    <div class="watching">im watching</div>
-</div>
-
-<script>
-function next(current){
-    document.getElementById("screen"+current).classList.remove("active");
-    document.getElementById("screen"+(current+1)).classList.add("active");
-}
-
-function updatePing(){
-    let base = 180;
-    let variation = Math.floor(Math.random()*120)-60;
-    let ping = base + variation;
-
-    if(ping < 120) ping = 120;
-    if(ping > 240) ping = 240;
-
-    document.getElementById("ping").innerText = ping;
-}
-setInterval(updatePing, 1000);
-</script>
-
+  <footer>
+    © 2026 Nemesis Armed Forces — All Rights Reserved
+  </footer>
 </body>
 </html>
