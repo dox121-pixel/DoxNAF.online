@@ -1,4 +1,4 @@
-// SMOOTH SCROLL (already handled in CSS but safe fallback)
+// SMOOTH SCROLL (CSS handles this, but keep for older browsers)
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
   anchor.addEventListener('click', function (e) {
     const target = document.querySelector(this.getAttribute('href'));
@@ -44,7 +44,7 @@ function runCounter() {
   }
 }
 
-window.addEventListener('scroll', runCounter);
+window.addEventListener('scroll', runCounter, { passive: true });
 window.addEventListener('load', runCounter);
 
 
@@ -61,65 +61,61 @@ document.querySelectorAll('.reveal').forEach(el => {
   observer.observe(el);
 });
 
-// ACTIVE NAV HIGHLIGHT
+// CONSOLIDATED SCROLL HANDLER (Active Nav + Header Shrink)
 const sections = document.querySelectorAll("section");
 const navLinks = document.querySelectorAll("nav a");
+const header = document.querySelector("header");
 
-window.addEventListener("scroll", () => {
+let scrollY = 0;
+let ticking = false;
 
+function updateOnScroll() {
+  const currentScrollY = scrollY;
+
+  // Update header shrink state
+  if (currentScrollY > 60) {
+    header.classList.add("shrink");
+  } else {
+    header.classList.remove("shrink");
+  }
+
+  // Update active nav link
   let current = "";
 
   // TOP OF PAGE FIX
-  if (window.scrollY < 100) {
-    current = sections[0].getAttribute("id");
+  if (currentScrollY < 100) {
+    current = sections[0]?.getAttribute("id") || "";
   } else {
-
     sections.forEach(section => {
       const rect = section.getBoundingClientRect();
-
       if (rect.top <= 150 && rect.bottom >= 150) {
         current = section.getAttribute("id");
       }
     });
 
     // BOTTOM OF PAGE FIX
-    if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 5) {
+    if ((window.innerHeight + currentScrollY) >= document.body.offsetHeight - 5) {
       const lastSection = sections[sections.length - 1];
-      current = lastSection.getAttribute("id");
+      current = lastSection?.getAttribute("id") || "";
     }
   }
 
   navLinks.forEach(link => {
     link.classList.remove("active");
-
     const href = link.getAttribute("href");
-
-    if (href.startsWith("#") && href.includes(current)) {
+    if (href && href.startsWith("#") && href.includes(current)) {
       link.classList.add("active");
     }
   });
-});
 
-// SHRINKING HEADER (NO RAPID TOGGLING)
-const header = document.querySelector("header");
-let last = 0;
-let ticking = false;
+  ticking = false;
+}
 
 window.addEventListener("scroll", () => {
-  last = window.scrollY;
+  scrollY = window.scrollY;
 
   if (!ticking) {
-    requestAnimationFrame(() => {
-
-      if (last > 60) {
-        header.classList.add("shrink");
-      } else {
-        header.classList.remove("shrink");
-      }
-
-      ticking = false;
-    });
-
+    requestAnimationFrame(updateOnScroll);
     ticking = true;
   }
-});
+}, { passive: true });
