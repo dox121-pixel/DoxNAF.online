@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Jimbo Jr</title>
+
+<style>
+body{
+    margin:0;
+    background:black;
+    color:white;
+    font-family:monospace;
+    overflow:hidden;
+}
+
+header{
+    position:fixed;
+    top:0;
+    width:100%;
+    padding:10px 20px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:rgba(0,0,0,0.9);
+    border-bottom:1px solid red;
+    z-index:999;
+}
+
+.camera{
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+.dot{
+    width:10px;
+    height:10px;
+    background:lime;
+    border-radius:50%;
+    box-shadow:0 0 10px lime;
+    animation:pulse 1.5s infinite;
+}
+
+@keyframes pulse{
+    0%{opacity:1;}
+    50%{opacity:0.4;}
+    100%{opacity:1;}
+}
+
+#ping{
+    color:lime;
+}
+
+.screen{
+    position:absolute;
+    width:100%;
+    height:100%;
+    display:none;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+    padding:20px;
+}
+
+.active{
+    display:flex;
+}
+
+button{
+    padding:12px 30px;
+    margin-top:25px;
+    background:white;
+    color:black;
+    border:none;
+    font-size:16px;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+button:hover{
+    background:red;
+    color:white;
+}
+
+video{
+    width:720px;
+    max-width:90%;
+    margin-bottom:20px;
+    border:2px solid white;
+}
+
+.big{
+    font-size:40px;
+    letter-spacing:4px;
+    text-shadow:0 0 10px red;
+    color:red;
+}
+
+.reward{
+    font-size:36px;
+    color:gold;
+    text-shadow:0 0 15px gold;
+}
+
+.watching{
+    position:absolute;
+    bottom:10px;
+    font-size:12px;
+    opacity:0.5;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <div class="camera">
+        <div class="dot"></div>
+        <span>CAMERA ACTIVE</span>
+    </div>
+    <div>JIMBO JR | PING: <span id="ping">120</span> ms</div>
+</header>
+
+<!-- Screen 1 -->
+<div class="screen active" id="screen1">
+    <video controls>
+        <source src="https://cdn.medal.tv/ugcc/content-social/xVr2-lwcZfb7QREhlxEgLg.mp4?auth=exp=1771266600~data=MTAwODg4NzgsajRQRDFEbEpHalZGdmhMemwsaEFYZGVseDJ0LDM3MzI5NzUyMg~hmac=d4ab5e6b9f282f2b88c6b7f410dd53daad28eaaf528c0dd58ff8f31fcc4d062a" type="video/mp4">
+    </video>
+    <h1>Killing of Jimbo</h1>
+    <button onclick="next(1)">ENTER</button>
+    <div class="watching">im watching</div>
+</div>
+
+<!-- Screen 2 -->
+<div class="screen" id="screen2">
+    <h1>Murder of Ghost</h1>
+    <video controls>
+        <source src="https://cdn.medal.tv/ugcc/content-social/JlqbVYz2Y-5kmkxBW3bGvg.mp4?auth=exp=1771266600~hmac=d65f51b358625b2f8b4564cd779c0d29500b60b14b9b854a5dacf133c67cf3f4" type="video/mp4">
+    </video>
+    <button onclick="next(2)">ENTER</button>
+    <div class="watching">im watching</div>
+</div>
+
+<!-- Screen 3 -->
+<div class="screen" id="screen3">
+    <h1>Murder of Roughoulplayer Mobile</h1>
+    <video controls>
+        <source src="https://cdn.medal.tv/ugcc/content-social/fXlhEWNx2_rSaGKpg2UTow.mp4?auth=exp=1771266600~hmac=b19f9e816882c09d5d4f2b665b3486c1171ce2c01e180642dd8de783357201bb" type="video/mp4">
+    </video>
+    <button onclick="next(3)">ENTER</button>
+    <div class="watching">im watching</div>
+</div>
+
+<!-- Screen 4 -->
+<div class="screen" id="screen4">
+    <h2>NAF Personnel File</h2>
+    <p>[MGSGT] Dox "Warden 1-2"</p>
+    <p>[NAF]</p>
+    <p>[B-SGM] Dox [REDACTED]</p>
+    <p>NAF JOIN DATE: Dec 26, 2025</p>
+    <button onclick="next(4)">ENTER</button>
+    <div class="watching">im watching</div>
+</div>
+
+<!-- Screen 5 -->
+<div class="screen" id="screen5">
+    <h2>Charges</h2>
+    <p>Treason</p>
+    <p>Arson</p>
+    <p>Conspiracy</p>
+    <p>War Crimes</p>
+    <button onclick="next(5)">ENTER</button>
+    <div class="watching">im watching</div>
+</div>
+
+<!-- Screen 6 -->
+<div class="screen" id="screen6">
+    <h2>Dox - Last Location</h2>
+    <div class="big">██████ REDACTED ██████</div>
+    <button onclick="next(6)">ENTER</button>
+    <div class="watching">im watching</div>
+</div>
+
+<!-- Screen 7 -->
+<div class="screen" id="screen7">
+    <div class="reward">
+        REWARD FOR FINDING ALL THE CEVAP IN DOX'S WALLET
+    </div>
+    <div class="watching">im watching</div>
+</div>
+
+<script>
+function next(current){
+    document.getElementById("screen"+current).classList.remove("active");
+    document.getElementById("screen"+(current+1)).classList.add("active");
+}
+
+function updatePing(){
+    let base = 180;
+    let variation = Math.floor(Math.random()*120)-60;
+    let ping = base + variation;
+
+    if(ping < 120) ping = 120;
+    if(ping > 240) ping = 240;
+
+    document.getElementById("ping").innerText = ping;
+}
+setInterval(updatePing, 1000);
+</script>
+
+</body>
+</html>
