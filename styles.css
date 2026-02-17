@@ -285,19 +285,20 @@ footer {
     height: 70px;
   }
 
-  /* Logo positioning for mobile */
+  /* Logo positioning for mobile - centered with reduced size */
   header img {
     width: 80px;
     top: 35%;
     transform: translate(-50%,-50%) scale(.75);
   }
 
+  /* Shrunk logo - positioned left with smaller scale */
   header.shrink img {
     width: 50px;
     transform: translate(0,-50%) scale(.55);
   }
 
-  /* Navigation - stack vertically or wrap on mobile */
+  /* Navigation - wrap on mobile for smaller screens */
   nav {
     top: calc(35% + 45px);
     gap: 12px;
@@ -312,6 +313,7 @@ footer {
     padding: 4px 8px;
   }
 
+  /* Shrunk nav - positioned right with reduced scale */
   header.shrink nav {
     gap: 8px;
     padding: 0 8px;
@@ -406,7 +408,6 @@ footer {
 
   nav {
     gap: 8px;
-    font-size: 0.8rem;
   }
 
   nav a {
