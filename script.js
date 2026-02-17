@@ -69,18 +69,23 @@ const header = document.querySelector("header");
 let scrollY = 0;
 let ticking = false;
 let lastScrollY = 0;
+let isResizing = false;
+let resizeTimer = null;
 
 function updateOnScroll() {
   const currentScrollY = scrollY;
 
-  // Update header shrink state with hysteresis to prevent flicker
-  const scrollingDown = currentScrollY > lastScrollY;
-  const isShrunk = header.classList.contains("shrink");
-  
-  if (scrollingDown && currentScrollY > 70 && !isShrunk) {
-    header.classList.add("shrink");
-  } else if (!scrollingDown && currentScrollY < 50 && isShrunk) {
-    header.classList.remove("shrink");
+  // Skip header state changes during active resize to prevent jitter
+  if (!isResizing) {
+    // Update header shrink state with hysteresis to prevent flicker
+    const scrollingDown = currentScrollY > lastScrollY;
+    const isShrunk = header.classList.contains("shrink");
+    
+    if (scrollingDown && currentScrollY > 70 && !isShrunk) {
+      header.classList.add("shrink");
+    } else if (!scrollingDown && currentScrollY < 50 && isShrunk) {
+      header.classList.remove("shrink");
+    }
   }
   
   lastScrollY = currentScrollY;
@@ -128,4 +133,24 @@ window.addEventListener("scroll", () => {
     requestAnimationFrame(updateOnScroll);
     ticking = true;
   }
+}, { passive: true });
+
+// Handle window resize to prevent header jitter
+window.addEventListener("resize", () => {
+  // Set resizing flag to pause header state changes
+  isResizing = true;
+  
+  // Clear existing timer
+  clearTimeout(resizeTimer);
+  
+  // Debounce: wait for resize to finish before allowing header updates
+  resizeTimer = setTimeout(() => {
+    isResizing = false;
+    // Trigger one final update after resize completes
+    if (!ticking) {
+      scrollY = window.scrollY;
+      requestAnimationFrame(updateOnScroll);
+      ticking = true;
+    }
+  }, 150);
 }, { passive: true });
