@@ -303,7 +303,7 @@ footer {
   /* Navigation - wrap on mobile for smaller screens */
   nav {
     top: calc(35% + 45px);
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
     justify-content: center;
     padding: 0 10px;
@@ -313,6 +313,8 @@ footer {
   nav a {
     font-size: 0.85rem;
     padding: 4px 8px;
+    flex: 0 0 calc(33.333% - 7px);
+    text-align: center;
   }
 
   /* Shrunk nav - keep centered on mobile instead of right positioning */
@@ -323,6 +325,10 @@ footer {
     padding: 0 8px;
     transform: translate(-50%,-50%) scale(.85);
     max-width: 100%;
+  }
+
+  header.shrink nav a {
+    flex: 0 0 calc(33.333% - 5.5px);
   }
 
   /* Hero section */
