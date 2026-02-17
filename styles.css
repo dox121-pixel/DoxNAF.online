@@ -270,3 +270,179 @@ footer {
   from { opacity:0; transform:translateY(20px); }
   to { opacity:1; transform:translateY(0); }
 }
+
+/* ================================= */
+/* MOBILE RESPONSIVE STYLES         */
+/* ================================= */
+
+@media (max-width: 768px) {
+  /* Header adjustments for mobile */
+  header {
+    height: 120px;
+  }
+
+  header.shrink {
+    height: 70px;
+  }
+
+  /* Logo positioning for mobile */
+  header img {
+    width: 80px;
+    top: 35%;
+    transform: translate(-50%,-50%) scale(.75);
+  }
+
+  header.shrink img {
+    width: 50px;
+    transform: translate(0,-50%) scale(.55);
+  }
+
+  /* Navigation - stack vertically or wrap on mobile */
+  nav {
+    top: calc(35% + 45px);
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 0 10px;
+    max-width: 100%;
+  }
+
+  nav a {
+    font-size: 0.85rem;
+    padding: 4px 8px;
+  }
+
+  header.shrink nav {
+    gap: 8px;
+    padding: 0 8px;
+    transform: translate(-100%,-50%) scale(.85);
+  }
+
+  /* Hero section */
+  .hero {
+    padding: 60px 15px;
+  }
+
+  .hero h1 {
+    font-size: 1.8em;
+    letter-spacing: 2px;
+  }
+
+  .hero p {
+    font-size: 0.95rem;
+    padding: 0 10px;
+  }
+
+  /* Section padding */
+  section {
+    padding: 50px 15px;
+    scroll-margin-top: 100px;
+  }
+
+  /* Headings */
+  h2 {
+    font-size: 1.5em;
+    margin-bottom: 30px;
+  }
+
+  /* Cards grid - single column on small mobile */
+  .cards {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .card {
+    padding: 20px 15px;
+  }
+
+  .card h3 {
+    font-size: 1.1rem;
+  }
+
+  .card p {
+    font-size: 0.9rem;
+  }
+
+  /* Stats section */
+  .counter-container {
+    gap: 40px;
+    flex-direction: column;
+  }
+
+  .counter-box {
+    min-width: 120px;
+  }
+
+  .counter {
+    font-size: 2.2em;
+  }
+
+  .counter-box p {
+    font-size: 0.95rem;
+  }
+
+  /* Button */
+  .btn {
+    padding: 10px 24px;
+    font-size: 0.95rem;
+  }
+
+  /* Footer */
+  footer {
+    padding: 20px 15px;
+    font-size: 0.85em;
+  }
+}
+
+/* Extra small devices (phones in portrait, less than 480px) */
+@media (max-width: 480px) {
+  header {
+    height: 110px;
+  }
+
+  header img {
+    width: 70px;
+  }
+
+  nav {
+    gap: 8px;
+    font-size: 0.8rem;
+  }
+
+  nav a {
+    font-size: 0.75rem;
+    padding: 3px 6px;
+  }
+
+  .hero h1 {
+    font-size: 1.5em;
+    letter-spacing: 1px;
+  }
+
+  .hero p {
+    font-size: 0.9rem;
+  }
+
+  h2 {
+    font-size: 1.3em;
+  }
+
+  .counter {
+    font-size: 2em;
+  }
+}
+
+/* Tablet and medium screens */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  nav {
+    gap: 18px;
+  }
+
+  .hero h1 {
+    font-size: 2.5em;
+  }
+}
