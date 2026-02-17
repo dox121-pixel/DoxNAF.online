@@ -68,16 +68,22 @@ const header = document.querySelector("header");
 
 let scrollY = 0;
 let ticking = false;
+let lastScrollY = 0;
 
 function updateOnScroll() {
   const currentScrollY = scrollY;
 
-  // Update header shrink state
-  if (currentScrollY > 60) {
+  // Update header shrink state with hysteresis to prevent flicker
+  const scrollingDown = currentScrollY > lastScrollY;
+  const isShrunk = header.classList.contains("shrink");
+  
+  if (scrollingDown && currentScrollY > 70 && !isShrunk) {
     header.classList.add("shrink");
-  } else {
+  } else if (!scrollingDown && currentScrollY < 50 && isShrunk) {
     header.classList.remove("shrink");
   }
+  
+  lastScrollY = currentScrollY;
 
   // Update active nav link
   let current = "";
