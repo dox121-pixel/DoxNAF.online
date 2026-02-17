@@ -141,16 +141,14 @@ window.addEventListener("resize", () => {
   isResizing = true;
   
   // Clear existing timer
-  if (resizeTimer) {
-    clearTimeout(resizeTimer);
-  }
+  clearTimeout(resizeTimer);
   
   // Debounce: wait for resize to finish before allowing header updates
   resizeTimer = setTimeout(() => {
     isResizing = false;
     // Trigger one final update after resize completes
-    scrollY = window.scrollY;
     if (!ticking) {
+      scrollY = window.scrollY;
       requestAnimationFrame(updateOnScroll);
       ticking = true;
     }
