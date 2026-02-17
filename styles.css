@@ -282,7 +282,7 @@ footer {
   }
 
   header.shrink {
-    height: 70px;
+    height: 100px;
   }
 
   /* Logo positioning for mobile - centered with reduced size */
@@ -292,32 +292,38 @@ footer {
     transform: translate(-50%,-50%) scale(.75);
   }
 
-  /* Shrunk logo - positioned left with smaller scale */
+  /* Shrunk logo - keep centered on mobile */
   header.shrink img {
-    width: 50px;
-    transform: translate(0,-50%) scale(.55);
+    width: 60px;
+    left: 50%;
+    top: 30%;
+    transform: translate(-50%,-50%) scale(.65);
   }
 
-  /* Navigation - wrap on mobile for smaller screens */
+  /* Navigation - single row with 6 columns on mobile */
   nav {
     top: calc(35% + 45px);
-    gap: 12px;
-    flex-wrap: wrap;
-    justify-content: center;
-    padding: 0 10px;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    padding: 0 8px;
     max-width: 100%;
   }
 
   nav a {
-    font-size: 0.85rem;
-    padding: 4px 8px;
+    font-size: 0.7rem;
+    padding: 3px 4px;
+    text-align: center;
   }
 
-  /* Shrunk nav - positioned right with reduced scale */
+  /* Shrunk nav - single row with smaller buttons on mobile */
   header.shrink nav {
-    gap: 8px;
-    padding: 0 8px;
-    transform: translate(-100%,-50%) scale(.85);
+    left: 50%;
+    top: calc(50% + 25px);
+    gap: 5px;
+    padding: 0 6px;
+    transform: translate(-50%,-50%) scale(.85);
+    max-width: 100%;
   }
 
   /* Hero section */
