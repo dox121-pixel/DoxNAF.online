@@ -68,10 +68,15 @@ const header = document.querySelector("header");
 
 let scrollY = 0;
 let ticking = false;
-let lastScrollY = 0;
+let lastScrollY = -1; // Sentinel value to detect first scroll event
 
 function updateOnScroll() {
   const currentScrollY = scrollY;
+
+  // Initialize lastScrollY on first scroll event
+  if (lastScrollY === -1) {
+    lastScrollY = currentScrollY;
+  }
 
   // Update header shrink state with hysteresis to prevent flicker
   const scrollingDown = currentScrollY > lastScrollY;
