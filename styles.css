@@ -439,6 +439,43 @@ footer {
   }
 }
 
+/* Very small devices (iPhone 12 mini and similar, 375px or less) */
+@media (max-width: 375px) {
+  header {
+    height: 105px;
+  }
+
+  header img {
+    width: 65px;
+  }
+
+  /* Even smaller nav buttons for very small screens */
+  nav {
+    gap: 4px;
+    padding: 0 4px;
+  }
+
+  nav a {
+    font-size: 0.65rem;
+    padding: 2px 3px;
+  }
+
+  /* Shrunk nav - adjust for very small screens */
+  header.shrink nav {
+    gap: 3px;
+    padding: 0 4px;
+    transform: translate(-50%,-50%) scale(0.80);
+  }
+
+  header.shrink {
+    height: 95px;
+  }
+
+  .hero h1 {
+    font-size: 1.4em;
+  }
+}
+
 /* Tablet and medium screens */
 @media (min-width: 769px) and (max-width: 1024px) {
   .cards {
