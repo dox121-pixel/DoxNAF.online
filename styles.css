@@ -300,28 +300,28 @@ footer {
     transform: translate(-50%,-50%) scale(.65);
   }
 
-  /* Navigation - use grid for perfect alignment on mobile */
+  /* Navigation - single row with 6 columns on mobile */
   nav {
     top: calc(35% + 45px);
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    padding: 0 10px;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    padding: 0 8px;
     max-width: 100%;
   }
 
   nav a {
-    font-size: 0.85rem;
-    padding: 4px 8px;
+    font-size: 0.7rem;
+    padding: 3px 4px;
     text-align: center;
   }
 
-  /* Shrunk nav - keep centered on mobile with grid layout */
+  /* Shrunk nav - single row with smaller buttons on mobile */
   header.shrink nav {
     left: 50%;
     top: calc(50% + 25px);
-    gap: 8px;
-    padding: 0 8px;
+    gap: 5px;
+    padding: 0 6px;
     transform: translate(-50%,-50%) scale(.85);
     max-width: 100%;
   }
