@@ -464,7 +464,7 @@ footer {
   header.shrink nav {
     gap: 3px;
     padding: 0 4px;
-    transform: translate(-50%,-50%) scale(.80);
+    transform: translate(-50%,-50%) scale(0.80);
   }
 
   header.shrink {
