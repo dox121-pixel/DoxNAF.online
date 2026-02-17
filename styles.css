@@ -282,7 +282,7 @@ footer {
   }
 
   header.shrink {
-    height: 70px;
+    height: 100px;
   }
 
   /* Logo positioning for mobile - centered with reduced size */
@@ -292,10 +292,12 @@ footer {
     transform: translate(-50%,-50%) scale(.75);
   }
 
-  /* Shrunk logo - positioned left with smaller scale */
+  /* Shrunk logo - keep centered on mobile */
   header.shrink img {
-    width: 50px;
-    transform: translate(0,-50%) scale(.55);
+    width: 60px;
+    left: 50%;
+    top: 30%;
+    transform: translate(-50%,-50%) scale(.65);
   }
 
   /* Navigation - wrap on mobile for smaller screens */
@@ -313,11 +315,14 @@ footer {
     padding: 4px 8px;
   }
 
-  /* Shrunk nav - positioned right with reduced scale */
+  /* Shrunk nav - keep centered on mobile instead of right positioning */
   header.shrink nav {
+    left: 50%;
+    top: calc(50% + 25px);
     gap: 8px;
     padding: 0 8px;
-    transform: translate(-100%,-50%) scale(.85);
+    transform: translate(-50%,-50%) scale(.85);
+    max-width: 100%;
   }
 
   /* Hero section */
