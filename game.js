@@ -420,7 +420,7 @@ function spawnParticles(particles, x, y, color, count) {
 // ── Online mode helpers ───────────────────────
 const WS_SERVER = (() => {
   if (typeof location === 'undefined' || location.protocol === 'file:') {
-    return 'ws://localhost:3001';
+    return 'wss://doxnaf-online.onrender.com';
   }
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${proto}//${location.host}`;
