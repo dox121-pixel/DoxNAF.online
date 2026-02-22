@@ -388,10 +388,8 @@ function drawSnake(ctx, state) {
   const eyeR    = hr * 0.32;
   const eyeDist = hr * 0.55;
   const ang     = state.snakeAngle || 0;
-  const perpL   = ang - Math.PI / 2;
-  const perpR   = ang + Math.PI / 2;
   ctx.fillStyle = '#0a0a14';
-  [[perpL], [perpR]].forEach(([pa]) => {
+  [ang - Math.PI / 2, ang + Math.PI / 2].forEach(pa => {
     ctx.beginPath();
     ctx.arc(
       hx + Math.cos(pa) * eyeDist,
@@ -808,7 +806,7 @@ class SnakeRogue {
     };
 
     // ── Move head forward ─────────────────────────
-    const speed = dt / state.baseInterval;   // cells this frame
+    const speed = dt / state.baseInterval;   // fraction of 1 grid-cell to move this frame
     const head = state.snake[0];
     let nx = head.x + Math.cos(state.snakeAngle) * speed;
     let ny = head.y + Math.sin(state.snakeAngle) * speed;
@@ -894,7 +892,7 @@ class SnakeRogue {
         state.apples.splice(i, 1);
         state.score += state.scoreMult;
         state.applesEaten++;
-        // Convert grid-cells growth to segment count
+        // Convert grid-cell growth to segment count (SEG_SPACING cells per segment)
         state.growBuffer += Math.max(1, Math.round(state.growPerApple / SEG_SPACING));
         spawnParticles(this.particles, Math.round(nx), Math.round(ny), '#e84', 12);
 
