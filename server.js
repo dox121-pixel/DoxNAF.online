@@ -10,9 +10,9 @@ const fs   = require('fs');
 const path = require('path');
 const WebSocket = require('ws');
 
-const COLS    = 30;
-const ROWS    = 30;
-const TICK_MS = 140;
+const COLS    = 40;
+const ROWS    = 40;
+const TICK_MS = 120;
 
 // ── Static file serving ───────────────────────
 const MIME = {
@@ -58,6 +58,19 @@ function genCode() {
   return code;
 }
 
+function randomTeleportPerk(snakes, apples, teleportPerks) {
+  const occ = new Set();
+  for (const sn of snakes) for (const c of sn.body) occ.add(`${c.x},${c.y}`);
+  for (const a of apples)                             occ.add(`${a.x},${a.y}`);
+  for (const tp of teleportPerks)                     occ.add(`${tp.x},${tp.y}`);
+  let cell, tries = 0;
+  do {
+    cell = { x: randInt(COLS), y: randInt(ROWS) };
+    tries++;
+  } while (occ.has(`${cell.x},${cell.y}`) && tries < 400);
+  return cell;
+}
+
 function randomApple(snakes, apples) {
   const occ = new Set();
   for (const sn of snakes) for (const c of sn.body) occ.add(`${c.x},${c.y}`);
@@ -73,25 +86,28 @@ function randomApple(snakes, apples) {
 function createGameState() {
   const snakes = [
     {
-      body:    [{ x: 7, y: 15 }, { x: 6, y: 15 }, { x: 5, y: 15 }],
+      body:    [{ x: 10, y: 20 }, { x: 9, y: 20 }, { x: 8, y: 20 }],
       dir:     { x: 1, y: 0 },
       nextDir: { x: 1, y: 0 },
       alive:   true,
       score:   0,
+      teleportCharges: 0,
     },
     {
-      body:    [{ x: 22, y: 15 }, { x: 23, y: 15 }, { x: 24, y: 15 }],
+      body:    [{ x: 30, y: 20 }, { x: 31, y: 20 }, { x: 32, y: 20 }],
       dir:     { x: -1, y: 0 },
       nextDir: { x: -1, y: 0 },
       alive:   true,
       score:   0,
+      teleportCharges: 0,
     },
   ];
   const apples = [
     randomApple(snakes, []),
     randomApple(snakes, []),
   ];
-  return { snakes, apples, tick: 0 };
+  const teleportPerks = [randomTeleportPerk(snakes, apples, [])];
+  return { snakes, apples, teleportPerks, tick: 0 };
 }
 
 // ── Game tick (authoritative server-side logic) ──
@@ -161,6 +177,19 @@ function tickGame(room) {
       // Grow: don't pop tail this tick
     } else {
       sn.body.pop();
+    }
+  }
+
+  // 6. Teleport perk collection
+  for (let p = 0; p < 2; p++) {
+    if (!gs.snakes[p].alive) continue;
+    const h = gs.snakes[p].body[0];
+    for (let i = gs.teleportPerks.length - 1; i >= 0; i--) {
+      if (gs.teleportPerks[i].x === h.x && gs.teleportPerks[i].y === h.y) {
+        gs.teleportPerks.splice(i, 1);
+        gs.snakes[p].teleportCharges++;
+        gs.teleportPerks.push(randomTeleportPerk(gs.snakes, gs.apples, gs.teleportPerks));
+      }
     }
   }
 }
@@ -275,6 +304,19 @@ wss.on('connection', ws => {
             Math.abs(d.x) + Math.abs(d.y) === 1) {
           sn.nextDir = { x: d.x, y: d.y };
         }
+        break;
+      }
+
+      case 'teleport': {
+        if (!playerRoom || playerIdx < 0 || !playerRoom.gameState) return;
+        const sn = playerRoom.gameState.snakes[playerIdx];
+        if (!sn || !sn.alive || sn.teleportCharges <= 0) return;
+        sn.teleportCharges--;
+        const DIST = 5;
+        sn.body = sn.body.map(seg => ({
+          x: (seg.x + sn.dir.x * DIST + COLS * 2) % COLS,
+          y: (seg.y + sn.dir.y * DIST + ROWS * 2) % ROWS,
+        }));
         break;
       }
 
