@@ -516,6 +516,14 @@ class SnakeRogue {
     this.prevOnlineState = null; // Previous game state for interpolation
     this.lastOnlineTick  = 0;   // Timestamp of last received tick
 
+    // ── Lore / horror state ──────────────────
+    this.gameStartTime       = 0;
+    this.loreNextFlickerTime = 0;
+    this.loreFlickerEndTime  = 0;
+    this.loreEventActive     = false;
+    this.loreEventStart      = 0;
+    this._audioCtx           = null;
+
     this._keys = {};
     this._setupInput();
     this._loop = this._gameLoop.bind(this);
@@ -625,6 +633,13 @@ class SnakeRogue {
     this.lastMoveTime = 0;
     this.flashTimer = 0;
 
+    const now = performance.now();
+    this.gameStartTime       = now;
+    this.loreNextFlickerTime = now + 10000 + Math.random() * 15000;
+    this.loreFlickerEndTime  = 0;
+    this.loreEventActive     = false;
+    this.loreEventStart      = 0;
+
     this.state = {
       snake: [
         { x: 10, y: 15 },
@@ -693,6 +708,7 @@ class SnakeRogue {
       ny = (ny + ROWS) % ROWS;
     } else {
       if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) {
+        if (this._checkLoreDamage(timestamp)) return;
         this._die('wall');
         return;
       }
@@ -701,6 +717,7 @@ class SnakeRogue {
     // Self collision
     const hitSelf = state.snake.some((s, i) => i > 0 && s.x === nx && s.y === ny);
     if (hitSelf) {
+      if (this._checkLoreDamage(timestamp)) return;
       this._die('self');
       return;
     }
@@ -799,8 +816,10 @@ class SnakeRogue {
           spawnParticles(this.particles, nx, ny, '#4af', 16);
           state.enemies.splice(i, 1);
           this.flashTimer = 20;
+          if (this._checkLoreDamage(timestamp)) return;
           continue;
         }
+        if (this._checkLoreDamage(timestamp)) return;
         this._die('enemy');
         return;
       }
@@ -817,6 +836,90 @@ class SnakeRogue {
     }
 
     this._updateHUD();
+  }
+
+  _checkLoreDamage(timestamp) {
+    if (this.loreEventActive) return false;
+    if (timestamp - this.gameStartTime < 90000) return false;
+    this._triggerLoreEvent(timestamp);
+    return true;
+  }
+
+  _triggerLoreEvent(timestamp) {
+    this.loreEventActive = true;
+    this.loreEventStart  = timestamp;
+    this.phase           = 'lore_event';
+    this._playScreech();
+  }
+
+  _playScreech() {
+    try {
+      if (!this._audioCtx) {
+        this._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const audioCtx = this._audioCtx;
+      const osc1  = audioCtx.createOscillator();
+      const osc2  = audioCtx.createOscillator();
+      const gain  = audioCtx.createGain();
+      const now   = audioCtx.currentTime;
+
+      osc1.type = 'sawtooth';
+      osc2.type = 'square';
+
+      osc1.frequency.setValueAtTime(800,  now);
+      osc1.frequency.exponentialRampToValueAtTime(3200, now + 0.4);
+      osc1.frequency.exponentialRampToValueAtTime(600,  now + 1.0);
+      osc1.frequency.exponentialRampToValueAtTime(2800, now + 1.8);
+      osc1.frequency.exponentialRampToValueAtTime(400,  now + 2.6);
+      osc1.frequency.exponentialRampToValueAtTime(2000, now + 3.0);
+
+      osc2.frequency.setValueAtTime(830,  now);
+      osc2.frequency.exponentialRampToValueAtTime(3300, now + 0.4);
+      osc2.frequency.exponentialRampToValueAtTime(630,  now + 1.0);
+      osc2.frequency.exponentialRampToValueAtTime(2900, now + 1.8);
+      osc2.frequency.exponentialRampToValueAtTime(430,  now + 2.6);
+      osc2.frequency.exponentialRampToValueAtTime(2100, now + 3.0);
+
+      gain.gain.setValueAtTime(0.55, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 3.0);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc1.start(now); osc1.stop(now + 3.0);
+      osc2.start(now); osc2.stop(now + 3.0);
+    } catch (_e) { /* audio unavailable */ }
+  }
+
+  _showLoreEndOverlay() {
+    this.phase           = 'start';
+    this.state           = null;
+    this.loreEventActive = false;
+
+    const el = document.getElementById('overlay');
+    el.className = 'start';
+    el.style.display = '';
+    el.innerHTML = `
+      <h1>VIPER.exe</h1>
+      <div class="info">
+        A roguelike snake<br>
+        Eat apples → choose upgrades → survive<br>
+        Enemies grow stronger with each apple
+      </div>
+      <div class="controls">
+        WASD / Arrow Keys to move<br>
+        Enemies appear at score 3+<br>
+        Upgrades stack infinitely
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+        <button class="btn" id="start-btn">SOLO [Enter]</button>
+        <button class="btn btn-online" id="online-btn">⚡ ONLINE</button>
+      </div>
+      <button class="btn btn-lore" id="lore-red-btn" disabled>???</button>
+    `;
+    document.getElementById('start-btn').addEventListener('click', () => this._startGame());
+    document.getElementById('online-btn').addEventListener('click', () => this._startOnlineMode());
   }
 
   _die(reason) {
@@ -896,6 +999,29 @@ class SnakeRogue {
       return;
     }
 
+    // ── Lore event phase — aggressive flicker ─
+    if (this.phase === 'lore_event') {
+      drawGrid(ctx);
+      if (this.state) {
+        drawApples(ctx, this.state, this.tick);
+        drawSnake(ctx, this.state, 1);
+        drawEnemies(ctx, this.state, this.tick);
+        drawParticles(ctx, this.particles);
+      }
+      const elapsed = timestamp - this.loreEventStart;
+      if (elapsed >= 3000) {
+        this._showLoreEndOverlay();
+        return;
+      }
+      if (Math.floor(elapsed / 50) % 2 === 0) {
+        ctx.globalCompositeOperation = 'difference';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      return;
+    }
+
     drawGrid(ctx);
 
     if (!state) return;
@@ -916,6 +1042,20 @@ class SnakeRogue {
     }
     this.particles = this.particles.filter(p => p.life > 0);
     drawParticles(ctx, this.particles);
+
+    // ── Regular lore flicker (inverted colours) ─
+    if (this.phase === 'playing') {
+      if (timestamp >= this.loreNextFlickerTime) {
+        this.loreFlickerEndTime  = timestamp + 150 + Math.random() * 200;
+        this.loreNextFlickerTime = timestamp + 10000 + Math.random() * 15000;
+      }
+      if (this.loreFlickerEndTime > 0 && timestamp <= this.loreFlickerEndTime) {
+        ctx.globalCompositeOperation = 'difference';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
   }
 
   _gameLoop(timestamp) {
