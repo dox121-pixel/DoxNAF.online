@@ -32,24 +32,6 @@ const UPGRADES = [
     apply(state) { state.ghost = (state.ghost || 0) + 1; }
   },
   {
-    id: 'short_tail',
-    name: 'TRIM',
-    icon: '✂️',
-    desc: 'Shrinks your tail by 3. Fewer self-collisions.',
-    apply(state) {
-      const cut = Math.min(3, state.snake.length - 1);
-      state.snake.splice(state.snake.length - cut, cut);
-      state.growBuffer = Math.max(0, (state.growBuffer || 0) - 3);
-    }
-  },
-  {
-    id: 'less_grow',
-    name: 'DIET',
-    icon: '🥗',
-    desc: 'Each apple grows tail by 1 less (min 0).',
-    apply(state) { state.growPerApple = Math.max(0, (state.growPerApple ?? 2) - 1); }
-  },
-  {
     id: 'shield',
     name: 'WARD',
     icon: '🛡️',
@@ -100,6 +82,27 @@ const UPGRADES = [
     icon: '🌀',
     desc: 'Tail kills enemies on contact.',
     apply(state) { state.tailSweep = (state.tailSweep || 0) + 1; }
+  },
+  {
+    id: 'pulse',
+    name: 'PULSE',
+    icon: '💫',
+    desc: 'Destroy enemies near apple on pickup. Stack grows the blast radius.',
+    apply(state) { state.pulse = (state.pulse || 0) + 1; }
+  },
+  {
+    id: 'lifesteal',
+    name: 'LIFESTEAL',
+    icon: '🩸',
+    desc: 'Gain a shield charge each time you kill an enemy. Stack for more charges.',
+    apply(state) { state.lifesteal = (state.lifesteal || 0) + 1; }
+  },
+  {
+    id: 'hunter',
+    name: 'HUNTER',
+    icon: '🎯',
+    desc: '+3 bonus score per enemy killed. Stack for ever-higher bounties.',
+    apply(state) { state.hunterBonus = (state.hunterBonus || 0) + 3; }
   },
 ];
 
@@ -308,12 +311,26 @@ function drawGrid(ctx) {
   }
 }
 
-function drawSnake(ctx, state) {
+function drawSnake(ctx, state, t) {
   const snake = state.snake;
+  const prev = state.prevSnake || snake;
   for (let i = snake.length - 1; i >= 0; i--) {
     const s = snake[i];
-    const t = i / snake.length;
-    const alpha = 0.4 + 0.6 * (1 - t);
+    const p = i < prev.length ? prev[i] : s;
+
+    // Handle wall-wrap so interpolation doesn't shoot across the whole grid
+    let px = p.x, py = p.y;
+    if (state.ghost > 0) {
+      if (s.x - px > Math.floor(COLS / 2)) px += COLS;
+      else if (px - s.x > Math.floor(COLS / 2)) px -= COLS;
+      if (s.y - py > Math.floor(ROWS / 2)) py += ROWS;
+      else if (py - s.y > Math.floor(ROWS / 2)) py -= ROWS;
+    }
+
+    const rx = px + (s.x - px) * t;
+    const ry = py + (s.y - py) * t;
+
+    const alpha = 0.4 + 0.6 * (1 - i / snake.length);
     // Shield tint
     if (i === 0 && state.shields > 0) {
       ctx.shadowBlur = 18;
@@ -332,7 +349,7 @@ function drawSnake(ctx, state) {
         : `rgba(40, 160, 80, ${alpha})`;
     }
     const pad = i === 0 ? 1 : 2;
-    ctx.fillRect(s.x * GRID + pad, s.y * GRID + pad, GRID - pad * 2, GRID - pad * 2);
+    ctx.fillRect(rx * GRID + pad, ry * GRID + pad, GRID - pad * 2, GRID - pad * 2);
   }
   ctx.shadowBlur = 0;
 }
@@ -480,9 +497,13 @@ class SnakeRogue {
       scoreMult: 1,
       repel: 0,
       tailSweep: 0,
+      pulse: 0,
+      lifesteal: 0,
+      hunterBonus: 0,
       upgradeCount: {},
       enemySpawnTimer: 0,
-      enemySpawnInterval: 220,
+      enemySpawnInterval: 100,
+      prevSnake: [],
     };
 
     // Initial apples
@@ -504,6 +525,9 @@ class SnakeRogue {
     if (timestamp - this.lastMoveTime < interval) return;
     this.lastMoveTime = timestamp;
     this.tick++;
+
+    // Save previous positions for smooth interpolation
+    state.prevSnake = state.snake.map(s => ({ ...s }));
 
     // Apply direction
     state.direction = state.nextDirection;
@@ -538,15 +562,21 @@ class SnakeRogue {
       state.snake.pop();
     }
 
-    // Magnet: pull apples closer
+    // Magnet: pull apples closer (but not through snake body)
     if (state.magnet > 0) {
       for (const apple of state.apples) {
         const dx = nx - apple.x;
         const dy = ny - apple.y;
         const dist = Math.abs(dx) + Math.abs(dy);
         if (dist > 1 && this.tick % Math.max(1, 4 - state.magnet) === 0) {
-          if (Math.abs(dx) > Math.abs(dy)) apple.x += Math.sign(dx);
-          else apple.y += Math.sign(dy);
+          const moveX = Math.abs(dx) >= Math.abs(dy) ? Math.sign(dx) : 0;
+          const moveY = Math.abs(dx) >= Math.abs(dy) ? 0 : Math.sign(dy);
+          const newAX = apple.x + moveX;
+          const newAY = apple.y + moveY;
+          if (!state.snake.some(s => s.x === newAX && s.y === newAY)) {
+            apple.x = newAX;
+            apple.y = newAY;
+          }
         }
       }
     }
@@ -560,6 +590,22 @@ class SnakeRogue {
         state.applesEaten++;
         state.growBuffer += state.growPerApple;
         spawnParticles(this.particles, nx, ny, '#e84', 12);
+
+        // PULSE: blast nearby enemies
+        if (state.pulse > 0) {
+          const pulseRadius = state.pulse * 2;
+          for (let j = state.enemies.length - 1; j >= 0; j--) {
+            const e = state.enemies[j];
+            const ex = Math.round(e.x);
+            const ey = Math.round(e.y);
+            if (Math.abs(ex - nx) + Math.abs(ey - ny) <= pulseRadius) {
+              spawnParticles(this.particles, ex, ey, '#f0f', 8);
+              state.score += ENEMY_TYPES[e.type].score + (state.hunterBonus || 0);
+              if (state.lifesteal > 0) state.shields += state.lifesteal;
+              state.enemies.splice(j, 1);
+            }
+          }
+        }
 
         // Always keep at least 1 apple on field
         spawnApple(state);
@@ -612,7 +658,8 @@ class SnakeRogue {
         const hitTail = state.snake.slice(1).some(s => s.x === ex && s.y === ey);
         if (hitTail) {
           spawnParticles(this.particles, ex, ey, '#c0f', 10);
-          state.score += ENEMY_TYPES[e.type].score;
+          state.score += ENEMY_TYPES[e.type].score + (state.hunterBonus || 0);
+          if (state.lifesteal > 0) state.shields += state.lifesteal;
           state.enemies.splice(i, 1);
         }
       }
@@ -655,6 +702,9 @@ class SnakeRogue {
     if (s.tailSweep) parts.push(`🌀×${s.tailSweep}`);
     if (s.repel) parts.push(`💥×${s.repel}`);
     if (s.extraApples) parts.push(`🍎+${s.extraApples}`);
+    if (s.pulse) parts.push(`💫×${s.pulse}`);
+    if (s.lifesteal) parts.push(`🩸×${s.lifesteal}`);
+    if (s.hunterBonus) parts.push(`🎯×${Math.floor(s.hunterBonus / 3)}`);
     document.getElementById('hud-upgrades').textContent = parts.join('  ');
   }
 
@@ -675,9 +725,12 @@ class SnakeRogue {
 
     if (!state) return;
 
+    // Interpolation factor for smooth movement between grid steps
+    const t = Math.min(1, (timestamp - this.lastMoveTime) / state.baseInterval);
+
     // Draw elements
     drawApples(ctx, state, this.tick);
-    drawSnake(ctx, state);
+    drawSnake(ctx, state, t);
     drawEnemies(ctx, state, this.tick);
 
     // Particles
