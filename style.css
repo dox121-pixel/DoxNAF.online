@@ -1,0 +1,207 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #0a0a0f;
+  color: #e0e0e0;
+  font-family: 'Courier New', monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+#app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+canvas {
+  border: 2px solid #2a2a3a;
+  box-shadow: 0 0 30px rgba(80, 180, 120, 0.15), 0 0 60px rgba(80, 180, 120, 0.05);
+  display: block;
+}
+
+#hud {
+  display: flex;
+  gap: 24px;
+  font-size: 14px;
+  color: #8ab;
+  letter-spacing: 1px;
+  height: 24px;
+  align-items: center;
+}
+
+#hud span {
+  color: #cde;
+}
+
+#hud .label {
+  color: #567;
+}
+
+#upgrade-panel {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 5, 15, 0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  z-index: 10;
+}
+
+#upgrade-panel h2 {
+  font-size: 22px;
+  color: #7ef;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px #4af;
+}
+
+#upgrade-panel .subtitle {
+  font-size: 12px;
+  color: #456;
+  letter-spacing: 2px;
+}
+
+.upgrade-cards {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.upgrade-card {
+  background: #0e0e1a;
+  border: 1px solid #234;
+  border-radius: 8px;
+  padding: 20px 18px;
+  width: 180px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.upgrade-card:hover {
+  border-color: #4af;
+  background: #111827;
+  box-shadow: 0 0 16px rgba(60, 160, 255, 0.25);
+  transform: translateY(-3px);
+}
+
+.upgrade-card .icon {
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+
+.upgrade-card .name {
+  font-size: 13px;
+  color: #aef;
+  font-weight: bold;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.upgrade-card .desc {
+  font-size: 11px;
+  color: #567;
+  line-height: 1.5;
+}
+
+.upgrade-card .stack {
+  margin-top: 8px;
+  font-size: 10px;
+  color: #fa0;
+}
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 5, 15, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  z-index: 20;
+}
+
+#overlay h1 {
+  font-size: 36px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+}
+
+#overlay.start h1 {
+  color: #4f8;
+  text-shadow: 0 0 20px #2d6, 0 0 40px #1a4;
+}
+
+#overlay.gameover h1 {
+  color: #f64;
+  text-shadow: 0 0 20px #c30;
+}
+
+#overlay .info {
+  font-size: 13px;
+  color: #567;
+  letter-spacing: 1px;
+  text-align: center;
+  line-height: 2;
+}
+
+#overlay .score-display {
+  font-size: 18px;
+  color: #aef;
+  letter-spacing: 2px;
+}
+
+#overlay .controls {
+  font-size: 11px;
+  color: #345;
+  letter-spacing: 1px;
+  line-height: 2;
+  text-align: center;
+}
+
+.btn {
+  margin-top: 8px;
+  padding: 10px 32px;
+  background: transparent;
+  border: 1px solid #3a6;
+  color: #4f8;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s;
+}
+
+.btn:hover {
+  background: #0d2a18;
+  border-color: #4f8;
+  box-shadow: 0 0 12px rgba(68, 255, 136, 0.3);
+}
+
+#upgrades-list {
+  font-size: 11px;
+  color: #456;
+  letter-spacing: 1px;
+  text-align: center;
+  max-width: 480px;
+  line-height: 1.8;
+}
+
+#upgrades-list span {
+  color: #7ab;
+}

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VIPER.exe — Snake Roguelike</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="hud">
+      <span class="label">SCORE</span>&nbsp;<span id="hud-score">0</span>
+      &nbsp;·&nbsp;
+      <span class="label">APPLES</span>&nbsp;<span id="hud-apples">0</span>
+      &nbsp;·&nbsp;
+      <span class="label">SHIELDS</span>&nbsp;<span id="hud-shields">0</span>
+      &nbsp;·&nbsp;
+      <span class="label">SPD</span>&nbsp;<span id="hud-speed">—</span>
+      &nbsp;·&nbsp;
+      <span id="hud-upgrades"></span>
+    </div>
+
+    <div style="position:relative;">
+      <canvas id="canvas"></canvas>
+
+      <!-- Upgrade chooser (shown after each apple) -->
+      <div id="upgrade-panel" style="display:none;"></div>
+
+      <!-- Start / Game Over overlay -->
+      <div id="overlay"></div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
