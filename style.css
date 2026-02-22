@@ -205,3 +205,95 @@ canvas {
 #upgrades-list span {
   color: #7ab;
 }
+
+/* ── Online mode ──────────────────────────────── */
+#overlay.online h1 {
+  color: #7ef;
+  text-shadow: 0 0 20px #4af;
+}
+
+#overlay.online-win h1 {
+  color: #4f8;
+  text-shadow: 0 0 20px #2d6, 0 0 40px #1a4;
+}
+
+#overlay.online-lose h1 {
+  color: #f64;
+  text-shadow: 0 0 20px #c30;
+}
+
+#overlay.online-draw h1 {
+  color: #fa0;
+  text-shadow: 0 0 20px #a70;
+}
+
+.room-code-display {
+  font-size: 48px;
+  letter-spacing: 12px;
+  color: #7ef;
+  text-shadow: 0 0 20px #4af;
+  padding: 10px 24px;
+  border: 1px solid #4af;
+  background: rgba(0, 100, 200, 0.1);
+  border-radius: 6px;
+}
+
+.room-input {
+  background: #0e0e1a;
+  border: 1px solid #234;
+  color: #cde;
+  font-family: 'Courier New', monospace;
+  font-size: 22px;
+  letter-spacing: 8px;
+  padding: 8px 14px;
+  width: 130px;
+  text-align: center;
+  text-transform: uppercase;
+  outline: none;
+  border-radius: 4px;
+}
+
+.room-input:focus {
+  border-color: #4af;
+}
+
+.online-join-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.online-sep {
+  font-size: 11px;
+  color: #345;
+  letter-spacing: 1px;
+}
+
+.online-error {
+  font-size: 12px;
+  color: #f64;
+  min-height: 18px;
+  letter-spacing: 1px;
+}
+
+.btn-online {
+  border-color: #4af;
+  color: #7ef;
+}
+
+.btn-online:hover {
+  background: #061828;
+  border-color: #7ef;
+  box-shadow: 0 0 12px rgba(68, 170, 255, 0.3);
+}
+
+.btn-back {
+  border-color: #345;
+  color: #567;
+}
+
+.btn-back:hover {
+  background: #0a0f18;
+  border-color: #567;
+  box-shadow: none;
+}

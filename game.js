@@ -417,6 +417,38 @@ function spawnParticles(particles, x, y, color, count) {
   }
 }
 
+// ── Online mode helpers ───────────────────────
+const WS_SERVER = (() => {
+  if (typeof location === 'undefined' || location.protocol === 'file:') {
+    return 'ws://localhost:3001';
+  }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${location.host}`;
+})();
+
+function drawOnlineSnake(ctx, body, playerIdx) {
+  for (let i = body.length - 1; i >= 0; i--) {
+    const s = body[i];
+    const alpha = 0.4 + 0.6 * (1 - i / body.length);
+    if (playerIdx === 1) {
+      ctx.shadowBlur  = i === 0 ? 12 : 0;
+      ctx.shadowColor = '#f84';
+      ctx.fillStyle   = i === 0
+        ? `rgba(255, 140, 60, ${alpha})`
+        : `rgba(180, 80, 20, ${alpha})`;
+    } else {
+      ctx.shadowBlur  = i === 0 ? 12 : 0;
+      ctx.shadowColor = '#4f8';
+      ctx.fillStyle   = i === 0
+        ? `rgba(80, 230, 120, ${alpha})`
+        : `rgba(40, 160, 80, ${alpha})`;
+    }
+    const pad = i === 0 ? 1 : 2;
+    ctx.fillRect(s.x * GRID + pad, s.y * GRID + pad, GRID - pad * 2, GRID - pad * 2);
+  }
+  ctx.shadowBlur = 0;
+}
+
 // ── Main Game Class ───────────────────────────
 class SnakeRogue {
   constructor() {
@@ -426,12 +458,17 @@ class SnakeRogue {
     this.canvas.height = H;
 
     this.state = null;
-    this.phase = 'start'; // 'start' | 'playing' | 'upgrade' | 'gameover'
+    this.phase = 'start'; // 'start'|'playing'|'upgrade'|'gameover'|'online_lobby'|'online_playing'|'online_over'
     this.pendingUpgrades = [];
     this.tick = 0;
     this.particles = [];
     this.lastMoveTime = 0;
     this.flashTimer = 0;
+
+    this.online         = null;  // WebSocket connection
+    this.onlineRole     = null;  // 0 = P1 (green), 1 = P2 (orange)
+    this.onlineRoomCode = null;
+    this.onlineState    = null;  // Latest game state from server
 
     this._keys = {};
     this._setupInput();
@@ -444,6 +481,17 @@ class SnakeRogue {
   _setupInput() {
     document.addEventListener('keydown', e => {
       this._keys[e.key] = true;
+
+      if (this.phase === 'online_playing' && this.online && this.online.readyState === WebSocket.OPEN) {
+        const dirMap = {
+          ArrowUp: { x: 0, y: -1 }, w: { x: 0, y: -1 }, W: { x: 0, y: -1 },
+          ArrowDown: { x: 0, y: 1 }, s: { x: 0, y: 1 }, S: { x: 0, y: 1 },
+          ArrowLeft: { x: -1, y: 0 }, a: { x: -1, y: 0 }, A: { x: -1, y: 0 },
+          ArrowRight: { x: 1, y: 0 }, d: { x: 1, y: 0 }, D: { x: 1, y: 0 },
+        };
+        const dir = dirMap[e.key];
+        if (dir) this.online.send(JSON.stringify({ type: 'direction', dir }));
+      }
 
       if (this.phase === 'playing') {
         const dirMap = {
@@ -687,10 +735,14 @@ class SnakeRogue {
   _updateHUD() {
     if (!this.state) return;
     const s = this.state;
-    document.getElementById('hud-score').textContent = s.score;
-    document.getElementById('hud-apples').textContent = s.applesEaten;
+    document.getElementById('hud-lbl-score').textContent   = 'SCORE';
+    document.getElementById('hud-lbl-apples').textContent  = 'APPLES';
+    document.getElementById('hud-lbl-shields').textContent = 'SHIELDS';
+    document.getElementById('hud-lbl-speed').textContent   = 'SPD';
+    document.getElementById('hud-score').textContent   = s.score;
+    document.getElementById('hud-apples').textContent  = s.applesEaten;
     document.getElementById('hud-shields').textContent = s.shields;
-    document.getElementById('hud-speed').textContent = Math.round(1000 / s.baseInterval * 10) / 10;
+    document.getElementById('hud-speed').textContent   = Math.round(1000 / s.baseInterval * 10) / 10;
 
     // Build upgrade summary
     const parts = [];
@@ -722,6 +774,19 @@ class SnakeRogue {
     ctx.fillRect(0, 0, W, H);
 
     drawGrid(ctx);
+
+    // ── Online multiplayer rendering ─────────
+    if (this.phase === 'online_playing' && this.onlineState) {
+      const gs = this.onlineState;
+      drawApples(ctx, { apples: gs.apples }, gs.tick);
+      gs.snakes.forEach((sn, idx) => {
+        if (sn.body && sn.body.length > 0) drawOnlineSnake(ctx, sn.body, idx);
+      });
+      for (const p of this.particles) { p.x += p.vx; p.y += p.vy; p.life -= 0.03; }
+      this.particles = this.particles.filter(p => p.life > 0);
+      drawParticles(ctx, this.particles);
+      return;
+    }
 
     if (!state) return;
 
@@ -798,9 +863,13 @@ class SnakeRogue {
         Enemies appear at score 3+<br>
         Upgrades stack infinitely
       </div>
-      <button class="btn" id="start-btn">START [Enter]</button>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+        <button class="btn" id="start-btn">SOLO [Enter]</button>
+        <button class="btn btn-online" id="online-btn">⚡ ONLINE</button>
+      </div>
     `;
     document.getElementById('start-btn').addEventListener('click', () => this._startGame());
+    document.getElementById('online-btn').addEventListener('click', () => this._startOnlineMode());
   }
 
   _hideUpgradePanel() {
@@ -847,6 +916,228 @@ class SnakeRogue {
       }
     };
     document.addEventListener('keydown', keyHandler);
+  }
+
+  // ── Online mode ──────────────────────────────
+  _startOnlineMode() {
+    this.phase = 'online_lobby';
+    this._showOnlineLobby();
+  }
+
+  _showOnlineLobby() {
+    const el = document.getElementById('overlay');
+    el.className = 'online';
+    el.style.display = '';
+    el.innerHTML = `
+      <h1>ONLINE</h1>
+      <div class="info">Play against a friend over the internet</div>
+      <button class="btn btn-online" id="create-room-btn">CREATE ROOM</button>
+      <div class="online-sep">— or join existing room —</div>
+      <div class="online-join-row">
+        <input id="room-code-input" class="room-input" maxlength="4"
+               placeholder="ABCD" autocomplete="off" spellcheck="false" />
+        <button class="btn" id="join-room-btn">JOIN</button>
+      </div>
+      <div id="online-error" class="online-error"></div>
+      <button class="btn btn-back" id="back-btn">← BACK</button>
+    `;
+    document.getElementById('create-room-btn').addEventListener('click', () => this._createRoom());
+    document.getElementById('join-room-btn').addEventListener('click', () => {
+      const code = document.getElementById('room-code-input').value.toUpperCase().trim();
+      if (code.length === 4) this._joinRoom(code);
+      else this._setOnlineError('Enter a 4-character room code');
+    });
+    document.getElementById('room-code-input').addEventListener('keydown', ev => {
+      if (ev.key === 'Enter') {
+        const code = document.getElementById('room-code-input').value.toUpperCase().trim();
+        if (code.length === 4) this._joinRoom(code);
+        else this._setOnlineError('Enter a 4-character room code');
+      }
+    });
+    document.getElementById('back-btn').addEventListener('click', () => {
+      this._leaveOnline();
+      this._renderOverlay();
+    });
+  }
+
+  _showOnlineWaiting() {
+    const el = document.getElementById('overlay');
+    el.className = 'online';
+    el.style.display = '';
+    el.innerHTML = `
+      <h1>ONLINE</h1>
+      <div class="info">Share this code with your opponent:</div>
+      <div class="room-code-display">${this.onlineRoomCode}</div>
+      <div class="info">Waiting for opponent to join…</div>
+      <div id="online-error" class="online-error"></div>
+      <button class="btn btn-back" id="back-btn">← BACK</button>
+    `;
+    document.getElementById('back-btn').addEventListener('click', () => {
+      this._leaveOnline();
+      this._renderOverlay();
+    });
+  }
+
+  _connectWS(onOpen) {
+    this._leaveOnline();
+    const ws = new WebSocket(WS_SERVER);
+    this.online = ws;
+    this.phase = 'online_lobby';
+
+    ws.addEventListener('open', onOpen);
+    ws.addEventListener('message', ev => {
+      let msg;
+      try { msg = JSON.parse(ev.data); } catch { return; }
+      this._handleOnlineMsg(msg);
+    });
+    ws.addEventListener('close', () => {
+      if (this.phase === 'online_playing') {
+        this._showOnlineDisconnected();
+      } else if (this.phase === 'online_lobby') {
+        this._setOnlineError('Connection failed — is the server running?');
+      }
+    });
+    ws.addEventListener('error', () => {
+      this._setOnlineError('Cannot connect to server');
+    });
+  }
+
+  _createRoom() {
+    this._connectWS(() => {
+      this.online.send(JSON.stringify({ type: 'create_room' }));
+    });
+  }
+
+  _joinRoom(code) {
+    this._connectWS(() => {
+      this.online.send(JSON.stringify({ type: 'join_room', code }));
+    });
+  }
+
+  _leaveOnline() {
+    this.phase = 'start';
+    if (this.online) {
+      this.online.close();
+      this.online = null;
+    }
+    this.onlineRole     = null;
+    this.onlineRoomCode = null;
+    this.onlineState    = null;
+  }
+
+  _setOnlineError(msg) {
+    const el = document.getElementById('online-error');
+    if (el) el.textContent = msg;
+  }
+
+  _handleOnlineMsg(msg) {
+    switch (msg.type) {
+
+      case 'room_created':
+        this.onlineRole     = msg.player;
+        this.onlineRoomCode = msg.code;
+        this._showOnlineWaiting();
+        break;
+
+      case 'room_joined':
+        this.onlineRole     = msg.player;
+        this.onlineRoomCode = msg.code;
+        // Server will send game_start imminently
+        break;
+
+      case 'game_start':
+        this.onlineState = msg.state;
+        this.particles   = [];
+        this.phase       = 'online_playing';
+        this._hideOverlay();
+        this._updateOnlineHUD();
+        break;
+
+      case 'game_tick':
+        this.onlineState = msg.state;
+        this._updateOnlineHUD();
+        break;
+
+      case 'game_over':
+        this.onlineState = msg.state || this.onlineState;
+        this.phase       = 'online_over';
+        this._showOnlineGameOver(msg.winner, msg.scores);
+        break;
+
+      case 'player_disconnected':
+        this._showOnlineDisconnected();
+        break;
+
+      case 'rematch_requested': {
+        const el = document.getElementById('rematch-info');
+        if (el) el.textContent = 'Opponent wants a rematch!';
+        break;
+      }
+
+      case 'error':
+        this._setOnlineError(msg.message || 'Server error');
+        break;
+    }
+  }
+
+  _showOnlineGameOver(winner, scores) {
+    const el = document.getElementById('overlay');
+    let heading, cls;
+    if (winner === -1)                   { heading = 'DRAW';        cls = 'online-draw'; }
+    else if (winner === this.onlineRole) { heading = 'YOU WIN! 🏆'; cls = 'online-win';  }
+    else                                 { heading = 'YOU LOSE';    cls = 'online-lose'; }
+    el.className = cls;
+    el.style.display = '';
+    el.innerHTML = `
+      <h1>${heading}</h1>
+      <div class="score-display">
+        🟢 P1: ${scores[0]} &nbsp;|&nbsp; 🟠 P2: ${scores[1]}
+      </div>
+      <div id="rematch-info" class="info"></div>
+      <button class="btn btn-online" id="rematch-btn">REMATCH</button>
+      <button class="btn btn-back" id="menu-btn">← MENU</button>
+    `;
+    document.getElementById('rematch-btn').addEventListener('click', () => {
+      if (this.online && this.online.readyState === WebSocket.OPEN) {
+        this.online.send(JSON.stringify({ type: 'rematch' }));
+        const btn = document.getElementById('rematch-btn');
+        if (btn) { btn.textContent = 'WAITING FOR OPPONENT…'; btn.disabled = true; }
+      }
+    });
+    document.getElementById('menu-btn').addEventListener('click', () => {
+      this._leaveOnline();
+      this._renderOverlay();
+    });
+  }
+
+  _showOnlineDisconnected() {
+    this.phase = 'online_over';
+    const el = document.getElementById('overlay');
+    el.className = 'online-lose';
+    el.style.display = '';
+    el.innerHTML = `
+      <h1>DISCONNECTED</h1>
+      <div class="info">Your opponent left the game.</div>
+      <button class="btn btn-back" id="menu-btn">← MENU</button>
+    `;
+    document.getElementById('menu-btn').addEventListener('click', () => {
+      this._leaveOnline();
+      this._renderOverlay();
+    });
+  }
+
+  _updateOnlineHUD() {
+    if (!this.onlineState) return;
+    const gs = this.onlineState;
+    document.getElementById('hud-lbl-score').textContent   = '🟢 P1';
+    document.getElementById('hud-score').textContent       = gs.snakes[0].score;
+    document.getElementById('hud-lbl-apples').textContent  = '🟠 P2';
+    document.getElementById('hud-apples').textContent      = gs.snakes[1].score;
+    document.getElementById('hud-lbl-shields').textContent = 'ROOM';
+    document.getElementById('hud-shields').textContent     = this.onlineRoomCode || '';
+    document.getElementById('hud-lbl-speed').textContent   = 'YOU';
+    document.getElementById('hud-speed').textContent       = this.onlineRole === 0 ? '🟢' : '🟠';
+    document.getElementById('hud-upgrades').textContent    = '';
   }
 }
 

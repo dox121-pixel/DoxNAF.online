@@ -1,0 +1,12 @@
+{
+  "name": "viper-exe",
+  "version": "1.0.0",
+  "description": "Snake Roguelike with Online Multiplayer",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
