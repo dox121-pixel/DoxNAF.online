@@ -314,6 +314,11 @@ canvas {
   cursor: default;
 }
 
+/* ── Nightmare mode ────────────────────────── */
+#app.nightmare-mode {
+  filter: grayscale(1) contrast(1.2);
+}
+
 /* ── Mobile D-pad controls ────────────────────── */
 #mobile-controls {
   display: none;
