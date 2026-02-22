@@ -8,6 +8,11 @@ const ROWS = 30;
 const W = COLS * GRID;
 const H = ROWS * GRID;
 
+const ONLINE_COLS    = 40;
+const ONLINE_ROWS    = 40;
+const ONLINE_GRID    = 15;
+const ONLINE_TICK_MS = 120;
+
 // ── Upgrade definitions ─────────────────────
 const UPGRADES = [
   {
@@ -300,14 +305,16 @@ function spawnEnemy(state) {
 }
 
 // ── Rendering helpers ─────────────────────────
-function drawGrid(ctx) {
+function drawGrid(ctx, cols = COLS, rows = ROWS, grid = GRID) {
+  const gW = cols * grid;
+  const gH = rows * grid;
   ctx.strokeStyle = 'rgba(255,255,255,0.025)';
   ctx.lineWidth = 0.5;
-  for (let x = 0; x <= COLS; x++) {
-    ctx.beginPath(); ctx.moveTo(x * GRID, 0); ctx.lineTo(x * GRID, H); ctx.stroke();
+  for (let x = 0; x <= cols; x++) {
+    ctx.beginPath(); ctx.moveTo(x * grid, 0); ctx.lineTo(x * grid, gH); ctx.stroke();
   }
-  for (let y = 0; y <= ROWS; y++) {
-    ctx.beginPath(); ctx.moveTo(0, y * GRID); ctx.lineTo(W, y * GRID); ctx.stroke();
+  for (let y = 0; y <= rows; y++) {
+    ctx.beginPath(); ctx.moveTo(0, y * grid); ctx.lineTo(gW, y * grid); ctx.stroke();
   }
 }
 
@@ -354,17 +361,38 @@ function drawSnake(ctx, state, t) {
   ctx.shadowBlur = 0;
 }
 
-function drawApples(ctx, state, tick) {
+function drawApples(ctx, state, tick, grid = GRID) {
   for (const apple of state.apples) {
     const pulse = 0.85 + 0.15 * Math.sin(tick * 0.08);
-    const r = GRID * 0.38 * pulse;
+    const r = grid * 0.38 * pulse;
     ctx.shadowBlur = 14;
     ctx.shadowColor = '#f64';
     ctx.fillStyle = '#e84';
     ctx.beginPath();
-    ctx.arc(apple.x * GRID + GRID / 2, apple.y * GRID + GRID / 2, r, 0, Math.PI * 2);
+    ctx.arc(apple.x * grid + grid / 2, apple.y * grid + grid / 2, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
+  }
+}
+
+function drawTeleportPerks(ctx, teleportPerks, tick, grid = GRID) {
+  for (const tp of teleportPerks) {
+    const pulse = 0.8 + 0.2 * Math.sin(tick * 0.1 + 1.5);
+    const r = grid * 0.38 * pulse;
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = '#0af';
+    ctx.fillStyle = '#0cf';
+    ctx.beginPath();
+    ctx.arc(tp.x * grid + grid / 2, tp.y * grid + grid / 2, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Inner cross to distinguish from apple
+    ctx.strokeStyle = 'rgba(0,30,60,0.7)';
+    ctx.lineWidth = grid * 0.1;
+    const cx = tp.x * grid + grid / 2;
+    const cy = tp.y * grid + grid / 2;
+    ctx.beginPath(); ctx.moveTo(cx - r * 0.5, cy); ctx.lineTo(cx + r * 0.5, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy - r * 0.5); ctx.lineTo(cx, cy + r * 0.5); ctx.stroke();
   }
 }
 
@@ -430,9 +458,21 @@ const WS_SERVER = (() => {
   return 'wss://doxnaf-online.onrender.com';
 })();
 
-function drawOnlineSnake(ctx, body, playerIdx) {
+function drawOnlineSnake(ctx, body, playerIdx, prevBody, t, grid = GRID) {
   for (let i = body.length - 1; i >= 0; i--) {
     const s = body[i];
+    const p = prevBody && i < prevBody.length ? prevBody[i] : s;
+
+    // Interpolate only for normal single-cell moves; skip for teleports/wrap-arounds
+    let rx, ry;
+    if (Math.abs(s.x - p.x) <= 1 && Math.abs(s.y - p.y) <= 1) {
+      rx = p.x + (s.x - p.x) * t;
+      ry = p.y + (s.y - p.y) * t;
+    } else {
+      rx = s.x;
+      ry = s.y;
+    }
+
     const alpha = 0.4 + 0.6 * (1 - i / body.length);
     if (playerIdx === 1) {
       ctx.shadowBlur  = i === 0 ? 12 : 0;
@@ -448,7 +488,7 @@ function drawOnlineSnake(ctx, body, playerIdx) {
         : `rgba(40, 160, 80, ${alpha})`;
     }
     const pad = i === 0 ? 1 : 2;
-    ctx.fillRect(s.x * GRID + pad, s.y * GRID + pad, GRID - pad * 2, GRID - pad * 2);
+    ctx.fillRect(rx * grid + pad, ry * grid + pad, grid - pad * 2, grid - pad * 2);
   }
   ctx.shadowBlur = 0;
 }
@@ -473,6 +513,8 @@ class SnakeRogue {
     this.onlineRole     = null;  // 0 = P1 (green), 1 = P2 (orange)
     this.onlineRoomCode = null;
     this.onlineState    = null;  // Latest game state from server
+    this.prevOnlineState = null; // Previous game state for interpolation
+    this.lastOnlineTick  = 0;   // Timestamp of last received tick
 
     this._keys = {};
     this._setupInput();
@@ -495,6 +537,9 @@ class SnakeRogue {
         };
         const dir = dirMap[e.key];
         if (dir) this.online.send(JSON.stringify({ type: 'direction', dir }));
+        if (e.key === 'q' || e.key === 'Q') {
+          this.online.send(JSON.stringify({ type: 'teleport' }));
+        }
       }
 
       if (this.phase === 'playing') {
@@ -777,20 +822,27 @@ class SnakeRogue {
     }
     ctx.fillRect(0, 0, W, H);
 
-    drawGrid(ctx);
-
     // ── Online multiplayer rendering ─────────
     if (this.phase === 'online_playing' && this.onlineState) {
       const gs = this.onlineState;
-      drawApples(ctx, { apples: gs.apples }, gs.tick);
+      const prev = this.prevOnlineState;
+      const t = prev ? Math.min(1, (timestamp - this.lastOnlineTick) / ONLINE_TICK_MS) : 1;
+      drawGrid(ctx, ONLINE_COLS, ONLINE_ROWS, ONLINE_GRID);
+      drawApples(ctx, { apples: gs.apples }, gs.tick, ONLINE_GRID);
+      if (gs.teleportPerks) drawTeleportPerks(ctx, gs.teleportPerks, gs.tick, ONLINE_GRID);
       gs.snakes.forEach((sn, idx) => {
-        if (sn.body && sn.body.length > 0) drawOnlineSnake(ctx, sn.body, idx);
+        if (sn.body && sn.body.length > 0) {
+          const prevBody = prev && prev.snakes[idx] ? prev.snakes[idx].body : null;
+          drawOnlineSnake(ctx, sn.body, idx, prevBody, t, ONLINE_GRID);
+        }
       });
       for (const p of this.particles) { p.x += p.vx; p.y += p.vy; p.life -= 0.03; }
       this.particles = this.particles.filter(p => p.life > 0);
       drawParticles(ctx, this.particles);
       return;
     }
+
+    drawGrid(ctx);
 
     if (!state) return;
 
@@ -1024,9 +1076,11 @@ class SnakeRogue {
       this.online.close();
       this.online = null;
     }
-    this.onlineRole     = null;
-    this.onlineRoomCode = null;
-    this.onlineState    = null;
+    this.onlineRole      = null;
+    this.onlineRoomCode  = null;
+    this.onlineState     = null;
+    this.prevOnlineState = null;
+    this.lastOnlineTick  = 0;
   }
 
   _setOnlineError(msg) {
@@ -1050,15 +1104,19 @@ class SnakeRogue {
         break;
 
       case 'game_start':
-        this.onlineState = msg.state;
-        this.particles   = [];
-        this.phase       = 'online_playing';
+        this.onlineState     = msg.state;
+        this.prevOnlineState = null;
+        this.lastOnlineTick  = performance.now();
+        this.particles       = [];
+        this.phase           = 'online_playing';
         this._hideOverlay();
         this._updateOnlineHUD();
         break;
 
       case 'game_tick':
-        this.onlineState = msg.state;
+        this.prevOnlineState = this.onlineState;
+        this.onlineState     = msg.state;
+        this.lastOnlineTick  = performance.now();
         this._updateOnlineHUD();
         break;
 
@@ -1141,7 +1199,9 @@ class SnakeRogue {
     document.getElementById('hud-shields').textContent     = this.onlineRoomCode || '';
     document.getElementById('hud-lbl-speed').textContent   = 'YOU';
     document.getElementById('hud-speed').textContent       = this.onlineRole === 0 ? '🟢' : '🟠';
-    document.getElementById('hud-upgrades').textContent    = '';
+    const mySnake = gs.snakes[this.onlineRole];
+    const charges = mySnake ? (mySnake.teleportCharges || 0) : 0;
+    document.getElementById('hud-upgrades').textContent    = charges > 0 ? `⌁ ×${charges} [Q]` : '';
   }
 }
 
