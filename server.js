@@ -303,6 +303,6 @@ wss.on('connection', ws => {
 
 // ── Start ─────────────────────────────────────
 const PORT = parseInt(process.env.PORT, 10) || 3001;
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`VIPER.exe server → http://localhost:${PORT}`);
 });
