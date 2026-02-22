@@ -563,6 +563,60 @@ class SnakeRogue {
       if (this.phase === 'gameover' && e.key === 'Enter') this._startGame();
       if (this.phase === 'gameover' && e.key === 'r') this._startGame();
     });
+
+    // ── Mobile D-pad buttons ─────────────────────
+    const dpadMap = {
+      'dpad-up':    { x: 0, y: -1 },
+      'dpad-down':  { x: 0, y: 1 },
+      'dpad-left':  { x: -1, y: 0 },
+      'dpad-right': { x: 1, y: 0 },
+    };
+    Object.entries(dpadMap).forEach(([id, dir]) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      const handlePress = e => {
+        e.preventDefault();
+        this._applyDirection(dir);
+      };
+      btn.addEventListener('touchstart', handlePress, { passive: false });
+      btn.addEventListener('mousedown', handlePress);
+    });
+
+    // ── Touch swipe on canvas ────────────────────
+    let touchStartX = 0;
+    let touchStartY = 0;
+    this.canvas.addEventListener('touchstart', e => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      // Tap to start/restart
+      if (this.phase === 'start' || this.phase === 'gameover') {
+        this._startGame();
+      }
+    }, { passive: true });
+    this.canvas.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      if (Math.max(absDx, absDy) < 10) return; // too small, treat as tap
+      if (absDx > absDy) {
+        this._applyDirection(dx > 0 ? { x: 1, y: 0 } : { x: -1, y: 0 });
+      } else {
+        this._applyDirection(dy > 0 ? { x: 0, y: 1 } : { x: 0, y: -1 });
+      }
+    }, { passive: true });
+  }
+
+  _applyDirection(dir) {
+    if (this.phase === 'online_playing' && this.online && this.online.readyState === WebSocket.OPEN) {
+      this.online.send(JSON.stringify({ type: 'direction', dir }));
+    }
+    if (this.phase === 'playing' && this.state) {
+      const cur = this.state.direction;
+      if (!(dir.x === -cur.x && dir.y === -cur.y)) {
+        this.state.nextDirection = dir;
+      }
+    }
   }
 
   _startGame() {
