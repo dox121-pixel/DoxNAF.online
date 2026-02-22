@@ -17,7 +17,7 @@ const ONLINE_TICK_MS = 120;
 const SEG_SPACING      = 0.45;  // grid-cells between body segment points
 const SNAKE_RADIUS     = 0.28;  // grid-cells half-width (rendering + collision)
 const INIT_SEGS        = 10;    // initial number of body segment points
-const MAX_TURN_SPD     = 2.8;   // radians per second max turn rate
+const MAX_TURN_SPD     = 4.5;   // radians per second max turn rate
 const APPLE_EAT_DIST   = 0.55;  // grid-cells pickup radius
 const ENEMY_HIT_DIST   = 0.50;  // grid-cells enemy-head collision radius
 const ENEMY_BODY_DIST  = 0.42;  // grid-cells enemy-body collision radius
@@ -131,6 +131,15 @@ function normalizeAngle(a) {
   return a;
 }
 
+// Return shortest signed difference from b to a on a wrapping axis of given size.
+// e.g. wrappedDiff(29.9, 0.1, 30) → -0.2  (29.9 is 0.2 "behind" 0.1 after wrap)
+function wrappedDiff(a, b, size) {
+  let d = a - b;
+  if (d > size / 2)  d -= size;
+  if (d < -size / 2) d += size;
+  return d;
+}
+
 function isNightmareUnlocked() {
   try { return localStorage.getItem('nightmare_unlocked') === '1'; } catch (_) { return false; }
 }
@@ -207,7 +216,7 @@ const ENEMY_TYPES = {
     color: '#e04040',
     glowColor: 'rgba(220,60,60,0.4)',
     size: 0.7,
-    speed: 0.000643,  // grid-cells per ms
+    speed: 0.001286,  // grid-cells per ms
     score: 5,
     label: 'CHASER',
     update(e, state, dt) {
@@ -224,7 +233,7 @@ const ENEMY_TYPES = {
     color: '#c07020',
     glowColor: 'rgba(200,120,30,0.4)',
     size: 0.65,
-    speed: 0.000786,  // grid-cells per ms
+    speed: 0.001572,  // grid-cells per ms
     score: 8,
     label: 'PATROLLER',
     init(e) {
@@ -249,7 +258,7 @@ const ENEMY_TYPES = {
     color: '#8040c0',
     glowColor: 'rgba(140,60,210,0.4)',
     size: 0.6,
-    speed: 0.000929,  // grid-cells per ms
+    speed: 0.001858,  // grid-cells per ms
     score: 12,
     label: 'INTERCEPTOR',
     update(e, state, dt) {
@@ -312,7 +321,7 @@ function spawnEnemy(state) {
   const enemy = {
     x: pos.x, y: pos.y,
     type: typeKey,
-    speed: type.speed * (1 + score / 120) * (state.nightmareMode ? 3.0 : 1.0),
+    speed: type.speed * (1 + score / 120) * (state.nightmareMode ? 5.0 : 2.5),
     hp: 1,
     id: Math.random(),
   };
@@ -361,14 +370,17 @@ function drawSnake(ctx, state) {
 
   // Gradient opacity: head bright, tail fades
   for (let i = snake.length - 2; i >= 0; i--) {
+    const a = snake[i], b = snake[i + 1];
+    // Skip segments that span a wrap boundary (avoids diagonal glitch line)
+    if (Math.abs(a.x - b.x) > COLS / 2 || Math.abs(a.y - b.y) > ROWS / 2) continue;
     const alpha = 0.35 + 0.65 * (1 - i / snake.length);
     ctx.strokeStyle = isWhiplash
       ? `rgba(100, 220, 255, ${alpha})`
       : `rgba(40, 160, 80, ${alpha})`;
     ctx.shadowBlur  = 0;
     ctx.beginPath();
-    ctx.moveTo(snake[i].x * GRID + GRID / 2, snake[i].y * GRID + GRID / 2);
-    ctx.lineTo(snake[i + 1].x * GRID + GRID / 2, snake[i + 1].y * GRID + GRID / 2);
+    ctx.moveTo(a.x * GRID + GRID / 2, a.y * GRID + GRID / 2);
+    ctx.lineTo(b.x * GRID + GRID / 2, b.y * GRID + GRID / 2);
     ctx.stroke();
   }
 
@@ -502,38 +514,76 @@ const WS_SERVER = (() => {
 })();
 
 function drawOnlineSnake(ctx, body, playerIdx, prevBody, t, grid = GRID) {
-  for (let i = body.length - 1; i >= 0; i--) {
-    const s = body[i];
-    const p = prevBody && i < prevBody.length ? prevBody[i] : s;
+  if (body.length < 2) return;
 
-    // Interpolate only for normal single-cell moves; skip for teleports/wrap-arounds
+  // Interpolate segment positions between server ticks
+  const pts = body.map((s, i) => {
+    const p = prevBody && i < prevBody.length ? prevBody[i] : s;
     let rx, ry;
     if (Math.abs(s.x - p.x) <= 1 && Math.abs(s.y - p.y) <= 1) {
       rx = p.x + (s.x - p.x) * t;
       ry = p.y + (s.y - p.y) * t;
     } else {
-      rx = s.x;
-      ry = s.y;
+      rx = s.x; ry = s.y;
     }
+    return { x: rx, y: ry };
+  });
 
-    const alpha = 0.4 + 0.6 * (1 - i / body.length);
-    if (playerIdx === 1) {
-      ctx.shadowBlur  = i === 0 ? 12 : 0;
-      ctx.shadowColor = '#f84';
-      ctx.fillStyle   = i === 0
-        ? `rgba(255, 140, 60, ${alpha})`
-        : `rgba(180, 80, 20, ${alpha})`;
-    } else {
-      ctx.shadowBlur  = i === 0 ? 12 : 0;
-      ctx.shadowColor = '#4f8';
-      ctx.fillStyle   = i === 0
-        ? `rgba(80, 230, 120, ${alpha})`
-        : `rgba(40, 160, 80, ${alpha})`;
-    }
-    const pad = i === 0 ? 1 : 2;
-    ctx.fillRect(rx * grid + pad, ry * grid + pad, grid - pad * 2, grid - pad * 2);
+  const isP1      = playerIdx === 0;
+  const headColor = isP1 ? '#50e678'              : '#ff8040';
+  const glowColor = isP1 ? '#4f8'                 : '#f84';
+  const snakeR    = 0.28; // same ratio as single-player SNAKE_RADIUS
+
+  ctx.save();
+  ctx.lineCap  = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = snakeR * 2 * grid;
+
+  // Draw body as smooth rounded path (skip segments crossing a wrap boundary)
+  for (let i = pts.length - 2; i >= 0; i--) {
+    const a = pts[i], b = pts[i + 1];
+    if (Math.abs(a.x - b.x) > ONLINE_COLS / 2 || Math.abs(a.y - b.y) > ONLINE_ROWS / 2) continue;
+    const alpha = 0.35 + 0.65 * (1 - i / pts.length);
+    ctx.strokeStyle = isP1
+      ? `rgba(40, 160, 80, ${alpha})`
+      : `rgba(180, 80, 20, ${alpha})`;
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.moveTo(a.x * grid + grid / 2, a.y * grid + grid / 2);
+    ctx.lineTo(b.x * grid + grid / 2, b.y * grid + grid / 2);
+    ctx.stroke();
   }
+
+  // Head circle with glow
+  const hx = pts[0].x * grid + grid / 2;
+  const hy = pts[0].y * grid + grid / 2;
+  const hr = snakeR * grid * 1.25;
+  ctx.shadowBlur  = 14;
+  ctx.shadowColor = glowColor;
+  ctx.fillStyle   = headColor;
+  ctx.beginPath();
+  ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+  ctx.fill();
   ctx.shadowBlur = 0;
+
+  // Eyes — derive direction from head vs second segment
+  const eyeR    = hr * 0.32;
+  const eyeDist = hr * 0.55;
+  const ang     = pts.length > 1
+    ? Math.atan2(pts[0].y - pts[1].y, pts[0].x - pts[1].x)
+    : 0;
+  ctx.fillStyle = '#0a0a14';
+  [ang - Math.PI / 2, ang + Math.PI / 2].forEach(pa => {
+    ctx.beginPath();
+    ctx.arc(
+      hx + Math.cos(pa) * eyeDist,
+      hy + Math.sin(pa) * eyeDist,
+      eyeR, 0, Math.PI * 2
+    );
+    ctx.fill();
+  });
+
+  ctx.restore();
 }
 
 // ── Main Game Class ───────────────────────────
@@ -811,18 +861,9 @@ class SnakeRogue {
     let nx = head.x + Math.cos(state.snakeAngle) * speed;
     let ny = head.y + Math.sin(state.snakeAngle) * speed;
 
-    // Wall collision
-    if (state.ghost > 0) {
-      nx = ((nx % COLS) + COLS) % COLS;
-      ny = ((ny % ROWS) + ROWS) % ROWS;
-    } else {
-      if (nx < SNAKE_RADIUS || nx > COLS - SNAKE_RADIUS ||
-          ny < SNAKE_RADIUS || ny > ROWS - SNAKE_RADIUS) {
-        if (this._checkLoreDamage(timestamp)) return;
-        this._die('wall');
-        return;
-      }
-    }
+    // Wall wrapping — always active (phase through walls in all modes)
+    nx = ((nx % COLS) + COLS) % COLS;
+    ny = ((ny % ROWS) + ROWS) % ROWS;
 
     // Self collision (skip segments near the head)
     for (let i = SELF_HIT_SKIP; i < state.snake.length; i++) {
@@ -843,13 +884,14 @@ class SnakeRogue {
     for (let i = 1; i < state.snake.length; i++) {
       const prev = state.snake[i - 1];
       const seg  = state.snake[i];
-      const dx = seg.x - prev.x;
-      const dy = seg.y - prev.y;
+      // Use wrapped diff so the chain works correctly when crossing a boundary
+      const dx = wrappedDiff(seg.x, prev.x, COLS);
+      const dy = wrappedDiff(seg.y, prev.y, ROWS);
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > SEG_SPACING) {
         const f  = SEG_SPACING / dist;
-        seg.x = prev.x + dx * f;
-        seg.y = prev.y + dy * f;
+        seg.x = ((prev.x + dx * f) % COLS + COLS) % COLS;
+        seg.y = ((prev.y + dy * f) % ROWS + ROWS) % ROWS;
       }
     }
 
