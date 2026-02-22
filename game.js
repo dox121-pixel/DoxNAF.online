@@ -23,6 +23,7 @@ const ENEMY_HIT_DIST   = 0.50;  // grid-cells enemy-head collision radius
 const ENEMY_BODY_DIST  = 0.42;  // grid-cells enemy-body collision radius
 const SELF_HIT_SKIP    = 8;     // skip this many segs near head for self-collision
 const ENEMY_SPAWN_MS   = 14000; // base ms between enemy spawns
+const MOUSE_MIN_DIST_SQ = 1;    // min squared grid-cell distance before changing online dir
 
 // ── Upgrade definitions ─────────────────────
 const UPGRADES = [
@@ -618,12 +619,15 @@ class SnakeRogue {
     this._audioCtx           = null;
 
     // ── Mouse / joystick input state ──────────
-    this._mouseGridX      = COLS / 2 + 2;
-    this._mouseGridY      = ROWS / 2;
-    this._mouseActive     = false;
-    this._joystickAngle   = 0;
+    this._mouseGridX       = COLS / 2 + 2;
+    this._mouseGridY       = ROWS / 2;
+    this._mouseOnlineGridX = ONLINE_COLS / 2;
+    this._mouseOnlineGridY = ONLINE_ROWS / 2;
+    this._mouseActive      = false;
+    this._lastSentDir      = null;
+    this._joystickAngle    = 0;
     this._joystickHasInput = false;
-    this._lastFrameTime   = 0;
+    this._lastFrameTime    = 0;
 
     this._keys = {};
     this._setupInput();
@@ -658,12 +662,13 @@ class SnakeRogue {
     });
 
     // ── Mouse steering (desktop) ─────────────────
-    this.canvas.addEventListener('mousemove', e => {
+    // Use document so mouse position is tracked even outside the canvas/map
+    document.addEventListener('mousemove', e => {
       const rect = this.canvas.getBoundingClientRect();
-      const scaleX = COLS / rect.width;
-      const scaleY = ROWS / rect.height;
-      this._mouseGridX = (e.clientX - rect.left) * scaleX;
-      this._mouseGridY = (e.clientY - rect.top)  * scaleY;
+      this._mouseGridX       = (e.clientX - rect.left) * (COLS       / rect.width);
+      this._mouseGridY       = (e.clientY - rect.top)  * (ROWS       / rect.height);
+      this._mouseOnlineGridX = (e.clientX - rect.left) * (ONLINE_COLS / rect.width);
+      this._mouseOnlineGridY = (e.clientY - rect.top)  * (ONLINE_ROWS / rect.height);
       this._mouseActive = true;
     });
 
@@ -738,6 +743,23 @@ class SnakeRogue {
     if (this.phase === 'online_playing' && this.online && this.online.readyState === WebSocket.OPEN) {
       this.online.send(JSON.stringify({ type: 'direction', dir }));
     }
+  }
+
+  // Send direction toward mouse when in online mode (called every animation frame)
+  _sendMouseDirection() {
+    if (this.phase !== 'online_playing') return;
+    if (!this._mouseActive || !this.online || this.online.readyState !== WebSocket.OPEN) return;
+    if (!this.onlineState) return;
+    const sn = this.onlineState.snakes[this.onlineRole];
+    if (!sn || !sn.alive || !sn.body.length) return;
+    const head = sn.body[0];
+    const dx = this._mouseOnlineGridX - head.x;
+    const dy = this._mouseOnlineGridY - head.y;
+    if (dx * dx + dy * dy < MOUSE_MIN_DIST_SQ) return; // mouse too close to head — keep current dir
+    const dir = this._angle4Dir(Math.atan2(dy, dx));
+    if (this._lastSentDir && dir.x === this._lastSentDir.x && dir.y === this._lastSentDir.y) return;
+    this._lastSentDir = dir;
+    this._applyDirection(dir);
   }
 
   _startGame() {
@@ -1290,6 +1312,7 @@ class SnakeRogue {
 
   _gameLoop(timestamp) {
     this._update(timestamp);
+    this._sendMouseDirection();
     this._renderFrame(timestamp);
     requestAnimationFrame(this._loop);
   }
@@ -1536,6 +1559,7 @@ class SnakeRogue {
         this.prevOnlineState = null;
         this.lastOnlineTick  = performance.now();
         this.particles       = [];
+        this._lastSentDir    = null;
         this.phase           = 'online_playing';
         this._hideOverlay();
         this._updateOnlineHUD();
