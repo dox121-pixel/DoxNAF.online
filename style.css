@@ -27,6 +27,7 @@ canvas {
   border: 2px solid #2a2a3a;
   box-shadow: 0 0 30px rgba(80, 180, 120, 0.15), 0 0 60px rgba(80, 180, 120, 0.05);
   display: block;
+  cursor: crosshair;
 }
 
 #hud {
@@ -319,50 +320,47 @@ canvas {
   filter: grayscale(1) contrast(1.2);
 }
 
-/* ── Mobile D-pad controls ────────────────────── */
+/* ── Mobile joystick control ─────────────────── */
 #mobile-controls {
   display: none;
   margin-top: 12px;
 }
 
-#dpad {
-  display: grid;
-  grid-template-columns: repeat(3, 56px);
-  grid-template-rows: repeat(3, 56px);
-  gap: 6px;
-  justify-content: center;
-}
-
-#dpad-up    { grid-column: 2; grid-row: 1; }
-#dpad-left  { grid-column: 1; grid-row: 2; }
-.dpad-center { grid-column: 2; grid-row: 2; }
-#dpad-right { grid-column: 3; grid-row: 2; }
-#dpad-down  { grid-column: 2; grid-row: 3; }
-
-.dpad-btn {
-  width: 56px;
-  height: 56px;
-  background: rgba(14, 14, 26, 0.85);
-  border: 1px solid #2a3a4a;
-  border-radius: 8px;
-  color: #7ab;
-  font-size: 20px;
-  cursor: pointer;
+#joystick-area {
+  width: 180px;
+  height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;
-  touch-action: manipulation;
-  user-select: none;
-  -webkit-user-select: none;
-  transition: background 0.1s, border-color 0.1s;
+  touch-action: none;
 }
 
-.dpad-btn:active,
-.dpad-btn.pressed {
-  background: #1a2a3a;
-  border-color: #4af;
-  color: #7ef;
-  box-shadow: 0 0 10px rgba(68, 170, 255, 0.35);
+#joystick-base {
+  width: 140px;
+  height: 140px;
+  background: rgba(14, 14, 26, 0.65);
+  border: 2px solid #2a3a4a;
+  border-radius: 50%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 20px rgba(80, 180, 120, 0.1);
+}
+
+#joystick-knob {
+  width: 52px;
+  height: 52px;
+  background: rgba(60, 200, 100, 0.75);
+  border: 2px solid #4f8;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 14px rgba(68, 255, 136, 0.45);
+  pointer-events: none;
+  will-change: transform;
 }
 
 /* Show D-pad on touch devices or small screens */
