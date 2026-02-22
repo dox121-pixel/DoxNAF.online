@@ -422,8 +422,12 @@ const WS_SERVER = (() => {
   if (typeof location === 'undefined' || location.protocol === 'file:') {
     return 'wss://doxnaf-online.onrender.com';
   }
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${proto}//${location.host}`;
+  // Use local server when developing locally
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    return `ws://${location.host}`;
+  }
+  // Always connect to the Render WebSocket server in production
+  return 'wss://doxnaf-online.onrender.com';
 })();
 
 function drawOnlineSnake(ctx, body, playerIdx) {
