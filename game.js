@@ -540,7 +540,7 @@ function drawOnlineSnake(ctx, body, playerIdx, prevBody, t, grid = GRID) {
   ctx.lineJoin = 'round';
   ctx.lineWidth = snakeR * 2 * grid;
 
-  // Draw body as smooth rounded path (skip segments crossing a wrap boundary)
+  // Draw body as smooth rounded path with bezier curves for smooth corners
   for (let i = pts.length - 2; i >= 0; i--) {
     const a = pts[i], b = pts[i + 1];
     if (Math.abs(a.x - b.x) > ONLINE_COLS / 2 || Math.abs(a.y - b.y) > ONLINE_ROWS / 2) continue;
@@ -549,9 +549,29 @@ function drawOnlineSnake(ctx, body, playerIdx, prevBody, t, grid = GRID) {
       ? `rgba(40, 160, 80, ${alpha})`
       : `rgba(180, 80, 20, ${alpha})`;
     ctx.shadowBlur = 0;
+
+    // Midpoint bezier: curve from midpoint(a,b) through a to midpoint(a,c)
+    // This rounds corners where the snake turns, matching the SP smooth feel
+    const midAbX = (a.x + b.x) / 2 * grid + grid / 2;
+    const midAbY = (a.y + b.y) / 2 * grid + grid / 2;
+    let midAcX, midAcY;
+    if (i > 0) {
+      const c = pts[i - 1];
+      if (Math.abs(a.x - c.x) <= ONLINE_COLS / 2 && Math.abs(a.y - c.y) <= ONLINE_ROWS / 2) {
+        midAcX = (a.x + c.x) / 2 * grid + grid / 2;
+        midAcY = (a.y + c.y) / 2 * grid + grid / 2;
+      } else {
+        midAcX = a.x * grid + grid / 2;
+        midAcY = a.y * grid + grid / 2;
+      }
+    } else {
+      midAcX = a.x * grid + grid / 2;
+      midAcY = a.y * grid + grid / 2;
+    }
+
     ctx.beginPath();
-    ctx.moveTo(a.x * grid + grid / 2, a.y * grid + grid / 2);
-    ctx.lineTo(b.x * grid + grid / 2, b.y * grid + grid / 2);
+    ctx.moveTo(midAbX, midAbY);
+    ctx.quadraticCurveTo(a.x * grid + grid / 2, a.y * grid + grid / 2, midAcX, midAcY);
     ctx.stroke();
   }
 
@@ -1569,6 +1589,7 @@ class SnakeRogue {
         this.prevOnlineState = this.onlineState;
         this.onlineState     = msg.state;
         this.lastOnlineTick  = performance.now();
+        this._lastSentDir    = null; // re-evaluate mouse direction every tick
         this._updateOnlineHUD();
         break;
 
