@@ -20,7 +20,7 @@ const UPGRADES = [
     name: 'OVERDRIVE',
     icon: '⚡',
     desc: 'Move faster. Stack for ludicrous speed.',
-    apply(state) { state.baseInterval = Math.max(60, state.baseInterval - 18); }
+    apply(state) { state.baseInterval = Math.max(80, state.baseInterval - 12); }
   },
   {
     id: 'speed_down',
@@ -143,7 +143,8 @@ function emptyCell(state) {
 }
 
 function spawnApple(state) {
-  state.apples.push(emptyCell(state));
+  const cell = emptyCell(state);
+  state.apples.push({ x: cell.x, y: cell.y, fx: cell.x, fy: cell.y });
 }
 
 function pickUpgrades(state) {
@@ -263,9 +264,9 @@ const ENEMY_TYPES = {
 function spawnEnemy(state) {
   const score = state.score;
   let typeKeys = ['chaser'];
-  if (score >= 15) typeKeys.push('patrol');
-  if (score >= 30) typeKeys.push('interceptor');
-  if (score >= 50) typeKeys.push('blocker');
+  if (score >= 15 || state.nightmareMode) typeKeys.push('patrol');
+  if (score >= 30 || state.nightmareMode) typeKeys.push('interceptor');
+  if (score >= 50 || state.nightmareMode) typeKeys.push('blocker');
 
   const typeKey = typeKeys[randInt(typeKeys.length)];
   const type = ENEMY_TYPES[typeKey];
@@ -286,7 +287,7 @@ function spawnEnemy(state) {
   const enemy = {
     x: pos.x, y: pos.y,
     type: typeKey,
-    speed: type.speed * (1 + score / 120),
+    speed: type.speed * (1 + score / 120) * (state.nightmareMode ? 2.0 : 1.0),
     hp: 1,
     id: Math.random(),
   };
@@ -363,13 +364,15 @@ function drawSnake(ctx, state, t) {
 
 function drawApples(ctx, state, tick, grid = GRID) {
   for (const apple of state.apples) {
+    const ax = apple.fx !== undefined ? apple.fx : apple.x;
+    const ay = apple.fy !== undefined ? apple.fy : apple.y;
     const pulse = 0.85 + 0.15 * Math.sin(tick * 0.08);
     const r = grid * 0.38 * pulse;
     ctx.shadowBlur = 14;
     ctx.shadowColor = '#f64';
     ctx.fillStyle = '#e84';
     ctx.beginPath();
-    ctx.arc(apple.x * grid + grid / 2, apple.y * grid + grid / 2, r, 0, Math.PI * 2);
+    ctx.arc(ax * grid + grid / 2, ay * grid + grid / 2, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
   }
@@ -632,6 +635,7 @@ class SnakeRogue {
     this.tick = 0;
     this.lastMoveTime = 0;
     this.flashTimer = 0;
+    document.getElementById('app').classList.remove('nightmare-mode');
 
     const now = performance.now();
     this.gameStartTime       = now;
@@ -670,6 +674,9 @@ class SnakeRogue {
       enemySpawnTimer: 0,
       enemySpawnInterval: 100,
       prevSnake: [],
+      applesForNextUpgrade: 1,
+      applesEatenSinceUpgrade: 0,
+      nightmareMode: false,
     };
 
     // Initial apples
@@ -680,6 +687,24 @@ class SnakeRogue {
     this._hideOverlay();
     this._hideUpgradePanel();
     this._updateHUD();
+  }
+
+  _startNightmareMode() {
+    this._startGame();
+    this.state.nightmareMode = true;
+    document.getElementById('app').classList.add('nightmare-mode');
+  }
+
+  _playNightmareJumpscare() {
+    this.phase = 'nightmare_jumpscare';
+    this.nightmareJumpscareStart = performance.now();
+    document.getElementById('app').classList.remove('nightmare-mode');
+    this._playScreech();
+    setTimeout(() => {
+      this.state = null;
+      this.phase = 'start';
+      this._renderOverlay();
+    }, 2500);
   }
 
   _update(timestamp) {
@@ -730,20 +755,25 @@ class SnakeRogue {
       state.snake.pop();
     }
 
-    // Magnet: pull apples closer (but not through snake body)
+    // Magnet: pull apples closer smoothly (diagonally) using fractional positions
     if (state.magnet > 0) {
       for (const apple of state.apples) {
-        const dx = nx - apple.x;
-        const dy = ny - apple.y;
-        const dist = Math.abs(dx) + Math.abs(dy);
-        if (dist > 1 && this.tick % Math.max(1, 4 - state.magnet) === 0) {
-          const moveX = Math.abs(dx) >= Math.abs(dy) ? Math.sign(dx) : 0;
-          const moveY = Math.abs(dx) >= Math.abs(dy) ? 0 : Math.sign(dy);
-          const newAX = apple.x + moveX;
-          const newAY = apple.y + moveY;
-          if (!state.snake.some(s => s.x === newAX && s.y === newAY)) {
-            apple.x = newAX;
-            apple.y = newAY;
+        if (apple.fx === undefined) { apple.fx = apple.x; apple.fy = apple.y; }
+        const dx = nx - apple.fx;
+        const dy = ny - apple.fy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0.5) {
+          const pullStrength = Math.min(1.0, state.magnet * 0.25);
+          const step = Math.min(pullStrength, dist);
+          const newFx = Math.max(0, Math.min(COLS - 1, apple.fx + (dx / dist) * step));
+          const newFy = Math.max(0, Math.min(ROWS - 1, apple.fy + (dy / dist) * step));
+          const snapX = Math.round(newFx);
+          const snapY = Math.round(newFy);
+          if (!state.snake.some(s => s.x === snapX && s.y === snapY)) {
+            apple.fx = newFx;
+            apple.fy = newFy;
+            apple.x = snapX;
+            apple.y = snapY;
           }
         }
       }
@@ -779,19 +809,28 @@ class SnakeRogue {
         spawnApple(state);
         for (let j = 0; j < state.extraApples; j++) spawnApple(state);
 
-        // Trigger upgrade screen
-        this.pendingUpgrades = pickUpgrades(state);
-        this.phase = 'upgrade';
-        this._showUpgradePanel();
+        // Trigger upgrade screen (scaled: need more apples per perk as perks accumulate)
+        if (!state.nightmareMode) {
+          state.applesEatenSinceUpgrade++;
+          if (state.applesEatenSinceUpgrade >= state.applesForNextUpgrade) {
+            state.applesEatenSinceUpgrade = 0;
+            this.pendingUpgrades = pickUpgrades(state);
+            this.phase = 'upgrade';
+            this._showUpgradePanel();
+            this._updateHUD();
+            return;
+          }
+        }
+
         this._updateHUD();
-        return;
+        break;
       }
     }
 
     // Enemy updates
     state.enemySpawnTimer++;
     const difficulty = 1 + state.score / 40;
-    const spawnInterval = Math.max(60, state.enemySpawnInterval / difficulty);
+    const spawnInterval = Math.max(state.nightmareMode ? 20 : 60, state.enemySpawnInterval / difficulty / (state.nightmareMode ? 2 : 1));
     if (state.enemySpawnTimer >= spawnInterval && state.score >= 3) {
       state.enemySpawnTimer = 0;
       spawnEnemy(state);
@@ -840,6 +879,7 @@ class SnakeRogue {
 
   _checkLoreDamage(timestamp) {
     if (this.loreEventActive) return false;
+    if (this.state && this.state.nightmareMode) return false;
     if (timestamp - this.gameStartTime < 90000) return false;
     this._triggerLoreEvent(timestamp);
     return true;
@@ -910,21 +950,26 @@ class SnakeRogue {
       <div class="controls">
         WASD / Arrow Keys to move<br>
         Enemies appear at score 3+<br>
-        Upgrades stack infinitely
+        Upgrades scale with perks collected
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
         <button class="btn" id="start-btn">SOLO [Enter]</button>
         <button class="btn btn-online" id="online-btn">⚡ ONLINE</button>
       </div>
-      <button class="btn btn-lore" id="lore-red-btn" disabled>???</button>
+      <button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>
     `;
     document.getElementById('start-btn').addEventListener('click', () => this._startGame());
     document.getElementById('online-btn').addEventListener('click', () => this._startOnlineMode());
+    document.getElementById('lore-red-btn').addEventListener('click', () => this._startNightmareMode());
   }
 
   _die(reason) {
     const state = this.state;
     spawnParticles(this.particles, state.snake[0].x, state.snake[0].y, '#f44', 20);
+    if (state.nightmareMode) {
+      this._playNightmareJumpscare();
+      return;
+    }
     this.phase = 'gameover';
     this._showOverlay('gameover', reason);
   }
@@ -933,6 +978,9 @@ class SnakeRogue {
     const state = this.state;
     upgrade.apply(state);
     state.upgradeCount[upgrade.id] = (state.upgradeCount[upgrade.id] || 0) + 1;
+    // Scale apples needed for next upgrade: 1 more apple needed per 3 perks collected
+    const totalPerks = Object.values(state.upgradeCount).reduce((a, b) => a + b, 0);
+    state.applesForNextUpgrade = 1 + Math.floor(totalPerks / 3);
     this._hideUpgradePanel();
     this.phase = 'playing';
     this._updateHUD();
@@ -952,17 +1000,25 @@ class SnakeRogue {
 
     // Build upgrade summary
     const parts = [];
-    if (s.ghost) parts.push(`👻×${s.ghost}`);
-    if (s.shields) parts.push(`🛡️×${s.shields}`);
-    if (s.magnet) parts.push(`🧲×${s.magnet}`);
-    if (s.freeze) parts.push(`❄️×${s.freeze}`);
-    if (s.scoreMult > 1) parts.push(`💰×${s.scoreMult}`);
-    if (s.tailSweep) parts.push(`🌀×${s.tailSweep}`);
-    if (s.repel) parts.push(`💥×${s.repel}`);
-    if (s.extraApples) parts.push(`🍎+${s.extraApples}`);
-    if (s.pulse) parts.push(`💫×${s.pulse}`);
-    if (s.lifesteal) parts.push(`🩸×${s.lifesteal}`);
-    if (s.hunterBonus) parts.push(`🎯×${Math.floor(s.hunterBonus / 3)}`);
+    if (s.nightmareMode) {
+      parts.push('☠ NIGHTMARE');
+    } else {
+      if (s.applesForNextUpgrade > 1) {
+        const needed = s.applesForNextUpgrade - s.applesEatenSinceUpgrade;
+        parts.push(`🍎×${needed}→perk`);
+      }
+      if (s.ghost) parts.push(`👻×${s.ghost}`);
+      if (s.shields) parts.push(`🛡️×${s.shields}`);
+      if (s.magnet) parts.push(`🧲×${s.magnet}`);
+      if (s.freeze) parts.push(`❄️×${s.freeze}`);
+      if (s.scoreMult > 1) parts.push(`💰×${s.scoreMult}`);
+      if (s.tailSweep) parts.push(`🌀×${s.tailSweep}`);
+      if (s.repel) parts.push(`💥×${s.repel}`);
+      if (s.extraApples) parts.push(`🍎+${s.extraApples}`);
+      if (s.pulse) parts.push(`💫×${s.pulse}`);
+      if (s.lifesteal) parts.push(`🩸×${s.lifesteal}`);
+      if (s.hunterBonus) parts.push(`🎯×${Math.floor(s.hunterBonus / 3)}`);
+    }
     document.getElementById('hud-upgrades').textContent = parts.join('  ');
   }
 
@@ -996,6 +1052,23 @@ class SnakeRogue {
       for (const p of this.particles) { p.x += p.vx; p.y += p.vy; p.life -= 0.03; }
       this.particles = this.particles.filter(p => p.life > 0);
       drawParticles(ctx, this.particles);
+      return;
+    }
+
+    // ── Nightmare jumpscare phase ─────────────
+    if (this.phase === 'nightmare_jumpscare') {
+      const elapsed = timestamp - this.nightmareJumpscareStart;
+      const frame = Math.floor(elapsed / 80) % 2;
+      ctx.fillStyle = frame === 0 ? '#cc0000' : '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = frame === 0 ? '#ffffff' : '#cc0000';
+      ctx.font = `bold ${Math.floor(80 + Math.sin(elapsed * 0.05) * 10)}px Courier New`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('☠', W / 2, H / 2 - 50);
+      ctx.font = 'bold 36px Courier New';
+      ctx.fillText('YOU DIED', W / 2, H / 2 + 40);
+      ctx.textBaseline = 'alphabetic';
       return;
     }
 
@@ -1111,15 +1184,17 @@ class SnakeRogue {
       <div class="controls">
         WASD / Arrow Keys to move<br>
         Enemies appear at score 3+<br>
-        Upgrades stack infinitely
+        Upgrades scale with perks collected
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
         <button class="btn" id="start-btn">SOLO [Enter]</button>
         <button class="btn btn-online" id="online-btn">⚡ ONLINE</button>
       </div>
+      <button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>
     `;
     document.getElementById('start-btn').addEventListener('click', () => this._startGame());
     document.getElementById('online-btn').addEventListener('click', () => this._startOnlineMode());
+    document.getElementById('lore-red-btn').addEventListener('click', () => this._startNightmareMode());
   }
 
   _hideUpgradePanel() {
