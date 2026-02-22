@@ -114,6 +114,14 @@ const UPGRADES = [
 // ── Helpers ──────────────────────────────────
 function randInt(n) { return Math.floor(Math.random() * n); }
 
+function isNightmareUnlocked() {
+  try { return localStorage.getItem('nightmare_unlocked') === '1'; } catch (_) { return false; }
+}
+
+function setNightmareUnlocked() {
+  try { localStorage.setItem('nightmare_unlocked', '1'); } catch (_) {}
+}
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -182,7 +190,7 @@ const ENEMY_TYPES = {
     color: '#e04040',
     glowColor: 'rgba(220,60,60,0.4)',
     size: 0.7,
-    speed: 0.045,
+    speed: 0.09,
     score: 5,
     label: 'CHASER',
     update(e, state) {
@@ -199,7 +207,7 @@ const ENEMY_TYPES = {
     color: '#c07020',
     glowColor: 'rgba(200,120,30,0.4)',
     size: 0.65,
-    speed: 0.055,
+    speed: 0.11,
     score: 8,
     label: 'PATROLLER',
     init(e) {
@@ -224,7 +232,7 @@ const ENEMY_TYPES = {
     color: '#8040c0',
     glowColor: 'rgba(140,60,210,0.4)',
     size: 0.6,
-    speed: 0.065,
+    speed: 0.13,
     score: 12,
     label: 'INTERCEPTOR',
     update(e, state) {
@@ -287,7 +295,7 @@ function spawnEnemy(state) {
   const enemy = {
     x: pos.x, y: pos.y,
     type: typeKey,
-    speed: type.speed * (1 + score / 120) * (state.nightmareMode ? 2.0 : 1.0),
+    speed: type.speed * (1 + score / 120) * (state.nightmareMode ? 3.0 : 1.0),
     hp: 1,
     id: Math.random(),
   };
@@ -937,6 +945,9 @@ class SnakeRogue {
     this.state           = null;
     this.loreEventActive = false;
 
+    // Mark nightmare as permanently unlocked
+    setNightmareUnlocked();
+
     const el = document.getElementById('overlay');
     el.className = 'start';
     el.style.display = '';
@@ -1116,19 +1127,6 @@ class SnakeRogue {
     this.particles = this.particles.filter(p => p.life > 0);
     drawParticles(ctx, this.particles);
 
-    // ── Regular lore flicker (inverted colours) ─
-    if (this.phase === 'playing') {
-      if (timestamp >= this.loreNextFlickerTime) {
-        this.loreFlickerEndTime  = timestamp + 150 + Math.random() * 200;
-        this.loreNextFlickerTime = timestamp + 10000 + Math.random() * 15000;
-      }
-      if (this.loreFlickerEndTime > 0 && timestamp <= this.loreFlickerEndTime) {
-        ctx.globalCompositeOperation = 'difference';
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, W, H);
-        ctx.globalCompositeOperation = 'source-over';
-      }
-    }
   }
 
   _gameLoop(timestamp) {
@@ -1174,6 +1172,7 @@ class SnakeRogue {
   _renderOverlay() {
     const el = document.getElementById('overlay');
     el.className = 'start';
+    const nightmareUnlocked = isNightmareUnlocked();
     el.innerHTML = `
       <h1>VIPER.exe</h1>
       <div class="info">
@@ -1190,11 +1189,12 @@ class SnakeRogue {
         <button class="btn" id="start-btn">SOLO [Enter]</button>
         <button class="btn btn-online" id="online-btn">⚡ ONLINE</button>
       </div>
-      <button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>
+      ${nightmareUnlocked ? '<button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>' : ''}
     `;
     document.getElementById('start-btn').addEventListener('click', () => this._startGame());
     document.getElementById('online-btn').addEventListener('click', () => this._startOnlineMode());
-    document.getElementById('lore-red-btn').addEventListener('click', () => this._startNightmareMode());
+    const loreBtn = document.getElementById('lore-red-btn');
+    if (loreBtn) loreBtn.addEventListener('click', () => this._startNightmareMode());
   }
 
   _hideUpgradePanel() {
