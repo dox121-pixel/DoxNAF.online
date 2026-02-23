@@ -3,10 +3,10 @@
 // ─────────────────────────────────────────────
 
 const GRID = 20;          // cell size in pixels
-const COLS = 30;
-const ROWS = 30;
-const W = COLS * GRID;
-const H = ROWS * GRID;
+const VIEW_COLS = 30;
+const VIEW_ROWS = 30;
+const W = VIEW_COLS * GRID;
+const H = VIEW_ROWS * GRID;
 
 const ONLINE_COLS    = 40;
 const ONLINE_ROWS    = 40;
@@ -38,14 +38,6 @@ const UPGRADES = [
     apply(state) { state.ghost = (state.ghost || 0) + 1; }
   },
   {
-    id: 'tail_sweep',
-    name: 'WHIPLASH',
-    icon: '🌀',
-    desc: 'Tail kills enemies on contact. One time only.',
-    oneTime: true,
-    apply(state) { state.tailSweep = (state.tailSweep || 0) + 1; }
-  },
-  {
     id: 'behemoth',
     name: 'BEHEMOTH',
     icon: '🐉',
@@ -67,14 +59,14 @@ const UPGRADES = [
     name: 'OVERDRIVE',
     icon: '⚡',
     desc: 'Move faster. Stack for ludicrous speed.',
-    apply(state) { state.baseInterval = Math.max(80, state.baseInterval - 12); }
+    apply(state) { state.baseInterval = Math.max(80, state.baseInterval - 6); }
   },
   {
     id: 'speed_down',
     name: 'SLOW TIME',
     icon: '🕰️',
     desc: 'Slow movement — more time to react.',
-    apply(state) { state.baseInterval = Math.min(250, state.baseInterval + 20); }
+    apply(state) { state.baseInterval = Math.min(250, state.baseInterval + 10); }
   },
   {
     id: 'shield',
@@ -89,13 +81,6 @@ const UPGRADES = [
     icon: '❄️',
     desc: 'All enemies slowed. Stacks.',
     apply(state) { state.freeze = (state.freeze || 0) + 1; }
-  },
-  {
-    id: 'score_multi',
-    name: 'JACKPOT',
-    icon: '💰',
-    desc: '+1 bonus score per apple. Stacks.',
-    apply(state) { state.scoreMult = (state.scoreMult || 1) + 1; }
   },
   {
     id: 'enemy_repel',
@@ -117,13 +102,6 @@ const UPGRADES = [
     icon: '🩸',
     desc: 'Gain a shield charge each time you kill an enemy. Stack for more charges.',
     apply(state) { state.lifesteal = (state.lifesteal || 0) + 1; }
-  },
-  {
-    id: 'hunter',
-    name: 'HUNTER',
-    icon: '🎯',
-    desc: '+3 bonus score per enemy killed. Stack for ever-higher bounties.',
-    apply(state) { state.hunterBonus = (state.hunterBonus || 0) + 3; }
   },
 ];
 
@@ -167,14 +145,19 @@ function pickRandom(arr, n) {
 }
 
 function emptyCell(state) {
+  const head = state.snake[0];
+  const range = 10;
   let cell;
   let attempts = 0;
   do {
-    cell = { x: randInt(COLS), y: randInt(ROWS) };
+    cell = {
+      x: Math.round(head.x + (Math.random() - 0.5) * range * 2),
+      y: Math.round(head.y + (Math.random() - 0.5) * range * 2),
+    };
     attempts++;
   } while ((
     state.snake.some(s => { const dx = cell.x - s.x, dy = cell.y - s.y; return dx * dx + dy * dy < 1; }) ||
-    state.apples.some(a => a.x === cell.x && a.y === cell.y) ||
+    state.apples.some(a => Math.abs(a.x - cell.x) < 0.5 && Math.abs(a.y - cell.y) < 0.5) ||
     state.enemies.some(e => Math.round(e.x) === cell.x && Math.round(e.y) === cell.y)
   ) && attempts < 400);
   return cell;
@@ -224,7 +207,8 @@ const ENEMY_TYPES = {
     color: '#e04040',
     glowColor: 'rgba(220,60,60,0.4)',
     size: 0.7,
-    speed: 0.001286,  // grid-cells per ms
+    shape: 'circle',
+    speed: 0.0018,
     score: 5,
     label: 'CHASER',
     update(e, state, dt) {
@@ -241,39 +225,44 @@ const ENEMY_TYPES = {
     color: '#c07020',
     glowColor: 'rgba(200,120,30,0.4)',
     size: 0.65,
-    speed: 0.001572,  // grid-cells per ms
+    shape: 'square',
+    speed: 0.0022,
     score: 8,
     label: 'PATROLLER',
     init(e) {
       e.angle = Math.random() * Math.PI * 2;
       e.turnTimer = 0;
+      e.chaseTimer = 0;
     },
     update(e, state, dt) {
       e.turnTimer = (e.turnTimer || 0) + dt;
-      if (e.turnTimer > 5600 + randInt(5600)) {
-        e.angle += (Math.random() - 0.5) * Math.PI;
+      e.chaseTimer = (e.chaseTimer || 0) + dt;
+      // Occasionally switch to chasing
+      if (e.chaseTimer > 4000) {
+        const head = state.snake[0];
+        e.angle = Math.atan2(head.y - e.y, head.x - e.x);
+        e.chaseTimer = 0;
+      } else if (e.turnTimer > 3000 + randInt(3000)) {
+        e.angle += (Math.random() - 0.5) * Math.PI * 1.5;
         e.turnTimer = 0;
       }
       const spd = e.speed * dt * (1 / (1 + (state.freeze || 0) * 0.25));
       e.x += Math.cos(e.angle) * spd;
       e.y += Math.sin(e.angle) * spd;
-      // Bounce off walls
-      if (e.x < 0 || e.x >= COLS) { e.angle = Math.PI - e.angle; e.x = Math.max(0, Math.min(COLS - 1, e.x)); }
-      if (e.y < 0 || e.y >= ROWS) { e.angle = -e.angle; e.y = Math.max(0, Math.min(ROWS - 1, e.y)); }
     }
   },
   interceptor: {
     color: '#8040c0',
     glowColor: 'rgba(140,60,210,0.4)',
     size: 0.6,
-    speed: 0.001858,  // grid-cells per ms
+    shape: 'triangle',
+    speed: 0.0026,
     score: 12,
     label: 'INTERCEPTOR',
     update(e, state, dt) {
-      // Predict where the snake head will be ~8 cells ahead
       const head = state.snake[0];
       const angle = state.snakeAngle || 0;
-      const predict = { x: head.x + Math.cos(angle) * 8, y: head.y + Math.sin(angle) * 8 };
+      const predict = { x: head.x + Math.cos(angle) * 10, y: head.y + Math.sin(angle) * 10 };
       const dx = predict.x - e.x;
       const dy = predict.y - e.y;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -285,70 +274,157 @@ const ENEMY_TYPES = {
   blocker: {
     color: '#404040',
     glowColor: 'rgba(80,80,80,0.4)',
-    size: 0.8,
-    speed: 0,
+    size: 0.85,
+    shape: 'diamond',
+    speed: 0.0005,
     score: 15,
     label: 'BLOCKER',
     init(e, state) {
-      // Place near an apple
       if (state.apples.length > 0) {
         const apple = state.apples[randInt(state.apples.length)];
         e.x = apple.x + (Math.random() - 0.5) * 4;
         e.y = apple.y + (Math.random() - 0.5) * 4;
-        e.x = Math.max(1, Math.min(COLS - 2, e.x));
-        e.y = Math.max(1, Math.min(ROWS - 2, e.y));
       }
     },
-    update() {} // Static
-  }
+    update(e, state, dt) {
+      // Slowly drift toward nearest apple
+      if (state.apples.length > 0) {
+        const apple = state.apples[0];
+        const dx = apple.x - e.x, dy = apple.y - e.y;
+        const len = Math.sqrt(dx * dx + dy * dy) || 1;
+        const spd = e.speed * dt * (1 / (1 + (state.freeze || 0) * 0.25));
+        e.x += (dx / len) * spd;
+        e.y += (dy / len) * spd;
+      }
+    }
+  },
+  titan: {
+    color: '#c00060',
+    glowColor: 'rgba(200,0,100,0.5)',
+    size: 1.6,
+    shape: 'hexagon',
+    speed: 0.0008,
+    score: 30,
+    label: 'TITAN',
+    update(e, state, dt) {
+      const head = state.snake[0];
+      const dx = head.x - e.x;
+      const dy = head.y - e.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const spd = e.speed * dt * (1 / (1 + (state.freeze || 0) * 0.25));
+      e.x += (dx / len) * spd;
+      e.y += (dy / len) * spd;
+    }
+  },
+  speeder: {
+    color: '#00e0c0',
+    glowColor: 'rgba(0,200,180,0.4)',
+    size: 0.4,
+    shape: 'circle',
+    speed: 0.0042,
+    score: 10,
+    label: 'SPEEDER',
+    init(e) {
+      e.angle = Math.random() * Math.PI * 2;
+      e.zigTimer = 0;
+    },
+    update(e, state, dt) {
+      e.zigTimer = (e.zigTimer || 0) + dt;
+      if (e.zigTimer > 800 + randInt(600)) {
+        const head = state.snake[0];
+        e.angle = Math.atan2(head.y - e.y, head.x - e.x) + (Math.random() - 0.5) * 1.2;
+        e.zigTimer = 0;
+      }
+      const spd = e.speed * dt * (1 / (1 + (state.freeze || 0) * 0.25));
+      e.x += Math.cos(e.angle) * spd;
+      e.y += Math.sin(e.angle) * spd;
+    }
+  },
 };
 
 function spawnEnemy(state) {
-  const score = state.score;
+  const lvl = state.applesEaten;
   let typeKeys = ['chaser'];
-  if (score >= 15 || state.nightmareMode) typeKeys.push('patrol');
-  if (score >= 30 || state.nightmareMode) typeKeys.push('interceptor');
-  if (score >= 50 || state.nightmareMode) typeKeys.push('blocker');
+  if (lvl >= 5 || state.nightmareMode)  typeKeys.push('patrol');
+  if (lvl >= 10 || state.nightmareMode) typeKeys.push('interceptor');
+  if (lvl >= 15 || state.nightmareMode) typeKeys.push('blocker');
+  if (lvl >= 20 || state.nightmareMode) typeKeys.push('speeder');
+  if (lvl >= 30 || state.nightmareMode) typeKeys.push('titan');
 
   const typeKey = typeKeys[randInt(typeKeys.length)];
   const type = ENEMY_TYPES[typeKey];
 
-  // Spawn at edge, away from snake head
   const head = state.snake[0];
+  const spawnRange = VIEW_COLS / 2 + 3;
   let pos;
   let attempts = 0;
   do {
     const edge = randInt(4);
-    if (edge === 0) pos = { x: randInt(COLS), y: 0 };
-    else if (edge === 1) pos = { x: randInt(COLS), y: ROWS - 1 };
-    else if (edge === 2) pos = { x: 0, y: randInt(ROWS) };
-    else pos = { x: COLS - 1, y: randInt(ROWS) };
+    if (edge === 0)      pos = { x: head.x - spawnRange + Math.random() * spawnRange * 2, y: head.y - spawnRange };
+    else if (edge === 1) pos = { x: head.x - spawnRange + Math.random() * spawnRange * 2, y: head.y + spawnRange };
+    else if (edge === 2) pos = { x: head.x - spawnRange, y: head.y - spawnRange + Math.random() * spawnRange * 2 };
+    else                 pos = { x: head.x + spawnRange, y: head.y - spawnRange + Math.random() * spawnRange * 2 };
     attempts++;
   } while (Math.abs(pos.x - head.x) + Math.abs(pos.y - head.y) < 8 && attempts < 50);
 
+  const speedMult = 1 + lvl / 80;
   const enemy = {
     x: pos.x, y: pos.y,
     type: typeKey,
-    speed: type.speed * (1 + score / 120) * (state.nightmareMode ? 5.0 : 2.5),
+    speed: type.speed * speedMult * (state.nightmareMode ? 2.5 : 1.0),
     hp: 1,
     id: Math.random(),
   };
 
   if (type.init) type.init(enemy, state);
 
-  // Apply repel scatter
   if (state.repel && state.repel > 0) {
     enemy.x += (Math.random() - 0.5) * state.repel * 3;
     enemy.y += (Math.random() - 0.5) * state.repel * 3;
-    enemy.x = Math.max(0, Math.min(COLS - 1, enemy.x));
-    enemy.y = Math.max(0, Math.min(ROWS - 1, enemy.y));
   }
 
   state.enemies.push(enemy);
+
+  // At higher levels, spawn extra enemies per interval
+  const extraCount = Math.min(4, Math.floor(lvl / 20));
+  for (let i = 0; i < extraCount; i++) {
+    const extraTypeKey = typeKeys[randInt(typeKeys.length)];
+    const extraType = ENEMY_TYPES[extraTypeKey];
+    const eEdge = randInt(4);
+    let ePos;
+    if (eEdge === 0)      ePos = { x: head.x - spawnRange + Math.random() * spawnRange * 2, y: head.y - spawnRange };
+    else if (eEdge === 1) ePos = { x: head.x - spawnRange + Math.random() * spawnRange * 2, y: head.y + spawnRange };
+    else if (eEdge === 2) ePos = { x: head.x - spawnRange, y: head.y - spawnRange + Math.random() * spawnRange * 2 };
+    else                  ePos = { x: head.x + spawnRange, y: head.y - spawnRange + Math.random() * spawnRange * 2 };
+    const extraEnemy = {
+      x: ePos.x, y: ePos.y,
+      type: extraTypeKey,
+      speed: extraType.speed * speedMult * (state.nightmareMode ? 2.5 : 1.0),
+      hp: 1,
+      id: Math.random(),
+    };
+    if (extraType.init) extraType.init(extraEnemy, state);
+    state.enemies.push(extraEnemy);
+  }
 }
 
 // ── Rendering helpers ─────────────────────────
-function drawGrid(ctx, cols = COLS, rows = ROWS, grid = GRID) {
+function drawGrid(ctx, camX, camY) {
+  const startX = Math.floor((camX || 0) - VIEW_COLS / 2) - 1;
+  const endX   = startX + VIEW_COLS + 2;
+  const startY = Math.floor((camY || 0) - VIEW_ROWS / 2) - 1;
+  const endY   = startY + VIEW_ROWS + 2;
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+  ctx.lineWidth = 0.5;
+  for (let x = startX; x <= endX; x++) {
+    ctx.beginPath(); ctx.moveTo(x * GRID, startY * GRID); ctx.lineTo(x * GRID, endY * GRID); ctx.stroke();
+  }
+  for (let y = startY; y <= endY; y++) {
+    ctx.beginPath(); ctx.moveTo(startX * GRID, y * GRID); ctx.lineTo(endX * GRID, y * GRID); ctx.stroke();
+  }
+}
+
+function drawFixedGrid(ctx, cols, rows, grid) {
   const gW = cols * grid;
   const gH = rows * grid;
   ctx.strokeStyle = 'rgba(255,255,255,0.025)';
@@ -365,8 +441,6 @@ function drawSnake(ctx, state) {
   const snake = state.snake;
   if (snake.length < 2) return;
 
-  const isWhiplash = state.tailSweep > 0;
-  const bodyColor  = isWhiplash ? '#64dcff' : '#28a050';
   const headColor  = (state.shields > 0) ? '#66b8ff' : '#50e678';
   const glowColor  = (state.shields > 0) ? '#4af'     : '#4f8';
 
@@ -379,12 +453,8 @@ function drawSnake(ctx, state) {
   // Gradient opacity: head bright, tail fades
   for (let i = snake.length - 2; i >= 0; i--) {
     const a = snake[i], b = snake[i + 1];
-    // Skip segments that span a wrap boundary (avoids diagonal glitch line)
-    if (Math.abs(a.x - b.x) > COLS / 2 || Math.abs(a.y - b.y) > ROWS / 2) continue;
     const alpha = 0.35 + 0.65 * (1 - i / snake.length);
-    ctx.strokeStyle = isWhiplash
-      ? `rgba(100, 220, 255, ${alpha})`
-      : `rgba(40, 160, 80, ${alpha})`;
+    ctx.strokeStyle = `rgba(40, 160, 80, ${alpha})`;
     ctx.shadowBlur  = 0;
     ctx.beginPath();
     ctx.moveTo(a.x * GRID + GRID / 2, a.y * GRID + GRID / 2);
@@ -470,15 +540,48 @@ function drawEnemies(ctx, state, tick) {
     ctx.shadowBlur = 16;
     ctx.shadowColor = type.glowColor;
     ctx.fillStyle = type.color;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
+
+    if (type.shape === 'circle') {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (type.shape === 'square') {
+      ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    } else if (type.shape === 'triangle') {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy + r);
+      ctx.lineTo(cx - r, cy + r);
+      ctx.closePath();
+      ctx.fill();
+    } else if (type.shape === 'diamond') {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r);
+      ctx.lineTo(cx + r, cy);
+      ctx.lineTo(cx, cy + r);
+      ctx.lineTo(cx - r, cy);
+      ctx.closePath();
+      ctx.fill();
+    } else if (type.shape === 'hexagon') {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i - Math.PI / 6;
+        if (i === 0) ctx.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        else ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // "eye" dot
     ctx.shadowBlur = 0;
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.beginPath();
-    ctx.arc(cx + r * 0.3, cy - r * 0.2, r * 0.2, 0, Math.PI * 2);
+    ctx.arc(cx + r * 0.3, cy - r * 0.2, r * 0.18, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.shadowBlur = 0;
@@ -646,8 +749,8 @@ class SnakeRogue {
     this._audioCtx           = null;
 
     // ── Mouse / joystick input state ──────────
-    this._mouseGridX       = COLS / 2 + 2;
-    this._mouseGridY       = ROWS / 2;
+    this._mouseGridX       = VIEW_COLS / 2 + 2;
+    this._mouseGridY       = VIEW_ROWS / 2;
     this._mouseOnlineGridX = ONLINE_COLS / 2;
     this._mouseOnlineGridY = ONLINE_ROWS / 2;
     this._mouseActive      = false;
@@ -692,8 +795,8 @@ class SnakeRogue {
     // Use document so mouse position is tracked even outside the canvas/map
     document.addEventListener('mousemove', e => {
       const rect = this.canvas.getBoundingClientRect();
-      this._mouseGridX       = (e.clientX - rect.left) * (COLS       / rect.width);
-      this._mouseGridY       = (e.clientY - rect.top)  * (ROWS       / rect.height);
+      this._mouseGridX       = (e.clientX - rect.left) * (VIEW_COLS       / rect.width);
+      this._mouseGridY       = (e.clientY - rect.top)  * (VIEW_ROWS       / rect.height);
       this._mouseOnlineGridX = (e.clientX - rect.left) * (ONLINE_COLS / rect.width);
       this._mouseOnlineGridY = (e.clientY - rect.top)  * (ONLINE_ROWS / rect.height);
       this._mouseActive = true;
@@ -840,12 +943,9 @@ class SnakeRogue {
       shields: 0,
       ghost: 0,
       freeze: 0,
-      scoreMult: 1,
       repel: 0,
-      tailSweep: 0,
       pulse: 0,
       lifesteal: 0,
-      hunterBonus: 0,
       upgradeCount: {},
       enemySpawnTimer: 0,
       applesForNextUpgrade: 1,
@@ -915,9 +1015,8 @@ class SnakeRogue {
     if (this._joystickHasInput) {
       targetAngle = this._joystickAngle;
     } else if (this._mouseActive) {
-      const head = state.snake[0];
-      const dx = this._mouseGridX - head.x;
-      const dy = this._mouseGridY - head.y;
+      const dx = this._mouseGridX - VIEW_COLS / 2;
+      const dy = this._mouseGridY - VIEW_ROWS / 2;
       if (dx * dx + dy * dy > 0.09) {
         targetAngle = Math.atan2(dy, dx);
       }
@@ -944,10 +1043,6 @@ class SnakeRogue {
     let nx = head.x + Math.cos(state.snakeAngle) * speed;
     let ny = head.y + Math.sin(state.snakeAngle) * speed;
 
-    // Wall wrapping — always active (phase through walls in all modes)
-    nx = ((nx % COLS) + COLS) % COLS;
-    ny = ((ny % ROWS) + ROWS) % ROWS;
-
     // Self collision (skip segments near the head; bypassed by ghost perk)
     if (!state.ghost) {
       for (let i = SELF_HIT_SKIP; i < state.snake.length; i++) {
@@ -969,21 +1064,22 @@ class SnakeRogue {
     for (let i = 1; i < state.snake.length; i++) {
       const prev = state.snake[i - 1];
       const seg  = state.snake[i];
-      // Use wrapped diff so the chain works correctly when crossing a boundary
-      const dx = wrappedDiff(seg.x, prev.x, COLS);
-      const dy = wrappedDiff(seg.y, prev.y, ROWS);
+      const dx = seg.x - prev.x;
+      const dy = seg.y - prev.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > SEG_SPACING) {
         const f  = SEG_SPACING / dist;
-        seg.x = ((prev.x + dx * f) % COLS + COLS) % COLS;
-        seg.y = ((prev.y + dy * f) % ROWS + ROWS) % ROWS;
+        seg.x = prev.x + dx * f;
+        seg.y = prev.y + dy * f;
       }
     }
 
-    // Grow: add one segment per frame until buffer depleted
+    // Grow: add one segment per frame until buffer depleted (cap at 2000 for performance)
     if (state.growBuffer > 0) {
-      const last = state.snake[state.snake.length - 1];
-      state.snake.push({ x: last.x, y: last.y });
+      if (state.snake.length < 2000) {
+        const last = state.snake[state.snake.length - 1];
+        state.snake.push({ x: last.x, y: last.y });
+      }
       state.growBuffer--;
     }
 
@@ -995,7 +1091,7 @@ class SnakeRogue {
       const dx = ax - nx, dy = ay - ny;
       if (dx * dx + dy * dy < APPLE_EAT_DIST * APPLE_EAT_DIST) {
         state.apples.splice(i, 1);
-        state.score += state.scoreMult;
+        state.score += 1;
         state.applesEaten++;
         // Convert grid-cell growth to segment count (SEG_SPACING cells per segment)
         state.growBuffer += Math.max(1, Math.round(state.growPerApple / SEG_SPACING));
@@ -1010,7 +1106,7 @@ class SnakeRogue {
             const ex = e.x - ax, ey = e.y - ay;
             if (ex * ex + ey * ey <= pulseRadius * pulseRadius) {
               spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#f0f', 8);
-              state.score += ENEMY_TYPES[e.type].score + (state.hunterBonus || 0);
+              state.score += ENEMY_TYPES[e.type].score;
               if (state.lifesteal > 0) state.shields += state.lifesteal;
               state.enemies.splice(j, 1);
             }
@@ -1055,8 +1151,8 @@ class SnakeRogue {
         const ry = ay - closestSeg.y;
         const rLen = Math.sqrt(rx * rx + ry * ry) || 1;
         const pushTo = ENEMY_BODY_DIST + 0.05;
-        apple.fx = Math.max(0, Math.min(COLS - 1, closestSeg.x + (rx / rLen) * pushTo));
-        apple.fy = Math.max(0, Math.min(ROWS - 1, closestSeg.y + (ry / rLen) * pushTo));
+        apple.fx = closestSeg.x + (rx / rLen) * pushTo;
+        apple.fy = closestSeg.y + (ry / rLen) * pushTo;
         apple.x = Math.round(apple.fx);
         apple.y = Math.round(apple.fy);
       }
@@ -1064,12 +1160,12 @@ class SnakeRogue {
 
     // ── Enemy spawning (timer in ms) ──────────────
     state.enemySpawnTimer += dt;
-    const difficulty = 1 + state.score / 40;
+    const difficulty = 1 + state.applesEaten / 15;
     const spawnInterval = Math.max(
-      state.nightmareMode ? 2800 : 8400,
-      ENEMY_SPAWN_MS / difficulty / (state.nightmareMode ? 2 : 1)
+      state.nightmareMode ? 1500 : 4000,
+      ENEMY_SPAWN_MS / difficulty / (state.nightmareMode ? 3 : 1)
     );
-    if (state.enemySpawnTimer >= spawnInterval && state.score >= 3) {
+    if (state.enemySpawnTimer >= spawnInterval && state.applesEaten >= 1) {
       state.enemySpawnTimer = 0;
       spawnEnemy(state);
     }
@@ -1077,8 +1173,6 @@ class SnakeRogue {
     // ── Enemy movement (per-frame with dt) ────────
     for (const e of state.enemies) {
       ENEMY_TYPES[e.type].update(e, state, dt);
-      e.x = ((e.x % COLS) + COLS) % COLS;
-      e.y = ((e.y % ROWS) + ROWS) % ROWS;
     }
 
     // ── Enemy collision ───────────────────────────
@@ -1086,8 +1180,9 @@ class SnakeRogue {
       const e = state.enemies[i];
 
       // Head collision
+      const hitR = ENEMY_TYPES[e.type].size * 0.45 + SNAKE_RADIUS;
       const hdx = e.x - nx, hdy = e.y - ny;
-      if (hdx * hdx + hdy * hdy < ENEMY_HIT_DIST * ENEMY_HIT_DIST) {
+      if (hdx * hdx + hdy * hdy < hitR * hitR) {
         if (state.shields > 0) {
           state.shields--;
           spawnParticles(this.particles, Math.round(nx), Math.round(ny), '#4af', 16);
@@ -1103,46 +1198,23 @@ class SnakeRogue {
 
       // Body collision (skip head segment)
       let bodyHit = false;
-      let closestSeg = null;
-      let closestDist2 = Infinity;
       for (let si = 1; si < state.snake.length; si++) {
         const s = state.snake[si];
         const bx = s.x - e.x, by = s.y - e.y;
         const d2 = bx * bx + by * by;
-        if (d2 < ENEMY_BODY_DIST * ENEMY_BODY_DIST) {
+        const bodyR = ENEMY_TYPES[e.type].size * 0.40;
+        if (d2 < bodyR * bodyR) {
           bodyHit = true;
-          if (d2 < closestDist2) { closestDist2 = d2; closestSeg = s; }
+          break;
         }
       }
 
-      if (bodyHit && closestSeg) {
-        if (state.tailSweep > 0) {
-          // WHIPLASH: enemy dies on body contact
-          spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#c0f', 10);
-          state.score += ENEMY_TYPES[e.type].score + (state.hunterBonus || 0);
-          if (state.lifesteal > 0) state.shields += state.lifesteal;
-          state.enemies.splice(i, 1);
-        } else {
-          // Solid body: push enemy away from closest segment
-          const rx = e.x - closestSeg.x;
-          const ry = e.y - closestSeg.y;
-          const rLen = Math.sqrt(rx * rx + ry * ry) || 1;
-          const pushTo = ENEMY_BODY_DIST + 0.05;
-          e.x = closestSeg.x + (rx / rLen) * pushTo;
-          e.y = closestSeg.y + (ry / rLen) * pushTo;
-          // If enemy is still surrounded after the push it is encircled — kill it
-          const stillTrapped = state.snake.some((s, si) => {
-            if (si === 0) return false;
-            const bx = s.x - e.x, by = s.y - e.y;
-            return bx * bx + by * by < ENEMY_BODY_DIST * ENEMY_BODY_DIST;
-          });
-          if (stillTrapped) {
-            spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#f0f', 10);
-            state.score += ENEMY_TYPES[e.type].score + (state.hunterBonus || 0);
-            if (state.lifesteal > 0) state.shields += state.lifesteal;
-            state.enemies.splice(i, 1);
-          }
-        }
+      if (bodyHit) {
+        // Body contact always kills the enemy
+        spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#c0f', 10);
+        state.score += ENEMY_TYPES[e.type].score;
+        if (state.lifesteal > 0) state.shields += state.lifesteal;
+        state.enemies.splice(i, 1);
       }
     }
 
@@ -1295,12 +1367,9 @@ class SnakeRogue {
       if (s.ghost) parts.push('👻');
       if (s.shields) parts.push(`🛡️×${s.shields}`);
       if (s.freeze) parts.push(`❄️×${s.freeze}`);
-      if (s.scoreMult > 1) parts.push(`💰×${s.scoreMult}`);
-      if (s.tailSweep) parts.push('🌀');
       if (s.repel) parts.push(`💥×${s.repel}`);
       if (s.pulse) parts.push(`💫×${s.pulse}`);
       if (s.lifesteal) parts.push(`🩸×${s.lifesteal}`);
-      if (s.hunterBonus) parts.push(`🎯×${Math.floor(s.hunterBonus / 3)}`);
       if (s.oracle) parts.push('🔮');
       if (s.upgradeCount && s.upgradeCount['behemoth']) parts.push('🐉');
     }
@@ -1325,7 +1394,8 @@ class SnakeRogue {
       const gs = this.onlineState;
       const prev = this.prevOnlineState;
       const t = prev ? Math.min(1, (timestamp - this.lastOnlineTick) / ONLINE_TICK_MS) : 1;
-      drawGrid(ctx, ONLINE_COLS, ONLINE_ROWS, ONLINE_GRID);
+      drawFixedGrid(ctx, ONLINE_COLS, ONLINE_ROWS, ONLINE_GRID);
+
       drawApples(ctx, { apples: gs.apples }, gs.tick, ONLINE_GRID);
       if (gs.teleportPerks) drawTeleportPerks(ctx, gs.teleportPerks, gs.tick, ONLINE_GRID);
       gs.snakes.forEach((sn, idx) => {
@@ -1359,13 +1429,20 @@ class SnakeRogue {
 
     // ── Lore event phase — aggressive flicker ─
     if (this.phase === 'lore_event') {
-      drawGrid(ctx);
+      const loreCamX = this.state ? this.state.snake[0].x : 0;
+      const loreCamY = this.state ? this.state.snake[0].y : 0;
+      const loreCamOffX = W / 2 - loreCamX * GRID;
+      const loreCamOffY = H / 2 - loreCamY * GRID;
+      ctx.save();
+      ctx.translate(loreCamOffX, loreCamOffY);
+      drawGrid(ctx, loreCamX, loreCamY);
       if (this.state) {
         drawApples(ctx, this.state, this.tick);
         drawSnake(ctx, this.state);
         drawEnemies(ctx, this.state, this.tick);
         drawParticles(ctx, this.particles);
       }
+      ctx.restore();
       const elapsed = timestamp - this.loreEventStart;
       if (elapsed >= 3000) {
         this._showLoreEndOverlay();
@@ -1380,9 +1457,17 @@ class SnakeRogue {
       return;
     }
 
-    drawGrid(ctx);
-
     if (!state) return;
+
+    // Camera transform: center view on snake head
+    const camX = state.snake[0].x;
+    const camY = state.snake[0].y;
+    const camOffX = W / 2 - camX * GRID;
+    const camOffY = H / 2 - camY * GRID;
+    ctx.save();
+    ctx.translate(camOffX, camOffY);
+
+    drawGrid(ctx, camX, camY);
 
     // Draw elements
     drawApples(ctx, state, this.tick);
@@ -1416,6 +1501,7 @@ class SnakeRogue {
     this.particles = this.particles.filter(p => p.life > 0);
     drawParticles(ctx, this.particles);
 
+    ctx.restore();
   }
 
   _gameLoop(timestamp) {
