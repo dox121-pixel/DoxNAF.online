@@ -24,6 +24,7 @@ const ENEMY_BODY_DIST  = 0.42;  // grid-cells enemy-body collision radius
 const SELF_HIT_SKIP    = 8;     // skip this many segs near head for self-collision
 const ENEMY_SPAWN_MS   = 14000; // base ms between enemy spawns
 const MOUSE_MIN_DIST_SQ = 1;    // min squared grid-cell distance before changing online dir
+const MOVEMENT_DELAY_MS = 5000; // ms to hold snake still at game start until player input
 
 // ── Upgrade definitions ─────────────────────
 const UPGRADES = [
@@ -45,7 +46,7 @@ const UPGRADES = [
     id: 'ghost',
     name: 'PHASE WALK',
     icon: '👻',
-    desc: 'Walls wrap around. No more wall death.',
+    desc: 'Phase through yourself and walls. No death on self-collision.',
     apply(state) { state.ghost = (state.ghost || 0) + 1; }
   },
   {
@@ -661,16 +662,16 @@ class SnakeRogue {
     document.addEventListener('keydown', e => {
       this._keys[e.key] = true;
 
-      // Online keyboard control (unchanged)
+      // Online keyboard control — convert to angle for smooth steering
       if (this.phase === 'online_playing' && this.online && this.online.readyState === WebSocket.OPEN) {
-        const dirMap = {
-          ArrowUp: { x: 0, y: -1 }, w: { x: 0, y: -1 }, W: { x: 0, y: -1 },
-          ArrowDown: { x: 0, y: 1 }, s: { x: 0, y: 1 }, S: { x: 0, y: 1 },
-          ArrowLeft: { x: -1, y: 0 }, a: { x: -1, y: 0 }, A: { x: -1, y: 0 },
-          ArrowRight: { x: 1, y: 0 }, d: { x: 1, y: 0 }, D: { x: 1, y: 0 },
+        const angleMap = {
+          ArrowUp: -Math.PI / 2, w: -Math.PI / 2, W: -Math.PI / 2,
+          ArrowDown: Math.PI / 2, s: Math.PI / 2, S: Math.PI / 2,
+          ArrowLeft: Math.PI, a: Math.PI, A: Math.PI,
+          ArrowRight: 0, d: 0, D: 0,
         };
-        const dir = dirMap[e.key];
-        if (dir) this.online.send(JSON.stringify({ type: 'direction', dir }));
+        const angle = angleMap[e.key];
+        if (angle !== undefined) this.online.send(JSON.stringify({ type: 'steer', angle }));
         if (e.key === 'q' || e.key === 'Q') {
           this.online.send(JSON.stringify({ type: 'teleport' }));
         }
@@ -690,6 +691,7 @@ class SnakeRogue {
       this._mouseOnlineGridX = (e.clientX - rect.left) * (ONLINE_COLS / rect.width);
       this._mouseOnlineGridY = (e.clientY - rect.top)  * (ONLINE_ROWS / rect.height);
       this._mouseActive = true;
+      if (this.phase === 'playing') this._inputReceived = true;
     });
 
     this.canvas.addEventListener('click', () => {
@@ -727,10 +729,11 @@ class SnakeRogue {
         if (dist > 8) {
           this._joystickAngle    = Math.atan2(dy, dx);
           this._joystickHasInput = true;
+          this._inputReceived    = true;
           updateKnob(dx, dy);
-          // Map to 4-dir for online mode
+          // Map to steer angle for online mode
           if (this.phase === 'online_playing') {
-            this._applyDirection(this._angle4Dir(this._joystickAngle));
+            this._applySteer(this._joystickAngle);
           }
         }
       }, { passive: false });
@@ -759,13 +762,13 @@ class SnakeRogue {
     return { x: -1, y: 0 };
   }
 
-  _applyDirection(dir) {
+  _applySteer(angle) {
     if (this.phase === 'online_playing' && this.online && this.online.readyState === WebSocket.OPEN) {
-      this.online.send(JSON.stringify({ type: 'direction', dir }));
+      this.online.send(JSON.stringify({ type: 'steer', angle }));
     }
   }
 
-  // Send direction toward mouse when in online mode (called every animation frame)
+  // Send steering angle toward mouse when in online mode (called every animation frame)
   _sendMouseDirection() {
     if (this.phase !== 'online_playing') return;
     if (!this._mouseActive || !this.online || this.online.readyState !== WebSocket.OPEN) return;
@@ -775,11 +778,12 @@ class SnakeRogue {
     const head = sn.body[0];
     const dx = this._mouseOnlineGridX - head.x;
     const dy = this._mouseOnlineGridY - head.y;
-    if (dx * dx + dy * dy < MOUSE_MIN_DIST_SQ) return; // mouse too close to head — keep current dir
-    const dir = this._angle4Dir(Math.atan2(dy, dx));
-    if (this._lastSentDir && dir.x === this._lastSentDir.x && dir.y === this._lastSentDir.y) return;
-    this._lastSentDir = dir;
-    this._applyDirection(dir);
+    if (dx * dx + dy * dy < MOUSE_MIN_DIST_SQ) return;
+    const angle = Math.atan2(dy, dx);
+    if (this._lastSentAngle !== undefined &&
+        Math.abs(normalizeAngle(angle - this._lastSentAngle)) < 0.05) return;
+    this._lastSentAngle = angle;
+    this._applySteer(angle);
   }
 
   _startGame() {
@@ -788,6 +792,8 @@ class SnakeRogue {
     this.lastMoveTime = 0;
     this.flashTimer = 0;
     this._lastFrameTime = 0;
+    this._lastUpdateTimestamp = 0;
+    this._inputReceived = false;
     document.getElementById('app').classList.remove('nightmare-mode');
 
     const now = performance.now();
@@ -831,6 +837,7 @@ class SnakeRogue {
       applesForNextUpgrade: 1,
       applesEatenSinceUpgrade: 0,
       nightmareMode: false,
+      pulseEffects: [],
     };
 
     // Initial apples
@@ -870,6 +877,7 @@ class SnakeRogue {
       ? Math.min(50, timestamp - this._lastFrameTime)
       : 16;
     this._lastFrameTime = timestamp;
+    this._lastUpdateTimestamp = timestamp;
     this.tick++;
 
     // ── Steer snake toward mouse / joystick ──────
@@ -897,6 +905,10 @@ class SnakeRogue {
       y: Math.sin(state.snakeAngle),
     };
 
+    // ── Movement delay: snake doesn't move for first 5 seconds unless input received ──
+    const canMove = this._inputReceived || (timestamp - this.gameStartTime >= MOVEMENT_DELAY_MS);
+    if (!canMove) return;
+
     // ── Move head forward ─────────────────────────
     const speed = dt / state.baseInterval;   // fraction of 1 grid-cell to move this frame
     const head = state.snake[0];
@@ -907,14 +919,16 @@ class SnakeRogue {
     nx = ((nx % COLS) + COLS) % COLS;
     ny = ((ny % ROWS) + ROWS) % ROWS;
 
-    // Self collision (skip segments near the head)
-    for (let i = SELF_HIT_SKIP; i < state.snake.length; i++) {
-      const s = state.snake[i];
-      const bx = s.x - nx, by = s.y - ny;
-      if (bx * bx + by * by < SNAKE_RADIUS * SNAKE_RADIUS * 4) {
-        if (this._checkLoreDamage(timestamp)) return;
-        this._die('self');
-        return;
+    // Self collision (skip segments near the head; bypassed by ghost perk)
+    if (!state.ghost) {
+      for (let i = SELF_HIT_SKIP; i < state.snake.length; i++) {
+        const s = state.snake[i];
+        const bx = s.x - nx, by = s.y - ny;
+        if (bx * bx + by * by < SNAKE_RADIUS * SNAKE_RADIUS * 4) {
+          if (this._checkLoreDamage(timestamp)) return;
+          this._die('self');
+          return;
+        }
       }
     }
 
@@ -983,9 +997,11 @@ class SnakeRogue {
         // PULSE: blast nearby enemies
         if (state.pulse > 0) {
           const pulseRadius = state.pulse * 2;
+          state.pulseEffects.push({ x: ax, y: ay, r: 0, maxR: pulseRadius, life: 1 });
           for (let j = state.enemies.length - 1; j >= 0; j--) {
             const e = state.enemies[j];
-            if (Math.abs(e.x - nx) + Math.abs(e.y - ny) <= pulseRadius) {
+            const ex = e.x - ax, ey = e.y - ay;
+            if (ex * ex + ey * ey <= pulseRadius * pulseRadius) {
               spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#f0f', 8);
               state.score += ENEMY_TYPES[e.type].score + (state.hunterBonus || 0);
               if (state.lifesteal > 0) state.shields += state.lifesteal;
@@ -1204,14 +1220,16 @@ class SnakeRogue {
   _updateHUD() {
     if (!this.state) return;
     const s = this.state;
-    document.getElementById('hud-lbl-score').textContent   = 'SCORE';
-    document.getElementById('hud-lbl-apples').textContent  = 'APPLES';
-    document.getElementById('hud-lbl-shields').textContent = 'SHIELDS';
-    document.getElementById('hud-lbl-speed').textContent   = 'SPD';
-    document.getElementById('hud-score').textContent   = s.score;
-    document.getElementById('hud-apples').textContent  = s.applesEaten;
-    document.getElementById('hud-shields').textContent = s.shields;
-    document.getElementById('hud-speed').textContent   = Math.round(1000 / s.baseInterval * 10) / 10;
+
+    document.getElementById('hud-lbl-apples').textContent = 'APPLES';
+    document.getElementById('hud-apples').textContent     = s.applesEaten;
+
+    // Timer
+    const elapsed = Math.max(0, (this._lastUpdateTimestamp || this.gameStartTime) - this.gameStartTime);
+    const secs    = Math.floor(elapsed / 1000);
+    const mins    = Math.floor(secs / 60);
+    document.getElementById('hud-lbl-timer').textContent = 'TIME';
+    document.getElementById('hud-timer').textContent     = `${mins}:${String(secs % 60).padStart(2, '0')}`;
 
     // Build upgrade summary
     const parts = [];
@@ -1318,6 +1336,24 @@ class SnakeRogue {
     drawApples(ctx, state, this.tick);
     drawSnake(ctx, state);
     drawEnemies(ctx, state, this.tick);
+
+    // Pulse rings
+    if (state.pulseEffects) {
+      for (const pe of state.pulseEffects) {
+        ctx.save();
+        ctx.strokeStyle = `rgba(220, 100, 255, ${pe.life})`;
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#d0f';
+        ctx.beginPath();
+        ctx.arc(pe.x * GRID + GRID / 2, pe.y * GRID + GRID / 2, pe.r * GRID, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        pe.r += (pe.maxR - pe.r) * 0.25 + 0.2;
+        pe.life -= 0.06;
+      }
+      state.pulseEffects = state.pulseEffects.filter(pe => pe.life > 0);
+    }
 
     // Particles
     for (const p of this.particles) {
@@ -1579,7 +1615,7 @@ class SnakeRogue {
         this.prevOnlineState = null;
         this.lastOnlineTick  = performance.now();
         this.particles       = [];
-        this._lastSentDir    = null;
+        this._lastSentAngle  = undefined;
         this.phase           = 'online_playing';
         this._hideOverlay();
         this._updateOnlineHUD();
@@ -1589,7 +1625,7 @@ class SnakeRogue {
         this.prevOnlineState = this.onlineState;
         this.onlineState     = msg.state;
         this.lastOnlineTick  = performance.now();
-        this._lastSentDir    = null; // re-evaluate mouse direction every tick
+        this._lastSentAngle  = undefined; // re-evaluate mouse direction every tick
         this._updateOnlineHUD();
         break;
 
@@ -1664,17 +1700,14 @@ class SnakeRogue {
   _updateOnlineHUD() {
     if (!this.onlineState) return;
     const gs = this.onlineState;
-    document.getElementById('hud-lbl-score').textContent   = '🟢 P1';
-    document.getElementById('hud-score').textContent       = gs.snakes[0].score;
-    document.getElementById('hud-lbl-apples').textContent  = '🟠 P2';
-    document.getElementById('hud-apples').textContent      = gs.snakes[1].score;
-    document.getElementById('hud-lbl-shields').textContent = 'ROOM';
-    document.getElementById('hud-shields').textContent     = this.onlineRoomCode || '';
-    document.getElementById('hud-lbl-speed').textContent   = 'YOU';
-    document.getElementById('hud-speed').textContent       = this.onlineRole === 0 ? '🟢' : '🟠';
+    document.getElementById('hud-lbl-apples').textContent = 'SCORES';
+    document.getElementById('hud-apples').textContent     = `🟢 ${gs.snakes[0].score}  🟠 ${gs.snakes[1].score}`;
+    document.getElementById('hud-lbl-timer').textContent  = 'ROOM';
+    document.getElementById('hud-timer').textContent      = this.onlineRoomCode || '';
     const mySnake = gs.snakes[this.onlineRole];
     const charges = mySnake ? (mySnake.teleportCharges || 0) : 0;
-    document.getElementById('hud-upgrades').textContent    = charges > 0 ? `⌁ ×${charges} [Q]` : '';
+    document.getElementById('hud-upgrades').textContent   =
+      `${this.onlineRole === 0 ? '🟢' : '🟠'} YOU` + (charges > 0 ? `  ⌁×${charges} [Q]` : '');
   }
 }
 
