@@ -1055,15 +1055,15 @@ class SnakeRogue {
     if (!this.state || this.phase !== 'playing') return;
     const state = this.state;
     const head = state.snake[0];
-    // For mouse: aim toward cursor; for WASD / fallback: use snake heading
+    // Aim toward mouse cursor regardless of control mode; fall back to snake heading if mouse not available
     let angle;
-    if (this._controlMode === 'wasd') {
-      angle = state.snakeAngle;
-    } else {
+    if (this._mouseActive) {
       angle = Math.atan2(
         this._mouseGridY - VIEW_ROWS / 2,
         this._mouseGridX - VIEW_COLS / 2
       );
+    } else {
+      angle = state.snakeAngle;
     }
     this._shoot(head.x, head.y, angle);
   }
@@ -1235,15 +1235,12 @@ class SnakeRogue {
     if (this._joystickHasInput) {
       targetAngle = this._joystickAngle;
     } else if (this._controlMode === 'wasd') {
-      const keyMap = [
-        ['ArrowRight', 0], ['d', 0], ['D', 0],
-        ['ArrowDown',  Math.PI / 2], ['s', Math.PI / 2], ['S', Math.PI / 2],
-        ['ArrowLeft',  Math.PI],     ['a', Math.PI],     ['A', Math.PI],
-        ['ArrowUp',   -Math.PI / 2], ['w', -Math.PI / 2],['W', -Math.PI / 2],
-      ];
-      for (const [key, angle] of keyMap) {
-        if (this._keys[key]) { targetAngle = angle; this._inputReceived = true; break; }
-      }
+      let dx = 0, dy = 0;
+      if (this._keys['ArrowRight'] || this._keys['d'] || this._keys['D']) dx += 1;
+      if (this._keys['ArrowLeft']  || this._keys['a'] || this._keys['A']) dx -= 1;
+      if (this._keys['ArrowDown']  || this._keys['s'] || this._keys['S']) dy += 1;
+      if (this._keys['ArrowUp']    || this._keys['w'] || this._keys['W']) dy -= 1;
+      if (dx !== 0 || dy !== 0) { targetAngle = Math.atan2(dy, dx); this._inputReceived = true; }
     } else if (this._mouseActive) {
       const dx = this._mouseGridX - VIEW_COLS / 2;
       const dy = this._mouseGridY - VIEW_ROWS / 2;
@@ -1264,7 +1261,7 @@ class SnakeRogue {
     };
 
     // ── Auto-shoot: mouse held down or gun joystick active ────
-    if (this._mouseIsDown && this._controlMode !== 'wasd') {
+    if (this._mouseIsDown) {
       this._tryShoot();
     }
     if (this._gunJoystickActive && this.state) {
@@ -1853,7 +1850,7 @@ class SnakeRogue {
         Enemies grow stronger over time
       </div>
       <div class="controls">
-        ${this._controlMode === 'wasd' ? 'WASD/Arrows to steer' : 'Mouse to steer'} · LMB to shoot<br>
+        ${this._controlMode === 'wasd' ? 'WASD/Arrows to steer · Mouse to aim · LMB to shoot' : 'Mouse to steer · LMB to shoot'}<br>
         Mobile: joystick to move · gun joystick to shoot
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
