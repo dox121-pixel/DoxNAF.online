@@ -894,6 +894,10 @@ class SnakeRogue {
       if (this.phase === 'gameover' && e.key === 'r') this._startGame();
     });
 
+    document.addEventListener('keyup', e => {
+      if (e.key in this._keys) this._keys[e.key] = false;
+    });
+
     // ── Mouse steering (desktop) ─────────────────
     // Use document so mouse position is tracked even outside the canvas/map
     document.addEventListener('mousemove', e => {
@@ -1027,11 +1031,14 @@ class SnakeRogue {
     // Mobile teleport button (multiplayer)
     const mobileTeleportBtn = document.getElementById('mobile-teleport-btn');
     if (mobileTeleportBtn) {
-      mobileTeleportBtn.addEventListener('click', () => {
+      const sendTeleport = (e) => {
+        e.preventDefault();
         if (this.phase === 'online_playing' && this.online && this.online.readyState === WebSocket.OPEN) {
           this.online.send(JSON.stringify({ type: 'teleport' }));
         }
-      });
+      };
+      mobileTeleportBtn.addEventListener('touchstart', sendTeleport, { passive: false });
+      mobileTeleportBtn.addEventListener('click', sendTeleport);
     }
   }
 
@@ -2158,11 +2165,15 @@ class SnakeRogue {
   _showMobileTeleportBtn() {
     const wrap = document.getElementById('mobile-teleport-wrap');
     if (wrap) wrap.style.display = '';
+    const gunArea = document.getElementById('gun-joystick-area');
+    if (gunArea) gunArea.style.display = 'none';
   }
 
   _hideMobileTeleportBtn() {
     const wrap = document.getElementById('mobile-teleport-wrap');
     if (wrap) wrap.style.display = 'none';
+    const gunArea = document.getElementById('gun-joystick-area');
+    if (gunArea) gunArea.style.display = '';
   }
 
   _updateOnlineHUD() {
