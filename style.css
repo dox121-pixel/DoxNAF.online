@@ -445,12 +445,14 @@ canvas {
     height: 100vh;
   }
 
-  /* Canvas wrapper fills full screen */
+  /* Canvas wrapper: square, centred, leaves room for controls */
   #app > div[style] {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(100vw, calc(100vh - 200px));
+    height: min(100vw, calc(100vh - 200px));
   }
 
   canvas {
@@ -494,6 +496,7 @@ canvas {
     z-index: 50;
     background: rgba(5, 5, 15, 0.5);
     padding: 8px 16px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
     margin-top: 0;
     display: flex;
     flex-direction: row;

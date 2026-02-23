@@ -938,7 +938,8 @@ class SnakeRogue {
       joystickArea.addEventListener('touchstart', e => {
         e.preventDefault();
         if (this.phase === 'start' || this.phase === 'gameover') { this._startGame(); return; }
-        const t0 = e.touches[0];
+        const t0 = e.changedTouches[0];
+        this._joystickTouchId = t0.identifier;
         this._joystickOriginX = t0.clientX;
         this._joystickOriginY = t0.clientY;
         updateKnob(0, 0);
@@ -946,8 +947,10 @@ class SnakeRogue {
 
       joystickArea.addEventListener('touchmove', e => {
         e.preventDefault();
-        const dx = e.touches[0].clientX - (this._joystickOriginX || 0);
-        const dy = e.touches[0].clientY - (this._joystickOriginY || 0);
+        const touch = Array.from(e.touches).find(t => t.identifier === this._joystickTouchId);
+        if (!touch) return;
+        const dx = touch.clientX - (this._joystickOriginX || 0);
+        const dy = touch.clientY - (this._joystickOriginY || 0);
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 8) {
           this._joystickAngle    = Math.atan2(dy, dx);
@@ -963,6 +966,9 @@ class SnakeRogue {
 
       joystickArea.addEventListener('touchend', e => {
         e.preventDefault();
+        if (Array.from(e.changedTouches).some(t => t.identifier === this._joystickTouchId)) {
+          this._joystickTouchId = null;
+        }
         // Keep _joystickHasInput = true so snake continues in last direction
         updateKnob(0, 0); // just visually re-center knob
       }, { passive: false });
@@ -981,7 +987,8 @@ class SnakeRogue {
     if (gunArea) {
       gunArea.addEventListener('touchstart', e => {
         e.preventDefault();
-        const t0 = e.touches[0];
+        const t0 = e.changedTouches[0];
+        this._gunTouchId = t0.identifier;
         this._gunOriginX = t0.clientX;
         this._gunOriginY = t0.clientY;
         this._gunJoystickActive = true;
@@ -989,8 +996,10 @@ class SnakeRogue {
       }, { passive: false });
       gunArea.addEventListener('touchmove', e => {
         e.preventDefault();
-        const dx = e.touches[0].clientX - (this._gunOriginX || 0);
-        const dy = e.touches[0].clientY - (this._gunOriginY || 0);
+        const touch = Array.from(e.touches).find(t => t.identifier === this._gunTouchId);
+        if (!touch) return;
+        const dx = touch.clientX - (this._gunOriginX || 0);
+        const dy = touch.clientY - (this._gunOriginY || 0);
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 8) {
           this._gunJoystickAngle = Math.atan2(dy, dx);
@@ -999,7 +1008,10 @@ class SnakeRogue {
       }, { passive: false });
       gunArea.addEventListener('touchend', e => {
         e.preventDefault();
-        this._gunJoystickActive = false;
+        if (Array.from(e.changedTouches).some(t => t.identifier === this._gunTouchId)) {
+          this._gunJoystickActive = false;
+          this._gunTouchId = null;
+        }
         updateGunKnob(0, 0);
       }, { passive: false });
     }
