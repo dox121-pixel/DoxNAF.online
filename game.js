@@ -26,6 +26,12 @@ const ENEMY_SPAWN_MS   = 14000; // base ms between enemy spawns
 const MOUSE_MIN_DIST_SQ = 1;    // min squared grid-cell distance before changing online dir
 const MOVEMENT_DELAY_MS = 5000; // ms to hold snake still at game start until player input
 
+// ── Bullet physics ───────────────────────────
+const BULLET_SPEED         = 0.016;   // grid-cells per ms
+const BULLET_LIFE_MS       = 1800;    // max bullet lifespan in ms
+const BULLET_SPREAD_ANGLE  = 0.22;    // radians of spread between multishot bullets
+const EXPLOSIVE_ROUNDS_RADIUS = 2.5; // grid-cell blast radius for explosive rounds perk
+
 // ── Upgrade definitions ─────────────────────
 const UPGRADES = [
   // ── One-time perks (always listed first) ────
@@ -72,8 +78,8 @@ const UPGRADES = [
     id: 'shield',
     name: 'WARD',
     icon: '🛡️',
-    desc: 'Survive one fatal hit. Stacks infinitely.',
-    apply(state) { state.shields = (state.shields || 0) + 1; }
+    desc: 'Survive one fatal hit. Stacks up to 5.',
+    apply(state) { state.shields = Math.min(5, (state.shields || 0) + 1); }
   },
   {
     id: 'freeze',
@@ -102,6 +108,37 @@ const UPGRADES = [
     icon: '🩸',
     desc: 'Gain a shield charge each time you kill an enemy. Stack for more charges.',
     apply(state) { state.lifesteal = (state.lifesteal || 0) + 1; }
+  },
+  // ── Pistol perks ─────────────────────────────
+  {
+    id: 'rapid_fire',
+    name: 'RAPID FIRE',
+    icon: '🔫',
+    desc: 'Shoot faster. Stack to become a bullet storm.',
+    apply(state) { state.shootInterval = Math.max(80, (state.shootInterval || 400) - 60); }
+  },
+  {
+    id: 'piercing',
+    name: 'PIERCING',
+    icon: '🏹',
+    desc: 'Bullets pass through all enemies. One time only.',
+    oneTime: true,
+    apply(state) { state.bulletPiercing = true; }
+  },
+  {
+    id: 'explosive_rounds',
+    name: 'EXPLOSIVE',
+    icon: '💣',
+    desc: 'Bullets explode on impact, damaging nearby enemies. One time only.',
+    oneTime: true,
+    apply(state) { state.bulletExplosive = true; }
+  },
+  {
+    id: 'multishot',
+    name: 'MULTISHOT',
+    icon: '✳️',
+    desc: 'Fire an extra bullet per shot in a spread. Stack for more bullets.',
+    apply(state) { state.multishot = (state.multishot || 0) + 1; }
   },
 ];
 
@@ -204,8 +241,8 @@ function pickUpgrades(state) {
 // ── Enemy types ──────────────────────────────
 const ENEMY_TYPES = {
   chaser: {
-    color: '#e04040',
-    glowColor: 'rgba(220,60,60,0.4)',
+    color: '#e07820',
+    glowColor: 'rgba(220,130,20,0.4)',
     size: 0.7,
     shape: 'circle',
     speed: 0.0018,
@@ -342,15 +379,32 @@ const ENEMY_TYPES = {
   },
 };
 
-function spawnEnemy(state) {
-  const lvl = state.applesEaten;
-  let typeKeys = ['chaser'];
-  if (lvl >= 5 || state.nightmareMode)  typeKeys.push('patrol');
-  if (lvl >= 10 || state.nightmareMode) typeKeys.push('interceptor');
-  if (lvl >= 15 || state.nightmareMode) typeKeys.push('blocker');
-  if (lvl >= 20 || state.nightmareMode) typeKeys.push('speeder');
-  if (lvl >= 30 || state.nightmareMode) typeKeys.push('titan');
+// ── Time-based enemy scaling ─────────────────
+function getTargetEnemyCount(elapsedMs, nightmareMode) {
+  const s = elapsedMs / 1000;
+  let count;
+  if      (s < 30)  count = 2;
+  else if (s < 60)  count = 6;
+  else if (s < 90)  count = 12;
+  else if (s < 150) count = 25;
+  else              count = Math.floor(25 + (s - 150) / 30 * 8);
+  return nightmareMode ? Math.floor(count * 3) : count;
+}
 
+function getEnemyTypeKeys(elapsedMs, nightmareMode) {
+  const s = elapsedMs / 1000;
+  // Start mostly chasers; other types unlock over time
+  const keys = ['chaser', 'chaser', 'chaser'];
+  if (s >= 60  || nightmareMode) keys.push('patrol');
+  if (s >= 90  || nightmareMode) keys.push('interceptor');
+  if (s >= 120 || nightmareMode) { keys.push('blocker'); keys.push('speeder'); }
+  if (s >= 180 || nightmareMode) keys.push('titan');
+  return keys;
+}
+
+function spawnEnemy(state, elapsedMs) {
+  elapsedMs = elapsedMs || 0;
+  const typeKeys = getEnemyTypeKeys(elapsedMs, state.nightmareMode);
   const typeKey = typeKeys[randInt(typeKeys.length)];
   const type = ENEMY_TYPES[typeKey];
 
@@ -367,7 +421,7 @@ function spawnEnemy(state) {
     attempts++;
   } while (Math.abs(pos.x - head.x) + Math.abs(pos.y - head.y) < 8 && attempts < 50);
 
-  const speedMult = 1 + lvl / 80;
+  const speedMult = 1 + (elapsedMs / 1000) / 80;
   const enemy = {
     x: pos.x, y: pos.y,
     type: typeKey,
@@ -384,28 +438,6 @@ function spawnEnemy(state) {
   }
 
   state.enemies.push(enemy);
-
-  // At higher levels, spawn extra enemies per interval
-  const extraCount = Math.min(4, Math.floor(lvl / 20));
-  for (let i = 0; i < extraCount; i++) {
-    const extraTypeKey = typeKeys[randInt(typeKeys.length)];
-    const extraType = ENEMY_TYPES[extraTypeKey];
-    const eEdge = randInt(4);
-    let ePos;
-    if (eEdge === 0)      ePos = { x: head.x - spawnRange + Math.random() * spawnRange * 2, y: head.y - spawnRange };
-    else if (eEdge === 1) ePos = { x: head.x - spawnRange + Math.random() * spawnRange * 2, y: head.y + spawnRange };
-    else if (eEdge === 2) ePos = { x: head.x - spawnRange, y: head.y - spawnRange + Math.random() * spawnRange * 2 };
-    else                  ePos = { x: head.x + spawnRange, y: head.y - spawnRange + Math.random() * spawnRange * 2 };
-    const extraEnemy = {
-      x: ePos.x, y: ePos.y,
-      type: extraTypeKey,
-      speed: extraType.speed * speedMult * (state.nightmareMode ? 2.5 : 1.0),
-      hp: 1,
-      id: Math.random(),
-    };
-    if (extraType.init) extraType.init(extraEnemy, state);
-    state.enemies.push(extraEnemy);
-  }
 }
 
 // ── Rendering helpers ─────────────────────────
@@ -489,6 +521,27 @@ function drawSnake(ctx, state) {
     ctx.fill();
   });
 
+  // Cute pistol held in snake's mouth (extends forward from head)
+  ctx.save();
+  ctx.translate(hx, hy);
+  ctx.rotate(ang);
+  const gx = hr * 0.75;          // start just in front of head centre
+  const gl = hr * 1.9;           // barrel length
+  const gh = hr * 0.28;          // barrel height
+  // Barrel
+  ctx.fillStyle = '#8a8aaa';
+  ctx.shadowBlur = 5;
+  ctx.shadowColor = '#555';
+  ctx.fillRect(gx, -gh / 2, gl, gh);
+  // Grip
+  ctx.fillStyle = '#5a4030';
+  ctx.fillRect(gx + gl * 0.25, gh * 0.4, gh * 0.9, gh * 1.4);
+  // Tiny highlight on barrel
+  ctx.fillStyle = 'rgba(200,200,255,0.3)';
+  ctx.fillRect(gx + 2, -gh / 2 + 1, gl - 4, gh * 0.4);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
   ctx.restore();
 }
 
@@ -498,12 +551,39 @@ function drawApples(ctx, state, tick, grid = GRID) {
     const ay = apple.fy !== undefined ? apple.fy : apple.y;
     const pulse = 0.85 + 0.15 * Math.sin(tick * 0.08);
     const r = grid * 0.38 * pulse;
+    const cx = ax * grid + grid / 2;
+    const cy = ay * grid + grid / 2;
+
+    // Apple body
     ctx.shadowBlur = 14;
-    ctx.shadowColor = '#f64';
-    ctx.fillStyle = '#e84';
+    ctx.shadowColor = '#c30';
+    ctx.fillStyle = '#cc2200';
     ctx.beginPath();
-    ctx.arc(ax * grid + grid / 2, ay * grid + grid / 2, r, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
+
+    // Highlight (top-left sheen)
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,200,180,0.3)';
+    ctx.beginPath();
+    ctx.arc(cx - r * 0.28, cy - r * 0.28, r * 0.42, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Stem
+    ctx.strokeStyle = '#5a3a10';
+    ctx.lineWidth = r * 0.18;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r * 0.9);
+    ctx.lineTo(cx + r * 0.22, cy - r * 1.45);
+    ctx.stroke();
+
+    // Leaf
+    ctx.fillStyle = '#3a8020';
+    ctx.beginPath();
+    ctx.ellipse(cx + r * 0.42, cy - r * 1.35, r * 0.36, r * 0.17, Math.PI / 4, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.shadowBlur = 0;
   }
 }
@@ -594,6 +674,22 @@ function drawParticles(ctx, particles) {
     ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
   }
   ctx.globalAlpha = 1;
+}
+
+function drawBullets(ctx, bullets, grid = GRID) {
+  if (!bullets || !bullets.length) return;
+  for (const b of bullets) {
+    const alpha = b.life / b.maxLife;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = '#ff0';
+    ctx.fillStyle = '#ffe040';
+    ctx.beginPath();
+    ctx.arc(b.x * grid + grid / 2, b.y * grid + grid / 2, grid * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 function spawnParticles(particles, x, y, color, count, grid = GRID) {
@@ -754,10 +850,17 @@ class SnakeRogue {
     this._mouseOnlineGridX = ONLINE_COLS / 2;
     this._mouseOnlineGridY = ONLINE_ROWS / 2;
     this._mouseActive      = false;
+    this._mouseIsDown      = false;
     this._lastSentDir      = null;
     this._joystickAngle    = 0;
     this._joystickHasInput = false;
+    this._gunJoystickAngle  = 0;
+    this._gunJoystickActive = false;
     this._lastFrameTime    = 0;
+
+    // ── Settings ──────────────────────────────
+    try { this._controlMode = localStorage.getItem('controlMode') || 'mouse'; }
+    catch(_) { this._controlMode = 'mouse'; }
 
     this._keys = {};
     this._setupInput();
@@ -803,9 +906,20 @@ class SnakeRogue {
       if (this.phase === 'playing') this._inputReceived = true;
     });
 
-    this.canvas.addEventListener('click', () => {
-      if (this.phase === 'start' || this.phase === 'gameover') this._startGame();
+    // ── Mouse shoot (desktop) ─────────────────────
+    document.addEventListener('mousedown', e => {
+      if (e.button === 0) {
+        this._mouseIsDown = true;
+        if (this.phase === 'start' || this.phase === 'gameover') { this._startGame(); return; }
+        this._tryShoot();
+      }
     });
+    document.addEventListener('mouseup', e => {
+      if (e.button === 0) this._mouseIsDown = false;
+    });
+
+    // Remove old click-to-start handler (mousedown replaces it)
+    // this.canvas.addEventListener('click', ...) removed intentionally
 
     // ── Virtual joystick (mobile) ─────────────────
     const joystickArea = document.getElementById('joystick-area');
@@ -849,8 +963,44 @@ class SnakeRogue {
 
       joystickArea.addEventListener('touchend', e => {
         e.preventDefault();
-        this._joystickHasInput = false;
-        updateKnob(0, 0);
+        // Keep _joystickHasInput = true so snake continues in last direction
+        updateKnob(0, 0); // just visually re-center knob
+      }, { passive: false });
+    }
+
+    // ── Gun joystick (mobile) ─────────────────────
+    const gunArea = document.getElementById('gun-joystick-area');
+    const gunKnob = document.getElementById('gun-joystick-knob');
+    const updateGunKnob = (dx, dy) => {
+      if (!gunKnob) return;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      const cx  = len > 0 ? dx / len * Math.min(JMAX, len) : 0;
+      const cy  = len > 0 ? dy / len * Math.min(JMAX, len) : 0;
+      gunKnob.style.transform = `translate(calc(-50% + ${cx}px), calc(-50% + ${cy}px))`;
+    };
+    if (gunArea) {
+      gunArea.addEventListener('touchstart', e => {
+        e.preventDefault();
+        const t0 = e.touches[0];
+        this._gunOriginX = t0.clientX;
+        this._gunOriginY = t0.clientY;
+        this._gunJoystickActive = true;
+        updateGunKnob(0, 0);
+      }, { passive: false });
+      gunArea.addEventListener('touchmove', e => {
+        e.preventDefault();
+        const dx = e.touches[0].clientX - (this._gunOriginX || 0);
+        const dy = e.touches[0].clientY - (this._gunOriginY || 0);
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 8) {
+          this._gunJoystickAngle = Math.atan2(dy, dx);
+          updateGunKnob(dx, dy);
+        }
+      }, { passive: false });
+      gunArea.addEventListener('touchend', e => {
+        e.preventDefault();
+        this._gunJoystickActive = false;
+        updateGunKnob(0, 0);
       }, { passive: false });
     }
 
@@ -881,6 +1031,45 @@ class SnakeRogue {
     return { x: -1, y: 0 };
   }
 
+  // ── Shooting ──────────────────────────────────
+  _tryShoot() {
+    if (!this.state || this.phase !== 'playing') return;
+    const state = this.state;
+    const head = state.snake[0];
+    // For mouse: aim toward cursor; for WASD / fallback: use snake heading
+    let angle;
+    if (this._controlMode === 'wasd') {
+      angle = state.snakeAngle;
+    } else {
+      angle = Math.atan2(
+        this._mouseGridY - VIEW_ROWS / 2,
+        this._mouseGridX - VIEW_COLS / 2
+      );
+    }
+    this._shoot(head.x, head.y, angle);
+  }
+
+  _shoot(x, y, angle) {
+    const state = this.state;
+    if (!state) return;
+    const now = performance.now();
+    if (now - (state.lastShot || 0) < state.shootInterval) return;
+    state.lastShot = now;
+
+    const shots = 1 + (state.multishot || 0);
+    for (let i = 0; i < shots; i++) {
+      const spread = shots > 1 ? (i - (shots - 1) / 2) * BULLET_SPREAD_ANGLE : 0;
+      const a = angle + spread;
+      state.bullets.push({
+        x, y,
+        vx: Math.cos(a) * BULLET_SPEED,
+        vy: Math.sin(a) * BULLET_SPEED,
+        life: BULLET_LIFE_MS,
+        maxLife: BULLET_LIFE_MS,
+      });
+    }
+  }
+
   _applySteer(angle) {
     if (this.phase === 'online_playing' && this.online && this.online.readyState === WebSocket.OPEN) {
       this.online.send(JSON.stringify({ type: 'steer', angle }));
@@ -909,6 +1098,10 @@ class SnakeRogue {
     this.particles = [];
     this.tick = 0;
     this.lastMoveTime = 0;
+    // Reset joystick/input state so new game starts clean
+    this._joystickHasInput = false;
+    this._gunJoystickActive = false;
+    this._mouseIsDown = false;
     this.flashTimer = 0;
     this._lastFrameTime = 0;
     this._lastUpdateTimestamp = 0;
@@ -952,6 +1145,13 @@ class SnakeRogue {
       applesEatenSinceUpgrade: 0,
       nightmareMode: false,
       pulseEffects: [],
+      // Pistol
+      bullets: [],
+      lastShot: 0,
+      shootInterval: 400,
+      bulletPiercing: false,
+      bulletExplosive: false,
+      multishot: 0,
     };
 
     // Initial apples
@@ -1009,11 +1209,22 @@ class SnakeRogue {
     this._lastUpdateTimestamp = timestamp;
     this.tick++;
 
-    // ── Steer snake toward mouse / joystick ──────
-    // Joystick takes priority; mouse used when joystick inactive
+    const elapsedMs = timestamp - this.gameStartTime;
+
+    // ── Steer snake toward mouse / joystick / WASD ──────
     let targetAngle = state.targetAngle;
     if (this._joystickHasInput) {
       targetAngle = this._joystickAngle;
+    } else if (this._controlMode === 'wasd') {
+      const keyMap = [
+        ['ArrowRight', 0], ['d', 0], ['D', 0],
+        ['ArrowDown',  Math.PI / 2], ['s', Math.PI / 2], ['S', Math.PI / 2],
+        ['ArrowLeft',  Math.PI],     ['a', Math.PI],     ['A', Math.PI],
+        ['ArrowUp',   -Math.PI / 2], ['w', -Math.PI / 2],['W', -Math.PI / 2],
+      ];
+      for (const [key, angle] of keyMap) {
+        if (this._keys[key]) { targetAngle = angle; this._inputReceived = true; break; }
+      }
     } else if (this._mouseActive) {
       const dx = this._mouseGridX - VIEW_COLS / 2;
       const dy = this._mouseGridY - VIEW_ROWS / 2;
@@ -1033,8 +1244,16 @@ class SnakeRogue {
       y: Math.sin(state.snakeAngle),
     };
 
+    // ── Auto-shoot: mouse held down or gun joystick active ────
+    if (this._mouseIsDown && this._controlMode !== 'wasd') {
+      this._tryShoot();
+    }
+    if (this._gunJoystickActive && this.state) {
+      this._shoot(state.snake[0].x, state.snake[0].y, this._gunJoystickAngle);
+    }
+
     // ── Movement delay: snake doesn't move for first 5 seconds unless input received ──
-    const canMove = this._inputReceived || (timestamp - this.gameStartTime >= MOVEMENT_DELAY_MS);
+    const canMove = this._inputReceived || (elapsedMs >= MOVEMENT_DELAY_MS);
     if (!canMove) return;
 
     // ── Move head forward ─────────────────────────
@@ -1108,6 +1327,8 @@ class SnakeRogue {
               spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#f0f', 8);
               state.score += ENEMY_TYPES[e.type].score;
               if (state.lifesteal > 0) state.shields += state.lifesteal;
+              // Enemy drops apple
+              state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y });
               state.enemies.splice(j, 1);
             }
           }
@@ -1168,16 +1389,59 @@ class SnakeRogue {
       }
     }
 
-    // ── Enemy spawning (timer in ms) ──────────────
+    // ── Enemy spawning (time-based target count) ──────────────
     state.enemySpawnTimer += dt;
-    const difficulty = 1 + state.applesEaten / 15;
-    const spawnInterval = Math.max(
-      state.nightmareMode ? 1500 : 4000,
-      ENEMY_SPAWN_MS / difficulty / (state.nightmareMode ? 3 : 1)
-    );
-    if (state.enemySpawnTimer >= spawnInterval && (timestamp - this.gameStartTime) >= 8000) {
+    const targetCount = getTargetEnemyCount(elapsedMs, state.nightmareMode);
+    const spawnInterval = state.nightmareMode ? 800 : 2500;
+    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 5000) {
       state.enemySpawnTimer = 0;
-      spawnEnemy(state);
+      spawnEnemy(state, elapsedMs);
+    }
+
+    // ── Bullet update ─────────────────────────────
+    if (state.bullets && state.bullets.length) {
+      for (let i = state.bullets.length - 1; i >= 0; i--) {
+        const b = state.bullets[i];
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.life -= dt;
+        if (b.life <= 0) { state.bullets.splice(i, 1); continue; }
+
+        // Bullet hits enemy
+        let bulletRemoved = false;
+        for (let j = state.enemies.length - 1; j >= 0; j--) {
+          const e = state.enemies[j];
+          const hitR = ENEMY_TYPES[e.type].size * 0.45;
+          const bex = e.x - b.x, bey = e.y - b.y;
+          if (bex * bex + bey * bey < hitR * hitR) {
+            if (state.bulletExplosive) {
+              // Explosion: damage enemies in radius
+              state.pulseEffects = state.pulseEffects || [];
+              state.pulseEffects.push({ x: e.x, y: e.y, r: 0, maxR: EXPLOSIVE_ROUNDS_RADIUS, life: 1 });
+              for (let k = state.enemies.length - 1; k >= 0; k--) {
+                const ek = state.enemies[k];
+                const exdx = ek.x - e.x, exdy = ek.y - e.y;
+                if (exdx * exdx + exdy * exdy < EXPLOSIVE_ROUNDS_RADIUS * EXPLOSIVE_ROUNDS_RADIUS) {
+                  spawnParticles(this.particles, Math.round(ek.x), Math.round(ek.y), '#ff8', 10);
+                  state.score += ENEMY_TYPES[ek.type].score;
+                  if (state.lifesteal > 0) state.shields += state.lifesteal;
+                  state.apples.push({ x: Math.round(ek.x), y: Math.round(ek.y), fx: ek.x, fy: ek.y });
+                  state.enemies.splice(k, 1);
+                  if (k < j) j--;
+                }
+              }
+            } else {
+              spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#ff8', 8);
+              state.score += ENEMY_TYPES[e.type].score;
+              if (state.lifesteal > 0) state.shields += state.lifesteal;
+              state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y });
+              state.enemies.splice(j, 1);
+            }
+            if (!state.bulletPiercing) { bulletRemoved = true; break; }
+          }
+        }
+        if (bulletRemoved) state.bullets.splice(i, 1);
+      }
     }
 
     // ── Enemy movement (per-frame with dt) ────────
@@ -1196,6 +1460,7 @@ class SnakeRogue {
         if (state.shields > 0) {
           state.shields--;
           spawnParticles(this.particles, Math.round(nx), Math.round(ny), '#4af', 16);
+          state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y });
           state.enemies.splice(i, 1);
           this.flashTimer = 20;
           if (this._checkLoreDamage(timestamp)) return;
@@ -1224,6 +1489,7 @@ class SnakeRogue {
         spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#c0f', 10);
         state.score += ENEMY_TYPES[e.type].score;
         if (state.lifesteal > 0) state.shields += state.lifesteal;
+        state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y });
         state.enemies.splice(i, 1);
       }
     }
@@ -1294,38 +1560,9 @@ class SnakeRogue {
 
     // Mark nightmare as permanently unlocked
     setNightmareUnlocked();
-
-    // Clear HUD
-    document.getElementById('hud-upgrades').textContent = '';
-    document.getElementById('hud-apples').textContent   = '';
-    document.getElementById('hud-timer').textContent    = '';
-    document.getElementById('hud-lbl-apples').textContent = '';
-    document.getElementById('hud-lbl-timer').textContent  = '';
-
-    const el = document.getElementById('overlay');
-    el.className = 'start';
-    el.style.display = '';
-    el.innerHTML = `
-      <h1>VIPER.exe</h1>
-      <div class="info">
-        A roguelike snake<br>
-        Eat apples → choose upgrades → survive<br>
-        Enemies grow stronger with each apple
-      </div>
-      <div class="controls">
-        Move mouse to steer · Mobile: joystick<br>
-        Enemies appear at score 3+<br>
-        Upgrades scale with perks collected
-      </div>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
-        <button class="btn" id="start-btn">SOLO [Enter]</button>
-        <button class="btn btn-online" id="online-btn">⚡ ONLINE</button>
-      </div>
-      <button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>
-    `;
-    document.getElementById('start-btn').addEventListener('click', () => this._startGame());
-    document.getElementById('online-btn').addEventListener('click', () => this._startOnlineMode());
-    document.getElementById('lore-red-btn').addEventListener('click', () => this._startNightmareMode());
+    // Re-render the main overlay (now nightmare button will appear)
+    this._renderOverlay();
+    document.getElementById('overlay').style.display = '';
   }
 
   _die(reason) {
@@ -1343,9 +1580,16 @@ class SnakeRogue {
     const state = this.state;
     upgrade.apply(state);
     state.upgradeCount[upgrade.id] = (state.upgradeCount[upgrade.id] || 0) + 1;
-    // Scale apples needed for next upgrade: 1 more apple needed per 3 perks collected
+    // Scale apples needed for next upgrade
     const totalPerks = Object.values(state.upgradeCount).reduce((a, b) => a + b, 0);
-    state.applesForNextUpgrade = 1 + Math.floor(totalPerks / 3);
+    if (totalPerks <= 10) {
+      state.applesForNextUpgrade = 1 + Math.floor(totalPerks / 3);
+    } else {
+      // After 10 perks: significantly steeper cost
+      const base = 1 + Math.floor(10 / 3); // = 4 at 10 perks
+      const extra = totalPerks - 10;
+      state.applesForNextUpgrade = base + extra * 2 + Math.floor(extra * extra / 4);
+    }
     this._hideUpgradePanel();
     this.phase = 'playing';
     this._updateHUD();
@@ -1382,6 +1626,10 @@ class SnakeRogue {
       if (s.lifesteal) parts.push(`🩸×${s.lifesteal}`);
       if (s.oracle) parts.push('🔮');
       if (s.upgradeCount && s.upgradeCount['behemoth']) parts.push('🐉');
+      if (s.upgradeCount && s.upgradeCount['rapid_fire']) parts.push(`🔫×${s.upgradeCount['rapid_fire']}`);
+      if (s.bulletPiercing) parts.push('🏹');
+      if (s.bulletExplosive) parts.push('💣');
+      if (s.multishot) parts.push(`✳️×${s.multishot}`);
     }
     document.getElementById('hud-upgrades').textContent = parts.join('  ');
   }
@@ -1481,6 +1729,7 @@ class SnakeRogue {
 
     // Draw elements
     drawApples(ctx, state, this.tick);
+    drawBullets(ctx, state.bullets);
     drawSnake(ctx, state);
     drawEnemies(ctx, state, this.tick);
 
@@ -1554,7 +1803,7 @@ class SnakeRogue {
           <button class="btn" id="restart-btn">PLAY AGAIN [Enter]</button>
           <button class="btn btn-back" id="menu-btn">← MENU</button>
         </div>
-        <div class="controls">Mouse to steer · Mobile: joystick</div>
+        <div class="controls">Mouse to steer · Mobile: joystick · LMB to shoot</div>
       `;
       document.getElementById('restart-btn').addEventListener('click', () => this._startGame());
       document.getElementById('menu-btn').addEventListener('click', () => {
@@ -1576,28 +1825,36 @@ class SnakeRogue {
     const el = document.getElementById('overlay');
     el.className = 'start';
     const nightmareUnlocked = isNightmareUnlocked();
+    const ctrlLabel = this._controlMode === 'wasd' ? '⌨ WASD' : '🖱 MOUSE';
     el.innerHTML = `
       <h1>VIPER.exe</h1>
       <div class="info">
         A roguelike snake<br>
         Eat apples → choose upgrades → survive<br>
-        Enemies grow stronger with each apple
+        Enemies grow stronger over time
       </div>
       <div class="controls">
-        Move mouse to steer · Mobile: joystick<br>
-        Enemies appear at score 3+<br>
-        Upgrades scale with perks collected
+        ${this._controlMode === 'wasd' ? 'WASD/Arrows to steer' : 'Mouse to steer'} · LMB to shoot<br>
+        Mobile: joystick to move · gun joystick to shoot
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
         <button class="btn" id="start-btn">SOLO [Enter]</button>
         <button class="btn btn-online" id="online-btn">⚡ ONLINE</button>
+        <button class="btn btn-settings" id="settings-btn">⚙ ${ctrlLabel}</button>
       </div>
       ${nightmareUnlocked ? '<button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>' : ''}
     `;
     document.getElementById('start-btn').addEventListener('click', () => this._startGame());
     document.getElementById('online-btn').addEventListener('click', () => this._startOnlineMode());
+    document.getElementById('settings-btn').addEventListener('click', () => this._toggleControlMode());
     const loreBtn = document.getElementById('lore-red-btn');
     if (loreBtn) loreBtn.addEventListener('click', () => this._startNightmareMode());
+  }
+
+  _toggleControlMode() {
+    this._controlMode = this._controlMode === 'wasd' ? 'mouse' : 'wasd';
+    try { localStorage.setItem('controlMode', this._controlMode); } catch(_) {}
+    this._renderOverlay();
   }
 
   _hideUpgradePanel() {
