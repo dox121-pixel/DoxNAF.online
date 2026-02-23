@@ -910,7 +910,7 @@ class SnakeRogue {
     document.addEventListener('mousedown', e => {
       if (e.button === 0) {
         this._mouseIsDown = true;
-        if (this.phase === 'start' || this.phase === 'gameover') { this._startGame(); return; }
+        if (this.phase === 'start' || this.phase === 'gameover') { if (!e.target.closest('button')) this._startGame(); return; }
         this._tryShoot();
       }
     });
