@@ -28,6 +28,40 @@ const MOVEMENT_DELAY_MS = 5000; // ms to hold snake still at game start until pl
 
 // ── Upgrade definitions ─────────────────────
 const UPGRADES = [
+  // ── One-time perks (always listed first) ────
+  {
+    id: 'ghost',
+    name: 'PHASE WALK',
+    icon: '👻',
+    desc: 'Phase through yourself and walls. No death on self-collision. One time only.',
+    oneTime: true,
+    apply(state) { state.ghost = (state.ghost || 0) + 1; }
+  },
+  {
+    id: 'tail_sweep',
+    name: 'WHIPLASH',
+    icon: '🌀',
+    desc: 'Tail kills enemies on contact. One time only.',
+    oneTime: true,
+    apply(state) { state.tailSweep = (state.tailSweep || 0) + 1; }
+  },
+  {
+    id: 'behemoth',
+    name: 'BEHEMOTH',
+    icon: '🐉',
+    desc: 'Triple growth per apple — become enormous. One time only.',
+    oneTime: true,
+    apply(state) { state.growPerApple = Math.round(state.growPerApple * 3); }
+  },
+  {
+    id: 'oracle',
+    name: 'ORACLE',
+    icon: '🔮',
+    desc: 'Choose from 4 upgrades instead of 3. One time only.',
+    oneTime: true,
+    apply(state) { state.oracle = true; }
+  },
+  // ── Stackable perks ──────────────────────────
   {
     id: 'speed_up',
     name: 'OVERDRIVE',
@@ -43,36 +77,11 @@ const UPGRADES = [
     apply(state) { state.baseInterval = Math.min(250, state.baseInterval + 20); }
   },
   {
-    id: 'ghost',
-    name: 'PHASE WALK',
-    icon: '👻',
-    desc: 'Phase through yourself and walls. No death on self-collision. One time only.',
-    oneTime: true,
-    apply(state) { state.ghost = (state.ghost || 0) + 1; }
-  },
-  {
     id: 'shield',
     name: 'WARD',
     icon: '🛡️',
     desc: 'Survive one fatal hit. Stacks infinitely.',
     apply(state) { state.shields = (state.shields || 0) + 1; }
-  },
-  {
-    id: 'magnet',
-    name: 'GRAVITY',
-    icon: '🧲',
-    desc: 'Apple snaps one step closer each tick.',
-    apply(state) { state.magnet = (state.magnet || 0) + 1; }
-  },
-  {
-    id: 'multi_apple',
-    name: 'BOUNTY',
-    icon: '🍎',
-    desc: 'Spawn an extra apple on the field.',
-    apply(state) {
-      state.extraApples = (state.extraApples || 0) + 1;
-      spawnApple(state);
-    }
   },
   {
     id: 'freeze',
@@ -96,14 +105,6 @@ const UPGRADES = [
     apply(state) { state.repel = (state.repel || 0) + 1; }
   },
   {
-    id: 'tail_sweep',
-    name: 'WHIPLASH',
-    icon: '🌀',
-    desc: 'Tail kills enemies on contact. One time only.',
-    oneTime: true,
-    apply(state) { state.tailSweep = (state.tailSweep || 0) + 1; }
-  },
-  {
     id: 'pulse',
     name: 'PULSE',
     icon: '💫',
@@ -123,22 +124,6 @@ const UPGRADES = [
     icon: '🎯',
     desc: '+3 bonus score per enemy killed. Stack for ever-higher bounties.',
     apply(state) { state.hunterBonus = (state.hunterBonus || 0) + 3; }
-  },
-  {
-    id: 'behemoth',
-    name: 'BEHEMOTH',
-    icon: '🐉',
-    desc: 'Triple growth per apple — become enormous. One time only.',
-    oneTime: true,
-    apply(state) { state.growPerApple = Math.round(state.growPerApple * 3); }
-  },
-  {
-    id: 'oracle',
-    name: 'ORACLE',
-    icon: '🔮',
-    desc: 'Choose from 4 upgrades instead of 3. One time only.',
-    oneTime: true,
-    apply(state) { state.oracle = true; }
   },
 ];
 
@@ -854,8 +839,6 @@ class SnakeRogue {
       growPerApple: 2,
       shields: 0,
       ghost: 0,
-      magnet: 0,
-      extraApples: 0,
       freeze: 0,
       scoreMult: 1,
       repel: 0,
@@ -1004,28 +987,6 @@ class SnakeRogue {
       state.growBuffer--;
     }
 
-    // ── Magnet: pull apples toward head ──────────
-    if (state.magnet > 0) {
-      for (const apple of state.apples) {
-        if (apple.fx === undefined) { apple.fx = apple.x; apple.fy = apple.y; }
-        const dx = nx - apple.fx;
-        const dy = ny - apple.fy;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > 0.5) {
-          const pull = Math.min(1.0, state.magnet * 0.25);
-          const step = Math.min(pull * dt / state.baseInterval, dist);
-          const newFx = Math.max(0, Math.min(COLS - 1, apple.fx + (dx / dist) * step));
-          const newFy = Math.max(0, Math.min(ROWS - 1, apple.fy + (dy / dist) * step));
-          const snapX = Math.round(newFx);
-          const snapY = Math.round(newFy);
-          if (!state.snake.some(s => Math.round(s.x) === snapX && Math.round(s.y) === snapY)) {
-            apple.fx = newFx; apple.fy = newFy;
-            apple.x  = snapX; apple.y  = snapY;
-          }
-        }
-      }
-    }
-
     // ── Apple eating (distance-based) ────────────
     for (let i = state.apples.length - 1; i >= 0; i--) {
       const apple = state.apples[i];
@@ -1057,7 +1018,6 @@ class SnakeRogue {
         }
 
         spawnApple(state);
-        for (let j = 0; j < state.extraApples; j++) spawnApple(state);
 
         if (!state.nightmareMode) {
           state.applesEatenSinceUpgrade++;
@@ -1073,6 +1033,32 @@ class SnakeRogue {
 
         this._updateHUD();
         break;
+      }
+    }
+
+    // ── Apple collision with snake body (push apples away) ───────────
+    for (const apple of state.apples) {
+      const ax = apple.fx !== undefined ? apple.fx : apple.x;
+      const ay = apple.fy !== undefined ? apple.fy : apple.y;
+      let closestSeg = null;
+      let closestDist2 = Infinity;
+      for (let si = 0; si < state.snake.length; si++) {
+        const s = state.snake[si];
+        const bx = s.x - ax, by = s.y - ay;
+        const d2 = bx * bx + by * by;
+        if (d2 < ENEMY_BODY_DIST * ENEMY_BODY_DIST && d2 < closestDist2) {
+          closestDist2 = d2; closestSeg = s;
+        }
+      }
+      if (closestSeg) {
+        const rx = ax - closestSeg.x;
+        const ry = ay - closestSeg.y;
+        const rLen = Math.sqrt(rx * rx + ry * ry) || 1;
+        const pushTo = ENEMY_BODY_DIST + 0.05;
+        apple.fx = Math.max(0, Math.min(COLS - 1, closestSeg.x + (rx / rLen) * pushTo));
+        apple.fy = Math.max(0, Math.min(ROWS - 1, closestSeg.y + (ry / rLen) * pushTo));
+        apple.x = Math.round(apple.fx);
+        apple.y = Math.round(apple.fy);
       }
     }
 
@@ -1144,6 +1130,18 @@ class SnakeRogue {
           const pushTo = ENEMY_BODY_DIST + 0.05;
           e.x = closestSeg.x + (rx / rLen) * pushTo;
           e.y = closestSeg.y + (ry / rLen) * pushTo;
+          // If enemy is still surrounded after the push it is encircled — kill it
+          const stillTrapped = state.snake.some((s, si) => {
+            if (si === 0) return false;
+            const bx = s.x - e.x, by = s.y - e.y;
+            return bx * bx + by * by < ENEMY_BODY_DIST * ENEMY_BODY_DIST;
+          });
+          if (stillTrapped) {
+            spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#f0f', 10);
+            state.score += ENEMY_TYPES[e.type].score + (state.hunterBonus || 0);
+            if (state.lifesteal > 0) state.shields += state.lifesteal;
+            state.enemies.splice(i, 1);
+          }
         }
       }
     }
@@ -1296,12 +1294,10 @@ class SnakeRogue {
       }
       if (s.ghost) parts.push('👻');
       if (s.shields) parts.push(`🛡️×${s.shields}`);
-      if (s.magnet) parts.push(`🧲×${s.magnet}`);
       if (s.freeze) parts.push(`❄️×${s.freeze}`);
       if (s.scoreMult > 1) parts.push(`💰×${s.scoreMult}`);
       if (s.tailSweep) parts.push('🌀');
       if (s.repel) parts.push(`💥×${s.repel}`);
-      if (s.extraApples) parts.push(`🍎+${s.extraApples}`);
       if (s.pulse) parts.push(`💫×${s.pulse}`);
       if (s.lifesteal) parts.push(`🩸×${s.lifesteal}`);
       if (s.hunterBonus) parts.push(`🎯×${Math.floor(s.hunterBonus / 3)}`);
