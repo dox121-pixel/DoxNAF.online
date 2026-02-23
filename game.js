@@ -1132,6 +1132,16 @@ class SnakeRogue {
       }
     }
 
+    // ── Respawn apples that drifted too far from snake head ──────────
+    for (const apple of state.apples) {
+      const dax = apple.x - nx, day = apple.y - ny;
+      if (dax * dax + day * day > VIEW_COLS * VIEW_COLS) {
+        const cell = emptyCell(state);
+        apple.x = cell.x; apple.y = cell.y;
+        apple.fx = cell.x; apple.fy = cell.y;
+      }
+    }
+
     // ── Apple collision with snake body (push apples away) ───────────
     for (const apple of state.apples) {
       const ax = apple.fx !== undefined ? apple.fx : apple.x;
@@ -1165,7 +1175,7 @@ class SnakeRogue {
       state.nightmareMode ? 1500 : 4000,
       ENEMY_SPAWN_MS / difficulty / (state.nightmareMode ? 3 : 1)
     );
-    if (state.enemySpawnTimer >= spawnInterval && state.applesEaten >= 1) {
+    if (state.enemySpawnTimer >= spawnInterval && (timestamp - this.gameStartTime) >= 8000) {
       state.enemySpawnTimer = 0;
       spawnEnemy(state);
     }
