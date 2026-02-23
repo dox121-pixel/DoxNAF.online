@@ -46,7 +46,8 @@ const UPGRADES = [
     id: 'ghost',
     name: 'PHASE WALK',
     icon: '👻',
-    desc: 'Phase through yourself and walls. No death on self-collision.',
+    desc: 'Phase through yourself and walls. No death on self-collision. One time only.',
+    oneTime: true,
     apply(state) { state.ghost = (state.ghost || 0) + 1; }
   },
   {
@@ -98,7 +99,8 @@ const UPGRADES = [
     id: 'tail_sweep',
     name: 'WHIPLASH',
     icon: '🌀',
-    desc: 'Tail kills enemies on contact.',
+    desc: 'Tail kills enemies on contact. One time only.',
+    oneTime: true,
     apply(state) { state.tailSweep = (state.tailSweep || 0) + 1; }
   },
   {
@@ -121,6 +123,22 @@ const UPGRADES = [
     icon: '🎯',
     desc: '+3 bonus score per enemy killed. Stack for ever-higher bounties.',
     apply(state) { state.hunterBonus = (state.hunterBonus || 0) + 3; }
+  },
+  {
+    id: 'behemoth',
+    name: 'BEHEMOTH',
+    icon: '🐉',
+    desc: 'Triple growth per apple — become enormous. One time only.',
+    oneTime: true,
+    apply(state) { state.growPerApple = Math.round(state.growPerApple * 3); }
+  },
+  {
+    id: 'oracle',
+    name: 'ORACLE',
+    icon: '🔮',
+    desc: 'Choose from 4 upgrades instead of 3. One time only.',
+    oneTime: true,
+    apply(state) { state.oracle = true; }
   },
 ];
 
@@ -164,17 +182,16 @@ function pickRandom(arr, n) {
 }
 
 function emptyCell(state) {
-  const occupied = new Set([
-    ...state.snake.map(s => `${Math.round(s.x)},${Math.round(s.y)}`),
-    ...state.apples.map(a => `${a.x},${a.y}`),
-    ...state.enemies.map(e => `${Math.round(e.x)},${Math.round(e.y)}`),
-  ]);
   let cell;
   let attempts = 0;
   do {
     cell = { x: randInt(COLS), y: randInt(ROWS) };
     attempts++;
-  } while (occupied.has(`${cell.x},${cell.y}`) && attempts < 400);
+  } while ((
+    state.snake.some(s => { const dx = cell.x - s.x, dy = cell.y - s.y; return dx * dx + dy * dy < 1; }) ||
+    state.apples.some(a => a.x === cell.x && a.y === cell.y) ||
+    state.enemies.some(e => Math.round(e.x) === cell.x && Math.round(e.y) === cell.y)
+  ) && attempts < 400);
   return cell;
 }
 
@@ -184,8 +201,11 @@ function spawnApple(state) {
 }
 
 function pickUpgrades(state) {
+  // Filter out one-time upgrades the player already owns
+  const available = UPGRADES.filter(u => !(u.oneTime && state.upgradeCount[u.id]));
+
   // Weight upgrades so ones we already have appear less often
-  const weighted = UPGRADES.map(u => ({
+  const weighted = available.map(u => ({
     upgrade: u,
     weight: 1 / (1 + (state.upgradeCount[u.id] || 0) * 0.3)
   }));
@@ -194,6 +214,7 @@ function pickUpgrades(state) {
     const times = Math.max(1, Math.round(weight * 10));
     for (let i = 0; i < times; i++) pool.push(upgrade);
   });
+  const choiceCount = state.oracle ? 4 : 3;
   const seen = new Set();
   const choices = [];
   const shuffled = shuffle(pool);
@@ -202,11 +223,11 @@ function pickUpgrades(state) {
       seen.add(u.id);
       choices.push(u);
     }
-    if (choices.length === 3) break;
+    if (choices.length === choiceCount) break;
   }
-  // Fill to 3 if needed
-  for (const u of UPGRADES) {
-    if (choices.length >= 3) break;
+  // Fill to choiceCount if needed
+  for (const u of available) {
+    if (choices.length >= choiceCount) break;
     if (!seen.has(u.id)) { seen.add(u.id); choices.push(u); }
   }
   return choices;
@@ -487,11 +508,11 @@ function drawParticles(ctx, particles) {
   ctx.globalAlpha = 1;
 }
 
-function spawnParticles(particles, x, y, color, count) {
+function spawnParticles(particles, x, y, color, count, grid = GRID) {
   for (let i = 0; i < count; i++) {
     particles.push({
-      x: x * GRID + GRID / 2 + (Math.random() - 0.5) * GRID,
-      y: y * GRID + GRID / 2 + (Math.random() - 0.5) * GRID,
+      x: x * grid + grid / 2 + (Math.random() - 0.5) * grid,
+      y: y * grid + grid / 2 + (Math.random() - 0.5) * grid,
       vx: (Math.random() - 0.5) * 3,
       vy: (Math.random() - 0.5) * 3,
       life: 1,
@@ -752,6 +773,16 @@ class SnakeRogue {
         this._startGame();
       }
     }, { passive: false });
+
+    // Mobile teleport button (multiplayer)
+    const mobileTeleportBtn = document.getElementById('mobile-teleport-btn');
+    if (mobileTeleportBtn) {
+      mobileTeleportBtn.addEventListener('click', () => {
+        if (this.phase === 'online_playing' && this.online && this.online.readyState === WebSocket.OPEN) {
+          this.online.send(JSON.stringify({ type: 'teleport' }));
+        }
+      });
+    }
   }
 
   _angle4Dir(angle) {
@@ -861,10 +892,25 @@ class SnakeRogue {
     this.nightmareJumpscareStart = performance.now();
     document.getElementById('app').classList.remove('nightmare-mode');
     this._playScreech();
-    setTimeout(() => {
+    this._jumpscareTimeout = setTimeout(() => {
       this.state = null;
-      this.phase = 'start';
-      this._renderOverlay();
+      this.phase = 'gameover';
+      const el = document.getElementById('overlay');
+      el.className = 'gameover';
+      el.style.display = '';
+      el.innerHTML = `
+        <h1>☠ YOU DIED</h1>
+        <div class="info">NIGHTMARE MODE</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+          <button class="btn btn-lore" id="nm-restart-btn">NIGHTMARE AGAIN</button>
+          <button class="btn btn-back" id="nm-menu-btn">← MENU</button>
+        </div>
+      `;
+      document.getElementById('nm-restart-btn').addEventListener('click', () => this._startNightmareMode());
+      document.getElementById('nm-menu-btn').addEventListener('click', () => {
+        this.phase = 'start';
+        this._renderOverlay();
+      });
     }, 2500);
   }
 
@@ -1109,6 +1155,7 @@ class SnakeRogue {
     if (this.loreEventActive) return false;
     if (this.state && this.state.nightmareMode) return false;
     if (timestamp - this.gameStartTime < 90000) return false;
+    if (isNightmareUnlocked()) return false;
     this._triggerLoreEvent(timestamp);
     return true;
   }
@@ -1167,6 +1214,13 @@ class SnakeRogue {
 
     // Mark nightmare as permanently unlocked
     setNightmareUnlocked();
+
+    // Clear HUD
+    document.getElementById('hud-upgrades').textContent = '';
+    document.getElementById('hud-apples').textContent   = '';
+    document.getElementById('hud-timer').textContent    = '';
+    document.getElementById('hud-lbl-apples').textContent = '';
+    document.getElementById('hud-lbl-timer').textContent  = '';
 
     const el = document.getElementById('overlay');
     el.className = 'start';
@@ -1240,17 +1294,19 @@ class SnakeRogue {
         const needed = s.applesForNextUpgrade - s.applesEatenSinceUpgrade;
         parts.push(`🍎×${needed}→perk`);
       }
-      if (s.ghost) parts.push(`👻×${s.ghost}`);
+      if (s.ghost) parts.push('👻');
       if (s.shields) parts.push(`🛡️×${s.shields}`);
       if (s.magnet) parts.push(`🧲×${s.magnet}`);
       if (s.freeze) parts.push(`❄️×${s.freeze}`);
       if (s.scoreMult > 1) parts.push(`💰×${s.scoreMult}`);
-      if (s.tailSweep) parts.push(`🌀×${s.tailSweep}`);
+      if (s.tailSweep) parts.push('🌀');
       if (s.repel) parts.push(`💥×${s.repel}`);
       if (s.extraApples) parts.push(`🍎+${s.extraApples}`);
       if (s.pulse) parts.push(`💫×${s.pulse}`);
       if (s.lifesteal) parts.push(`🩸×${s.lifesteal}`);
       if (s.hunterBonus) parts.push(`🎯×${Math.floor(s.hunterBonus / 3)}`);
+      if (s.oracle) parts.push('🔮');
+      if (s.upgradeCount && s.upgradeCount['behemoth']) parts.push('🐉');
     }
     document.getElementById('hud-upgrades').textContent = parts.join('  ');
   }
@@ -1391,7 +1447,9 @@ class SnakeRogue {
       const upgradeNames = Object.entries(s.upgradeCount)
         .map(([id, count]) => {
           const u = UPGRADES.find(u => u.id === id);
-          return u ? `<span>${u.icon} ${u.name} ×${count}</span>` : '';
+          if (!u) return '';
+          const countSuffix = (!u.oneTime && count > 1) ? ` ×${count}` : '';
+          return `<span>${u.icon} ${u.name}${countSuffix}</span>`;
         })
         .filter(Boolean).join('  ');
 
@@ -1400,14 +1458,29 @@ class SnakeRogue {
         <div class="score-display">SCORE: ${s.score} &nbsp;|&nbsp; APPLES: ${s.applesEaten}</div>
         <div class="info">You ${reasonText}.</div>
         ${upgradeNames ? `<div id="upgrades-list">${upgradeNames}</div>` : ''}
-        <button class="btn" id="restart-btn">PLAY AGAIN [Enter]</button>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+          <button class="btn" id="restart-btn">PLAY AGAIN [Enter]</button>
+          <button class="btn btn-back" id="menu-btn">← MENU</button>
+        </div>
         <div class="controls">Mouse to steer · Mobile: joystick</div>
       `;
       document.getElementById('restart-btn').addEventListener('click', () => this._startGame());
+      document.getElementById('menu-btn').addEventListener('click', () => {
+        this.state = null;
+        this.phase = 'start';
+        this._renderOverlay();
+      });
     }
   }
 
   _renderOverlay() {
+    // Clear HUD when returning to main menu
+    document.getElementById('hud-upgrades').textContent   = '';
+    document.getElementById('hud-apples').textContent     = '';
+    document.getElementById('hud-timer').textContent      = '';
+    document.getElementById('hud-lbl-apples').textContent = '';
+    document.getElementById('hud-lbl-timer').textContent  = '';
+
     const el = document.getElementById('overlay');
     el.className = 'start';
     const nightmareUnlocked = isNightmareUnlocked();
@@ -1446,7 +1519,9 @@ class SnakeRogue {
     const state = this.state;
     const cardsHtml = this.pendingUpgrades.map((u, i) => {
       const stackCount = state.upgradeCount[u.id] || 0;
-      const stackText = stackCount > 0 ? `<div class="stack">Already have ×${stackCount}</div>` : '';
+      const stackText = u.oneTime
+        ? `<div class="stack" style="color:#7af">⚡ One time only</div>`
+        : (stackCount > 0 ? `<div class="stack">Already have ×${stackCount}</div>` : '');
       return `
         <div class="upgrade-card" data-idx="${i}">
           <div class="icon">${u.icon}</div>
@@ -1456,11 +1531,12 @@ class SnakeRogue {
         </div>`;
     }).join('');
 
+    const hintKeys = state.oracle ? '1 / 2 / 3 / 4' : '1 / 2 / 3';
     panel.innerHTML = `
       <h2>UPGRADE</h2>
       <div class="subtitle">Choose one power-up</div>
       <div class="upgrade-cards">${cardsHtml}</div>
-      <div class="info" style="font-size:11px;color:#345">Click a card or press 1 / 2 / 3</div>
+      <div class="info" style="font-size:11px;color:#345">Click a card or press ${hintKeys}</div>
     `;
 
     panel.querySelectorAll('.upgrade-card').forEach(card => {
@@ -1472,7 +1548,7 @@ class SnakeRogue {
 
     // Keyboard shortcuts
     const keyHandler = (e) => {
-      const map = { '1': 0, '2': 1, '3': 2 };
+      const map = { '1': 0, '2': 1, '3': 2, '4': 3 };
       if (map[e.key] !== undefined && map[e.key] < this.pendingUpgrades.length) {
         document.removeEventListener('keydown', keyHandler);
         this._chooseUpgrade(this.pendingUpgrades[map[e.key]]);
@@ -1588,6 +1664,7 @@ class SnakeRogue {
     this.onlineState     = null;
     this.prevOnlineState = null;
     this.lastOnlineTick  = 0;
+    this._hideMobileTeleportBtn();
   }
 
   _setOnlineError(msg) {
@@ -1618,16 +1695,34 @@ class SnakeRogue {
         this._lastSentAngle  = undefined;
         this.phase           = 'online_playing';
         this._hideOverlay();
+        this._showMobileTeleportBtn();
         this._updateOnlineHUD();
         break;
 
-      case 'game_tick':
+      case 'game_tick': {
+        // Detect teleports: large position jump between ticks (> 2 grid cells = teleport)
+        const TELEPORT_DIST_SQ = 4;
+        if (this.onlineState && msg.state) {
+          for (let pi = 0; pi < 2; pi++) {
+            const prevSnake = this.onlineState.snakes[pi];
+            const currSnake = msg.state.snakes[pi];
+            if (prevSnake && currSnake && prevSnake.body.length && currSnake.body.length) {
+              const deltaX = currSnake.body[0].x - prevSnake.body[0].x;
+              const deltaY = currSnake.body[0].y - prevSnake.body[0].y;
+              if (deltaX * deltaX + deltaY * deltaY > TELEPORT_DIST_SQ) {
+                spawnParticles(this.particles, prevSnake.body[0].x, prevSnake.body[0].y, '#0cf', 16, ONLINE_GRID);
+                spawnParticles(this.particles, currSnake.body[0].x, currSnake.body[0].y, '#0cf', 16, ONLINE_GRID);
+              }
+            }
+          }
+        }
         this.prevOnlineState = this.onlineState;
         this.onlineState     = msg.state;
         this.lastOnlineTick  = performance.now();
         this._lastSentAngle  = undefined; // re-evaluate mouse direction every tick
         this._updateOnlineHUD();
         break;
+      }
 
       case 'game_over':
         this.onlineState = msg.state || this.onlineState;
@@ -1652,6 +1747,7 @@ class SnakeRogue {
   }
 
   _showOnlineGameOver(winner, scores) {
+    this._hideMobileTeleportBtn();
     const el = document.getElementById('overlay');
     let heading, cls;
     if (winner === -1)                   { heading = 'DRAW';        cls = 'online-draw'; }
@@ -1683,6 +1779,7 @@ class SnakeRogue {
 
   _showOnlineDisconnected() {
     this.phase = 'online_over';
+    this._hideMobileTeleportBtn();
     const el = document.getElementById('overlay');
     el.className = 'online-lose';
     el.style.display = '';
@@ -1697,6 +1794,16 @@ class SnakeRogue {
     });
   }
 
+  _showMobileTeleportBtn() {
+    const wrap = document.getElementById('mobile-teleport-wrap');
+    if (wrap) wrap.style.display = '';
+  }
+
+  _hideMobileTeleportBtn() {
+    const wrap = document.getElementById('mobile-teleport-wrap');
+    if (wrap) wrap.style.display = 'none';
+  }
+
   _updateOnlineHUD() {
     if (!this.onlineState) return;
     const gs = this.onlineState;
@@ -1708,6 +1815,12 @@ class SnakeRogue {
     const charges = mySnake ? (mySnake.teleportCharges || 0) : 0;
     document.getElementById('hud-upgrades').textContent   =
       `${this.onlineRole === 0 ? '🟢' : '🟠'} YOU` + (charges > 0 ? `  ⌁×${charges} [Q]` : '');
+    // Update mobile teleport button
+    const mobileBtn = document.getElementById('mobile-teleport-btn');
+    if (mobileBtn) {
+      mobileBtn.textContent = charges > 0 ? `⌁ TELEPORT (${charges})` : '⌁ TELEPORT (0)';
+      mobileBtn.disabled = charges <= 0;
+    }
   }
 }
 

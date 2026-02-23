@@ -390,4 +390,23 @@ canvas {
     height: auto !important;
     max-width: 100vw;
   }
+
+  #hud {
+    gap: 6px;
+    font-size: 11px;
+    flex-wrap: wrap;
+    height: auto;
+    padding: 2px 8px;
+    justify-content: center;
+    max-width: 100vw;
+    text-align: center;
+  }
+
+  #hud-upgrades {
+    font-size: 10px;
+    max-width: 100vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
