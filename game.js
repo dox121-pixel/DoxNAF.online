@@ -947,7 +947,7 @@ class SnakeRogue {
     document.addEventListener('mousedown', e => {
       if (e.button === 0) {
         this._mouseIsDown = true;
-        if (this.phase === 'start' || this.phase === 'gameover') { if (!e.target.closest('button')) this._startGame(); return; }
+        if (this.phase === 'start' || this.phase === 'gameover') { return; }
         this._tryShoot();
       }
     });
@@ -974,7 +974,7 @@ class SnakeRogue {
     if (joystickArea) {
       joystickArea.addEventListener('touchstart', e => {
         e.preventDefault();
-        if (this.phase === 'start' || this.phase === 'gameover') { this._startGame(); return; }
+        if (this.phase === 'start' || this.phase === 'gameover') { return; }
         const t0 = e.changedTouches[0];
         this._joystickTouchId = t0.identifier;
         this._joystickOriginX = t0.clientX;
@@ -1052,14 +1052,6 @@ class SnakeRogue {
         updateGunKnob(0, 0);
       }, { passive: false });
     }
-
-    // Tap canvas to start/restart on mobile
-    this.canvas.addEventListener('touchstart', e => {
-      if (this.phase === 'start' || this.phase === 'gameover') {
-        e.preventDefault();
-        this._startGame();
-      }
-    }, { passive: false });
 
     // Mobile teleport button (multiplayer)
     const mobileTeleportBtn = document.getElementById('mobile-teleport-btn');
