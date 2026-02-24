@@ -617,7 +617,7 @@ canvas {
 #spectate-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(5, 5, 15, 0.85);
+  background: rgba(5, 5, 15, 0.92);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -625,14 +625,16 @@ canvas {
 }
 
 #spectate-box {
-  background: #0e0e1a;
+  background: #0a0a16;
   border: 1px solid #264;
   border-radius: 8px;
-  padding: 18px 20px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
 }
 
 #spectate-title {
@@ -640,12 +642,15 @@ canvas {
   color: #7fc;
   letter-spacing: 2px;
   text-transform: uppercase;
+  flex-shrink: 0;
 }
 
 #spectate-canvas {
   border: 1px solid #264;
   border-radius: 4px;
   display: block;
+  max-width: min(600px, calc(100vw - 60px));
+  max-height: calc(100vh - 130px);
   image-rendering: pixelated;
 }
 
@@ -654,6 +659,7 @@ canvas {
   color: #7ab;
   letter-spacing: 1px;
   min-height: 14px;
+  flex-shrink: 0;
 }
 
 
