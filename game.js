@@ -1188,6 +1188,10 @@ class SnakeRogue {
     this._adminPanelOpen = false;
     this._setupAdmin();
 
+    // ── Singleplayer session (admin observability) ──
+    this._spWs        = null;
+    this._spSessionId = null;
+
     window.addEventListener('resize', () => {
       const isNightmare = this.state && this.state.nightmareMode;
       if (!isNightmare) this._resizeCanvas(false);
@@ -1530,6 +1534,7 @@ class SnakeRogue {
     this._hideOverlay();
     this._hideUpgradePanel();
     this._updateHUD();
+    this._connectSpSession();
   }
 
   _startNightmareMode() {
@@ -2001,6 +2006,7 @@ class SnakeRogue {
   _die(reason) {
     const state = this.state;
     spawnParticles(this.particles, state.snake[0].x, state.snake[0].y, '#f44', 20);
+    this._disconnectSpSession();
     if (state.nightmareMode) {
       this._playNightmareJumpscare();
       return;
@@ -2287,6 +2293,8 @@ class SnakeRogue {
   _renderOverlay() {
     // Return to full-screen layout when showing main menu/start screen
     this._resizeCanvas(false);
+    // Disconnect any active singleplayer session when returning to menu
+    this._disconnectSpSession();
     // Clear HUD when returning to main menu
     document.getElementById('hud-upgrades').textContent   = '';
     document.getElementById('hud-apples').textContent     = '';
@@ -2782,6 +2790,70 @@ class SnakeRogue {
     }
   }
 
+  // ── Singleplayer session (admin observability) ──
+  _connectSpSession() {
+    // Close any existing SP session WebSocket before opening a new one
+    this._disconnectSpSession();
+    try {
+      const ws = new WebSocket(WS_SERVER);
+      this._spWs = ws;
+      ws.addEventListener('open', () => {
+        ws.send(JSON.stringify({ type: 'sp_register', name: this._playerName || 'Anonymous' }));
+      });
+      ws.addEventListener('message', ev => {
+        let msg; try { msg = JSON.parse(ev.data); } catch { return; }
+        this._handleSpCommand(msg);
+      });
+      ws.addEventListener('close', () => {
+        if (this._spWs === ws) { this._spWs = null; this._spSessionId = null; }
+      });
+      ws.addEventListener('error', () => {
+        if (this._spWs === ws) { this._spWs = null; this._spSessionId = null; }
+      });
+    } catch (_) { /* offline — ignore */ }
+  }
+
+  _disconnectSpSession() {
+    if (this._spWs) {
+      this._spWs.close();
+      this._spWs = null;
+    }
+    this._spSessionId = null;
+  }
+
+  _handleSpCommand(msg) {
+    if (msg.type === 'sp_registered') {
+      this._spSessionId = msg.sessionId;
+      return;
+    }
+    // All other commands require an active singleplayer game
+    if (!this.state || this.phase !== 'playing') return;
+    const state = this.state;
+    const elapsedMs = performance.now() - this.gameStartTime;
+    switch (msg.type) {
+      case 'sp_spawn_enemy':
+        spawnEnemy(state, elapsedMs);
+        break;
+      case 'sp_spawn_apple':
+        for (let i = 0; i < 5; i++) spawnApple(state);
+        break;
+      case 'sp_spawn_chest':
+        spawnChest(state);
+        break;
+      case 'sp_toggle_nightmare':
+        state.nightmareMode = !state.nightmareMode;
+        if (state.nightmareMode) {
+          document.getElementById('app').classList.add('nightmare-mode');
+          this._resizeCanvas(true);
+        } else {
+          document.getElementById('app').classList.remove('nightmare-mode');
+          this._resizeCanvas(false);
+        }
+        this._updateHUD();
+        break;
+    }
+  }
+
   // ── Admin panel ──────────────────────────────
   _setupAdmin() {
     // Admin open button
@@ -2852,6 +2924,22 @@ class SnakeRogue {
         this._deleteNightmareLeaderboardEntry(name, btn);
       });
     }
+
+    // Delegate click handler for singleplayer session action buttons
+    const spList = document.getElementById('adm-sp-sessions-list');
+    if (spList) {
+      spList.addEventListener('click', e => {
+        const btn = e.target.closest('.adm-sp-btn');
+        if (!btn) return;
+        const sid = btn.getAttribute('data-sid');
+        const cmd = btn.getAttribute('data-cmd');
+        this._sendSpCommand(sid, cmd, btn);
+      });
+    }
+
+    // Refresh button for SP sessions
+    const spRefresh = document.getElementById('adm-sp-refresh');
+    if (spRefresh) spRefresh.addEventListener('click', () => this._loadSpSessions());
   }
 
   _showAdminOpenBtn() {
@@ -2912,6 +3000,8 @@ class SnakeRogue {
     // Load leaderboard entries with delete buttons
     this._loadAdminLeaderboard();
     this._loadAdminNightmareLeaderboard();
+    // Load active singleplayer sessions
+    this._loadSpSessions();
   }
 
   _closeAdminPanel() {
@@ -3004,6 +3094,53 @@ class SnakeRogue {
         }
       })
       .catch(() => { if (btn) { btn.disabled = false; btn.textContent = '✕'; } });
+  }
+
+  _loadSpSessions() {
+    const listEl = document.getElementById('adm-sp-sessions-list');
+    if (!listEl || !this._adminToken) return;
+    listEl.textContent = 'Loading…';
+    fetch(`${API_SERVER}/api/admin/sp-sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: this._adminToken }),
+    })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        if (!data.sessions || data.sessions.length === 0) {
+          listEl.textContent = 'No active sessions.';
+          return;
+        }
+        const btnStyle = 'background:#0a1a1a;border:1px solid #246;color:#7cf;font-family:\'Courier New\',monospace;font-size:9px;padding:2px 5px;cursor:pointer;border-radius:3px;';
+        listEl.innerHTML = data.sessions.map(s => {
+          const safeName = escapeHtml(s.playerName);
+          const mins = Math.floor(s.elapsedSec / 60);
+          const secs = String(s.elapsedSec % 60).padStart(2, '0');
+          return `<div style="border:1px solid #234;padding:4px 5px;margin-bottom:4px;border-radius:3px;">
+            <div style="font-size:10px;color:#7ab;margin-bottom:3px;">${safeName} — ${mins}:${secs}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:3px;">
+              <button class="adm-sp-btn" data-sid="${s.sessionId}" data-cmd="sp_spawn_enemy" style="${btnStyle}">👾 Enemy</button>
+              <button class="adm-sp-btn" data-sid="${s.sessionId}" data-cmd="sp_spawn_apple" style="${btnStyle}">🍎 Apples</button>
+              <button class="adm-sp-btn" data-sid="${s.sessionId}" data-cmd="sp_spawn_chest" style="${btnStyle}">🎁 Chest</button>
+              <button class="adm-sp-btn" data-sid="${s.sessionId}" data-cmd="sp_toggle_nightmare" style="${btnStyle}">☠ Nightmare</button>
+            </div>
+          </div>`;
+        }).join('');
+      })
+      .catch(() => { listEl.textContent = 'Unavailable'; });
+  }
+
+  _sendSpCommand(sessionId, command, btn) {
+    if (!this._adminToken) return;
+    if (btn) { btn.disabled = true; }
+    fetch(`${API_SERVER}/api/admin/sp-command`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: this._adminToken, sessionId, command }),
+    })
+      .then(r => r.json())
+      .then(() => { if (btn) { btn.disabled = false; } })
+      .catch(() => { if (btn) { btn.disabled = false; } });
   }
 
   _checkRemovalNotice() {

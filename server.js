@@ -473,6 +473,79 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  // ── Admin: list singleplayer sessions ───────────
+  if (urlPath === '/api/admin/sp-sessions') {
+    if (req.method === 'OPTIONS') { res.writeHead(204, adminCors); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 256) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { token } = JSON.parse(body);
+        if (!isValidAdminToken(token)) {
+          res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: false, message: 'Unauthorized' }));
+          return;
+        }
+        const now = Date.now();
+        const sessions = [];
+        for (const [sessionId, sess] of spSessions) {
+          if (sess.ws.readyState === WebSocket.OPEN) {
+            sessions.push({
+              sessionId,
+              playerName: sess.playerName,
+              elapsedSec: Math.floor((now - sess.startTime) / 1000),
+            });
+          } else {
+            spSessions.delete(sessionId);
+          }
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json', ...adminCors });
+        res.end(JSON.stringify({ ok: true, sessions }));
+      } catch (_) {
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
+    return;
+  }
+
+  // ── Admin: send command to singleplayer session ──
+  if (urlPath === '/api/admin/sp-command') {
+    if (req.method === 'OPTIONS') { res.writeHead(204, adminCors); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 512) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { token, sessionId, command } = JSON.parse(body);
+        if (!isValidAdminToken(token)) {
+          res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: false, message: 'Unauthorized' }));
+          return;
+        }
+        if (!SP_VALID_COMMANDS.has(command)) {
+          res.writeHead(400, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: false, message: 'Invalid command' }));
+          return;
+        }
+        const safeId = String(sessionId || '').replace(/[^0-9a-f]/gi, '').slice(0, 16);
+        const sess = spSessions.get(safeId);
+        if (!sess || sess.ws.readyState !== WebSocket.OPEN) {
+          res.writeHead(404, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: false, message: 'Session not found' }));
+          return;
+        }
+        sess.ws.send(JSON.stringify({ type: command }));
+        res.writeHead(200, { 'Content-Type': 'application/json', ...adminCors });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        console.error('Admin sp-command error:', e.message);
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
+    return;
+  }
+
   const file    = urlPath === '/' ? '/index.html' : urlPath;
   // Resolve the full path and ensure it stays inside __dirname
   const full    = path.resolve(__dirname, '.' + file);
@@ -493,6 +566,10 @@ const httpServer = http.createServer((req, res) => {
 const wss = new WebSocket.Server({ server: httpServer });
 
 const rooms = new Map(); // code → room
+
+// ── Singleplayer session tracking ─────────────
+const spSessions = new Map(); // sessionId → { ws, playerName, startTime }
+const SP_VALID_COMMANDS = new Set(['sp_spawn_enemy', 'sp_spawn_apple', 'sp_spawn_chest', 'sp_toggle_nightmare']);
 
 // ── Quick-play matchmaking ─────────────────────
 const matchmakingQueue    = []; // entries: { room, botTimeout }
@@ -982,10 +1059,26 @@ wss.on('connection', ws => {
         }
         break;
       }
+
+      case 'sp_register': {
+        // Register this connection as an observable singleplayer session
+        if (playerRoom || ws._spSessionId) return; // already in use
+        const spName = String(msg.name || 'Anonymous').slice(0, 30);
+        const sessionId = crypto.randomBytes(8).toString('hex');
+        spSessions.set(sessionId, { ws, playerName: spName, startTime: Date.now() });
+        ws._spSessionId = sessionId;
+        ws.send(JSON.stringify({ type: 'sp_registered', sessionId }));
+        break;
+      }
     }
   });
 
   ws.on('close', () => {
+    // Clean up singleplayer session if registered
+    if (ws._spSessionId) {
+      spSessions.delete(ws._spSessionId);
+      ws._spSessionId = null;
+    }
     if (!playerRoom) return;
     // Remove from matchmaking queue if this player was still waiting for a PvP match
     const qi = matchmakingQueue.findIndex(e => e.room === playerRoom);
