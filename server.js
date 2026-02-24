@@ -79,6 +79,14 @@ async function initDb() {
       removed_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     )
   `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS nightmare_leaderboard (
+      name         VARCHAR(30)  PRIMARY KEY,
+      score        INTEGER      NOT NULL DEFAULT 0,
+      apples_eaten INTEGER      NOT NULL DEFAULT 0,
+      date         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    )
+  `);
   // Store the admin password hash if not already set
   await dbPool.query(
     `INSERT INTO admin_settings (key, value)
@@ -140,6 +148,42 @@ async function addLeaderboardEntry(name, score, applesEaten) {
            date         = CASE WHEN EXCLUDED.score > leaderboard.score THEN NOW()                 ELSE leaderboard.date         END`,
     [safeName, safeScore, safeApples]
   );
+}
+
+async function getNightmareLeaderboardFromDb() {
+  if (!dbPool) return [];
+  const res = await dbPool.query(
+    `SELECT name, score, apples_eaten AS "applesEaten", date
+       FROM nightmare_leaderboard
+      ORDER BY score DESC
+      LIMIT $1`,
+    [MAX_LEADERBOARD_ENTRIES]
+  );
+  return res.rows;
+}
+
+async function addNightmareLeaderboardEntry(name, score, applesEaten) {
+  let safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').trim() || 'Anonymous';
+  if (containsBannedWord(safeName)) safeName = 'Anonymous';
+  const safeScore  = Math.max(0, Math.min(1e7, Math.floor(Number(score) || 0)));
+  const safeApples = Math.max(0, Math.min(1e6, Math.floor(Number(applesEaten) || 0)));
+
+  if (!dbPool) return;
+  await dbPool.query(
+    `INSERT INTO nightmare_leaderboard (name, score, apples_eaten, date)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (name) DO UPDATE
+       SET score        = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN EXCLUDED.score        ELSE nightmare_leaderboard.score        END,
+           apples_eaten = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN EXCLUDED.apples_eaten ELSE nightmare_leaderboard.apples_eaten END,
+           date         = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN NOW()                 ELSE nightmare_leaderboard.date         END`,
+    [safeName, safeScore, safeApples]
+  );
+}
+
+async function deleteNightmareLeaderboardEntry(name) {
+  if (!dbPool) return;
+  const safeName = String(name).slice(0, 30);
+  await dbPool.query(`DELETE FROM nightmare_leaderboard WHERE name = $1`, [safeName]);
 }
 
 // ── Slur / hate-speech filter ─────────────────
@@ -258,6 +302,51 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  // ── Nightmare Leaderboard API ─────────────────
+  if (urlPath === '/api/nightmare-leaderboard') {
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': 'https://doxnaf.online',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, corsHeaders);
+      res.end();
+      return;
+    }
+    if (req.method === 'GET') {
+      getNightmareLeaderboardFromDb().then(entries => {
+        res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+        res.end(JSON.stringify({ entries }));
+      }).catch(err => {
+        console.error('Nightmare leaderboard GET error:', err.message);
+        res.writeHead(500); res.end('Internal Server Error');
+      });
+      return;
+    }
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; if (body.length > 1024) req.destroy(); });
+      req.on('end', () => {
+        try {
+          const d = JSON.parse(body);
+          addNightmareLeaderboardEntry(d.name, d.score, d.applesEaten).then(() => {
+            res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ ok: true }));
+          }).catch(err => {
+            console.error('Nightmare leaderboard POST error:', err.message);
+            res.writeHead(500); res.end('Internal Server Error');
+          });
+        } catch (_) {
+          res.writeHead(400); res.end('Bad Request');
+        }
+      });
+      return;
+    }
+    res.writeHead(405); res.end('Method Not Allowed');
+    return;
+  }
+
   // ── Admin API ─────────────────────────────────
   const adminCors = {
     'Access-Control-Allow-Origin': 'https://doxnaf.online',
@@ -350,6 +439,34 @@ const httpServer = http.createServer((req, res) => {
         });
       } catch (e) {
         console.error('Admin leaderboard delete parse error:', e.message);
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
+    return;
+  }
+
+  if (urlPath === '/api/admin/nightmare-leaderboard/delete') {
+    if (req.method === 'OPTIONS') { res.writeHead(204, adminCors); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 512) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { token, name } = JSON.parse(body);
+        if (!isValidAdminToken(token)) {
+          res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: false, message: 'Unauthorized' }));
+          return;
+        }
+        deleteNightmareLeaderboardEntry(name).then(() => {
+          res.writeHead(200, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: true }));
+        }).catch(err => {
+          console.error('Nightmare leaderboard delete error:', err.message);
+          res.writeHead(500); res.end('Internal Server Error');
+        });
+      } catch (e) {
+        console.error('Admin nightmare leaderboard delete parse error:', e.message);
         res.writeHead(400); res.end('Bad Request');
       }
     });

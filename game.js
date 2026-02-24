@@ -317,6 +317,10 @@ function setNightmareUnlocked() {
   try { localStorage.setItem('nightmare_unlocked', '1'); } catch (_) {}
 }
 
+function clearNightmareUnlocked() {
+  try { localStorage.removeItem('nightmare_unlocked'); } catch (_) {}
+}
+
 function escapeHtml(str) {
   return String(str).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
 }
@@ -556,7 +560,7 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(160,180,255,0.6)',
     size: 0.9,
     shape: 'ghost',
-    speed: 0.0028,
+    speed: 0.0014,
     score: 20,
     maxHp: 5,
     label: 'PHANTOM',
@@ -792,7 +796,7 @@ function drawApples(ctx, state, tick, grid = GRID) {
     const ax = apple.fx !== undefined ? apple.fx : apple.x;
     const ay = apple.fy !== undefined ? apple.fy : apple.y;
     const pulse = 0.85 + 0.15 * Math.sin(tick * 0.08);
-    const size = grid * 0.76 * pulse;
+    const size = grid * 1.6 * pulse;
     const cx = ax * grid + grid / 2;
     const cy = ay * grid + grid / 2;
 
@@ -1524,6 +1528,9 @@ class SnakeRogue {
     this.nightmareJumpscareStart = performance.now();
     document.getElementById('app').classList.remove('nightmare-mode');
     this._playScreech();
+    // Capture score before state is cleared
+    const nmScore   = this.state ? (this.state.score || 0) : 0;
+    const nmApples  = this.state ? (this.state.applesEaten || 0) : 0;
     this._jumpscareTimeout = setTimeout(() => {
       this.state = null;
       this.phase = 'gameover';
@@ -1533,9 +1540,14 @@ class SnakeRogue {
       el.innerHTML = `
         <h1>☠ YOU DIED</h1>
         <div class="info">NIGHTMARE MODE</div>
+        <div class="score-display">SCORE: ${nmScore} &nbsp;|&nbsp; APPLES: ${nmApples}</div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
           <button class="btn btn-lore" id="nm-restart-btn">NIGHTMARE AGAIN</button>
           <button class="btn btn-back" id="nm-menu-btn">← MENU</button>
+        </div>
+        <div style="margin-top:12px;">
+          <div style="font-size:11px;color:#c33;letter-spacing:1px;">☠ NIGHTMARE LEADERBOARD</div>
+          <div id="nm-leaderboard-list" style="font-size:11px;color:#888;margin-top:4px;">Loading…</div>
         </div>
       `;
       document.getElementById('nm-restart-btn').addEventListener('click', () => this._startNightmareMode());
@@ -1543,6 +1555,8 @@ class SnakeRogue {
         this.phase = 'start';
         this._renderOverlay();
       });
+      this._submitNightmareScore(nmScore, nmApples);
+      this._loadNightmareLeaderboard('nm-leaderboard-list');
     }, 2500);
   }
 
@@ -2298,6 +2312,11 @@ class SnakeRogue {
         <div style="font-size:9px;color:#444;margin-top:2px;">(resets when the site updates)</div>
         <div id="leaderboard-list" style="font-size:11px;color:#888;margin-top:4px;">Loading…</div>
       </div>
+      ${nightmareUnlocked ? `
+      <div id="nm-leaderboard-section" style="margin-top:12px;">
+        <div style="font-size:11px;color:#933;letter-spacing:1px;">☠ NIGHTMARE LEADERBOARD</div>
+        <div id="nm-leaderboard-list" style="font-size:11px;color:#888;margin-top:4px;">Loading…</div>
+      </div>` : ''}
     `;
     const nameInput = document.getElementById('player-name-input');
     const nameWarn  = document.getElementById('name-warn');
@@ -2320,6 +2339,7 @@ class SnakeRogue {
     const loreBtn = document.getElementById('lore-red-btn');
     if (loreBtn) loreBtn.addEventListener('click', () => this._startNightmareMode());
     this._loadLeaderboard('leaderboard-list');
+    if (nightmareUnlocked) this._loadNightmareLeaderboard('nm-leaderboard-list');
     // Show admin open button on main menu (bottom-right, outside the overlay)
     this._showAdminOpenBtn();
   }
@@ -2342,6 +2362,38 @@ class SnakeRogue {
 
   _loadLeaderboard(targetId) {
     fetch(`${API_SERVER}/api/leaderboard`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        if (!data.entries || data.entries.length === 0) {
+          el.textContent = 'No scores yet — be the first!';
+          return;
+        }
+        el.innerHTML = data.entries.map((e, i) => {
+          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+          const safeName = escapeHtml(e.name || 'Anonymous');
+          return `<div>${medal} ${safeName} — ${e.score} pts (${e.applesEaten}🍎)</div>`;
+        }).join('');
+      })
+      .catch(() => {
+        const el = document.getElementById(targetId);
+        if (el) el.textContent = 'Leaderboard unavailable';
+      });
+  }
+
+  _submitNightmareScore(score, applesEaten) {
+    if (score <= 0) return;
+    const name = this._playerName || 'Anonymous';
+    fetch(`${API_SERVER}/api/nightmare-leaderboard`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, score, applesEaten }),
+    }).catch(() => {}); // silently ignore if server unavailable
+  }
+
+  _loadNightmareLeaderboard(targetId) {
+    fetch(`${API_SERVER}/api/nightmare-leaderboard`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
         const el = document.getElementById(targetId);
@@ -2757,6 +2809,7 @@ class SnakeRogue {
       'adm-slow':    () => this._adminAction('slow'),
       'adm-clear':   () => this._adminAction('clear'),
       'adm-upgrade': () => this._adminAction('upgrade'),
+      'adm-nightmare-toggle': () => this._adminAction('nightmaretoggle'),
     };
     for (const [id, handler] of Object.entries(actions)) {
       const btn = document.getElementById(id);
@@ -2771,6 +2824,17 @@ class SnakeRogue {
         if (!btn) return;
         const name = btn.getAttribute('data-name');
         this._deleteLeaderboardEntry(name, btn);
+      });
+    }
+
+    // Delegate click handler for nightmare leaderboard delete buttons
+    const nmLbList = document.getElementById('adm-nm-leaderboard-list');
+    if (nmLbList) {
+      nmLbList.addEventListener('click', e => {
+        const btn = e.target.closest('.adm-nm-del-btn');
+        if (!btn) return;
+        const name = btn.getAttribute('data-name');
+        this._deleteNightmareLeaderboardEntry(name, btn);
       });
     }
   }
@@ -2832,6 +2896,7 @@ class SnakeRogue {
     if (openBtn) openBtn.style.display = 'none';
     // Load leaderboard entries with delete buttons
     this._loadAdminLeaderboard();
+    this._loadAdminNightmareLeaderboard();
   }
 
   _closeAdminPanel() {
@@ -2878,6 +2943,47 @@ class SnakeRogue {
       .then(data => {
         if (data.ok) {
           this._loadAdminLeaderboard();
+        } else {
+          if (btn) { btn.disabled = false; btn.textContent = '✕'; }
+        }
+      })
+      .catch(() => { if (btn) { btn.disabled = false; btn.textContent = '✕'; } });
+  }
+
+  _loadAdminNightmareLeaderboard() {
+    const listEl = document.getElementById('adm-nm-leaderboard-list');
+    if (!listEl) return;
+    listEl.textContent = 'Loading…';
+    fetch(`${API_SERVER}/api/nightmare-leaderboard`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        if (!data.entries || data.entries.length === 0) {
+          listEl.textContent = 'No entries.';
+          return;
+        }
+        listEl.innerHTML = data.entries.map(e => {
+          const safeName = escapeHtml(e.name || 'Anonymous');
+          return `<div style="display:flex;align-items:center;justify-content:space-between;gap:4px;padding:2px 0;">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeName} — ${e.score}</span>
+            <button data-name="${safeName}" class="adm-nm-del-btn" style="background:#1a0a0a;border:1px solid #644;color:#f64;font-family:'Courier New',monospace;font-size:9px;padding:2px 6px;cursor:pointer;border-radius:3px;flex-shrink:0;">✕</button>
+          </div>`;
+        }).join('');
+      })
+      .catch(() => { listEl.textContent = 'Unavailable'; });
+  }
+
+  _deleteNightmareLeaderboardEntry(name, btn) {
+    if (!this._adminToken) return;
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    fetch(`${API_SERVER}/api/admin/nightmare-leaderboard/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: this._adminToken, name }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          this._loadAdminNightmareLeaderboard();
         } else {
           if (btn) { btn.disabled = false; btn.textContent = '✕'; }
         }
@@ -2945,6 +3051,17 @@ class SnakeRogue {
           this._triggerUpgradeChoice();
         }
         break;
+      case 'nightmaretoggle': {
+        const nowUnlocked = isNightmareUnlocked();
+        if (nowUnlocked) {
+          clearNightmareUnlocked();
+          this._flashAdminBtn('adm-nightmare-toggle', '☠ Nightmare LOCKED');
+        } else {
+          setNightmareUnlocked();
+          this._flashAdminBtn('adm-nightmare-toggle', '☠ Nightmare UNLOCKED');
+        }
+        break;
+      }
     }
   }
 
