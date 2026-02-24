@@ -2366,9 +2366,6 @@ class SnakeRogue {
     el.innerHTML = `
       <h1>QUICK PLAY</h1>
       <div class="info">Searching for an opponent…</div>
-      <div class="online-sep" style="font-size:11px;color:#456;">
-        No match in ${QUICK_PLAY_WAIT_S} s? You'll play against a bot instead.
-      </div>
       <div id="online-error" class="online-error"></div>
       <button class="btn btn-back" id="back-btn">← CANCEL</button>
     `;
@@ -2538,24 +2535,20 @@ class SnakeRogue {
     else                                 { heading = 'YOU LOSE';    cls = 'online-lose'; }
     el.className = cls;
     el.style.display = '';
-    const p2Label      = this.onlineIsBot ? '🤖 BOT' : '🟠 P2';
-    const rematchLabel = this.onlineIsBot ? 'PLAY AGAIN' : 'REMATCH';
     el.innerHTML = `
       <h1>${heading}</h1>
       <div class="score-display">
-        🟢 P1: ${scores[0]} &nbsp;|&nbsp; ${p2Label}: ${scores[1]}
+        🟢 P1: ${scores[0]} &nbsp;|&nbsp; 🟠 P2: ${scores[1]}
       </div>
-      ${!this.onlineIsBot ? '<div id="rematch-info" class="info"></div>' : ''}
-      <button class="btn btn-online" id="rematch-btn">${rematchLabel}</button>
+      <div id="rematch-info" class="info"></div>
+      <button class="btn btn-online" id="rematch-btn">REMATCH</button>
       <button class="btn btn-back" id="menu-btn">← MENU</button>
     `;
     document.getElementById('rematch-btn').addEventListener('click', () => {
       if (this.online && this.online.readyState === WebSocket.OPEN) {
         this.online.send(JSON.stringify({ type: 'rematch' }));
-        if (!this.onlineIsBot) {
-          const btn = document.getElementById('rematch-btn');
-          if (btn) { btn.textContent = 'WAITING FOR OPPONENT…'; btn.disabled = true; }
-        }
+        const btn = document.getElementById('rematch-btn');
+        if (btn) { btn.textContent = 'WAITING FOR OPPONENT…'; btn.disabled = true; }
       }
     });
     document.getElementById('menu-btn').addEventListener('click', () => {
