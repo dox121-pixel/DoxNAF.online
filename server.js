@@ -9,15 +9,65 @@ const http = require('http');
 const fs   = require('fs');
 const path = require('path');
 const WebSocket = require('ws');
+const { Pool } = require('pg');
 
 const COLS    = 40;
 const ROWS    = 40;
 const TICK_MS = 120;
 
-// ── Leaderboard ───────────────────────────────
-const LEADERBOARD_FILE = path.join(__dirname, 'leaderboard.json');
+// ── Leaderboard (PostgreSQL) ──────────────────
 const MAX_LEADERBOARD_ENTRIES = 10;
-let leaderboard = [];
+
+const dbPool = process.env.DATABASE_URL
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    })
+  : null;
+
+async function initDb() {
+  if (!dbPool) { console.warn('DATABASE_URL not set -- leaderboard persistence disabled.'); return; }
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS leaderboard (
+      name         VARCHAR(30)  PRIMARY KEY,
+      score        INTEGER      NOT NULL DEFAULT 0,
+      apples_eaten INTEGER      NOT NULL DEFAULT 0,
+      date         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
+async function getLeaderboardFromDb() {
+  if (!dbPool) return [];
+  const res = await dbPool.query(
+    `SELECT name, score, apples_eaten AS "applesEaten", date
+       FROM leaderboard
+      ORDER BY score DESC
+      LIMIT $1`,
+    [MAX_LEADERBOARD_ENTRIES]
+  );
+  return res.rows;
+}
+
+async function addLeaderboardEntry(name, score, applesEaten) {
+  // Sanitize input
+  let safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').trim() || 'Anonymous';
+  // Replace banned names silently with Anonymous
+  if (containsBannedWord(safeName)) safeName = 'Anonymous';
+  const safeScore  = Math.max(0, Math.min(1e7, Math.floor(Number(score) || 0)));
+  const safeApples = Math.max(0, Math.min(1e6, Math.floor(Number(applesEaten) || 0)));
+
+  if (!dbPool) return;
+  await dbPool.query(
+    `INSERT INTO leaderboard (name, score, apples_eaten, date)
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (name) DO UPDATE
+       SET score        = CASE WHEN EXCLUDED.score > leaderboard.score THEN EXCLUDED.score        ELSE leaderboard.score        END,
+           apples_eaten = CASE WHEN EXCLUDED.score > leaderboard.score THEN EXCLUDED.apples_eaten ELSE leaderboard.apples_eaten END,
+           date         = CASE WHEN EXCLUDED.score > leaderboard.score THEN NOW()                 ELSE leaderboard.date         END`,
+    [safeName, safeScore, safeApples]
+  );
+}
 
 // ── Slur / hate-speech filter ─────────────────
 // Normalize common leet substitutions then check for banned substrings.
@@ -43,44 +93,6 @@ function containsBannedWord(str) {
   if (/spic(?![ey])/.test(norm)) return true;
   return false;
 }
-
-function loadLeaderboard() {
-  try {
-    const data = fs.readFileSync(LEADERBOARD_FILE, 'utf8');
-    leaderboard = JSON.parse(data);
-    if (!Array.isArray(leaderboard)) leaderboard = [];
-  } catch (_) {
-    leaderboard = [];
-  }
-}
-
-function saveLeaderboard() {
-  try { fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(leaderboard)); }
-  catch (err) { console.error('Failed to save leaderboard:', err.message); }
-}
-
-function addLeaderboardEntry(name, score, applesEaten) {
-  // Sanitize input
-  let safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').trim() || 'Anonymous';
-  // Replace banned names silently with Anonymous
-  if (containsBannedWord(safeName)) safeName = 'Anonymous';
-  const safeScore  = Math.max(0, Math.min(1e7, Math.floor(Number(score) || 0)));
-  const safeApples = Math.max(0, Math.min(1e6, Math.floor(Number(applesEaten) || 0)));
-  const existing = leaderboard.find(e => e.name === safeName);
-  if (existing) {
-    if (safeScore <= existing.score) return; // keep the better score
-    existing.score = safeScore;
-    existing.applesEaten = safeApples;
-    existing.date = new Date().toISOString();
-  } else {
-    leaderboard.push({ name: safeName, score: safeScore, applesEaten: safeApples, date: new Date().toISOString() });
-  }
-  leaderboard.sort((a, b) => b.score - a.score);
-  leaderboard = leaderboard.slice(0, MAX_LEADERBOARD_ENTRIES);
-  saveLeaderboard();
-}
-
-loadLeaderboard();
 
 // ── Smooth-snake physics (mirrors singleplayer) ──
 const SEG_SPACING   = 0.45;
@@ -118,8 +130,13 @@ const httpServer = http.createServer((req, res) => {
       return;
     }
     if (req.method === 'GET') {
-      res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
-      res.end(JSON.stringify({ entries: leaderboard }));
+      getLeaderboardFromDb().then(entries => {
+        res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+        res.end(JSON.stringify({ entries }));
+      }).catch(err => {
+        console.error('Leaderboard GET error:', err.message);
+        res.writeHead(500); res.end('Internal Server Error');
+      });
       return;
     }
     if (req.method === 'POST') {
@@ -128,9 +145,13 @@ const httpServer = http.createServer((req, res) => {
       req.on('end', () => {
         try {
           const d = JSON.parse(body);
-          addLeaderboardEntry(d.name, d.score, d.applesEaten);
-          res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
-          res.end(JSON.stringify({ ok: true }));
+          addLeaderboardEntry(d.name, d.score, d.applesEaten).then(() => {
+            res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ ok: true }));
+          }).catch(err => {
+            console.error('Leaderboard POST error:', err.message);
+            res.writeHead(500); res.end('Internal Server Error');
+          });
         } catch (_) {
           res.writeHead(400); res.end('Bad Request');
         }
@@ -671,6 +692,11 @@ wss.on('connection', ws => {
 
 // ── Start ─────────────────────────────────────
 const PORT = parseInt(process.env.PORT, 10) || 3001;
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`VIPER.exe server → http://localhost:${PORT}`);
-});
+initDb()
+  .then(() => httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`VIPER.exe server → http://localhost:${PORT}`);
+  }))
+  .catch(err => {
+    console.error('Failed to initialise database:', err.message);
+    process.exit(1);
+  });
