@@ -909,11 +909,8 @@ function drawEnemies(ctx, state, tick) {
     if (type.shape === 'bat') {
       if (BAT_IMG.complete && BAT_IMG.naturalWidth > 0) {
         ctx.save();
-        const head = state.snake[0];
-        const angle = Math.atan2(head.y - e.y, head.x - e.x);
         ctx.translate(cx, cy);
-        ctx.rotate(angle);
-        const bSize = r * 3.2;
+        const bSize = r * 6.5;
         ctx.shadowBlur = 16;
         ctx.shadowColor = type.glowColor;
         ctx.drawImage(BAT_IMG, -bSize / 2, -bSize / 2, bSize, bSize);
@@ -1274,6 +1271,15 @@ class SnakeRogue {
       this.canvas.style.width  = window.innerWidth  + 'px';
       this.canvas.style.height = window.innerHeight + 'px';
       document.getElementById('app').classList.add('game-fullscreen');
+    }
+    this._applyGuiScaleToUI();
+  }
+
+  _applyGuiScaleToUI() {
+    const scale = this._guiScale || 1.0;
+    for (const id of ['overlay', 'hud', 'upgrade-panel']) {
+      const el = document.getElementById(id);
+      if (el) el.style.zoom = scale;
     }
   }
 
@@ -2496,11 +2502,11 @@ class SnakeRogue {
     const scaleVal = (this._guiScale || 1.0).toFixed(2);
 
     overlay.innerHTML = `
-      <div style="background:#0e0e1a;border:1px solid #446;border-radius:10px;padding:60px 32px 28px 32px;
-                  display:flex;flex-direction:column;align-items:center;gap:18px;min-width:280px;position:relative;">
+      <div style="background:#0e0e1a;border:1px solid #446;border-radius:10px;padding:28px 32px 28px 32px;
+                  display:flex;flex-direction:column;align-items:center;gap:18px;min-width:280px;position:relative;overflow:visible;">
         <img id="settings-bat-img" src="sprites/BAT.png"
-             style="position:absolute;top:-50px;left:50%;transform:translateX(-50%) scaleY(-1);width:100px;height:100px;
-                    filter:drop-shadow(0 0 12px rgba(153,51,255,0.8));"
+             style="position:absolute;top:-22px;right:-22px;width:56px;height:56px;
+                    filter:drop-shadow(0 0 8px rgba(153,51,255,0.9));transform:rotate(25deg);"
              alt="bat">
         <div style="font-size:16px;color:#89b;letter-spacing:4px;text-transform:uppercase;">⚙ SETTINGS</div>
         <div style="width:100%;display:flex;flex-direction:column;gap:12px;">
@@ -2518,6 +2524,13 @@ class SnakeRogue {
                    style="width:100%;accent-color:#89b;cursor:pointer;">
             <div style="display:flex;justify-content:space-between;font-size:10px;color:#456;">
               <span>0.5× (zoom out)</span><span>2.0× (zoom in)</span>
+            </div>
+            <div style="padding:8px;background:#050510;border:1px solid #335;border-radius:6px;overflow:hidden;height:52px;display:flex;align-items:center;justify-content:center;">
+              <div id="settings-scale-preview" style="display:flex;gap:8px;align-items:center;transform:scale(${scaleVal});transform-origin:center center;transition:transform 0.1s;white-space:nowrap;">
+                <span style="font-size:14px;color:#4f8;letter-spacing:2px;text-shadow:0 0 8px #2d6;">VIPER.exe</span>
+                <span style="font-size:10px;color:#7ab;background:#0e0e1a;border:1px solid #234;border-radius:3px;padding:2px 6px;">START</span>
+                <span style="font-size:12px;">🦇</span>
+              </div>
             </div>
           </div>
         </div>
@@ -2539,8 +2552,11 @@ class SnakeRogue {
       const v = parseFloat(slider.value);
       this._guiScale = v;
       scaleDisplay.textContent = v.toFixed(2) + '×';
+      const preview = document.getElementById('settings-scale-preview');
+      if (preview) preview.style.transform = `scale(${v.toFixed(2)})`;
       try { localStorage.setItem('guiScale', v.toFixed(2)); } catch(_) {}
       this._resizeCanvas(false);
+      this._applyGuiScaleToUI();
     });
 
     document.getElementById('settings-close-btn').addEventListener('click', () => {
