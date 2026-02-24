@@ -1146,6 +1146,12 @@ class SnakeRogue {
     try { this._playerName = localStorage.getItem('playerName') || ''; }
     catch(_) { this._playerName = ''; }
 
+    // ── Admin state ──────────────────────────
+    this._adminMode  = false;
+    this._adminToken = null;
+    this._adminPanelOpen = false;
+    this._setupAdmin();
+
     window.addEventListener('resize', () => {
       const isNightmare = this.state && this.state.nightmareMode;
       if (!isNightmare) this._resizeCanvas(false);
@@ -2180,6 +2186,9 @@ class SnakeRogue {
   // ── UI methods ──────────────────────────────
   _hideOverlay() {
     document.getElementById('overlay').style.display = 'none';
+    // Keep admin open button visible during gameplay when admin mode is active
+    const adminOpenBtn = document.getElementById('admin-open-btn');
+    if (adminOpenBtn) adminOpenBtn.style.display = this._adminMode ? '' : 'none';
   }
 
   _showOverlay(type, reason) {
@@ -2294,6 +2303,8 @@ class SnakeRogue {
     const loreBtn = document.getElementById('lore-red-btn');
     if (loreBtn) loreBtn.addEventListener('click', () => this._startNightmareMode());
     this._loadLeaderboard('leaderboard-list');
+    // Show admin open button on main menu (bottom-right, outside the overlay)
+    this._showAdminOpenBtn();
   }
 
   _toggleControlMode() {
@@ -2685,6 +2696,178 @@ class SnakeRogue {
       mobileBtn.textContent = charges > 0 ? `⌁ TELEPORT (${charges})` : '⌁ TELEPORT (0)';
       mobileBtn.disabled = charges <= 0;
     }
+  }
+
+  // ── Admin panel ──────────────────────────────
+  _setupAdmin() {
+    // Admin open button
+    const openBtn = document.getElementById('admin-open-btn');
+    if (openBtn) {
+      openBtn.addEventListener('click', () => {
+        if (this._adminMode) {
+          this._openAdminPanel();
+        } else {
+          this._openAdminModal();
+        }
+      });
+    }
+
+    // Admin modal cancel
+    const cancelBtn = document.getElementById('admin-cancel-btn');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => this._closeAdminModal());
+
+    // Admin login
+    const loginBtn = document.getElementById('admin-login-btn');
+    if (loginBtn) loginBtn.addEventListener('click', () => this._submitAdminLogin());
+
+    // Allow Enter key in password field
+    const pwInput = document.getElementById('admin-pw-input');
+    if (pwInput) pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') this._submitAdminLogin(); });
+
+    // Admin panel close
+    const closeBtn = document.getElementById('admin-panel-close');
+    if (closeBtn) closeBtn.addEventListener('click', () => this._closeAdminPanel());
+
+    // Admin action buttons
+    const actions = {
+      'adm-godmode': () => this._adminAction('godmode'),
+      'adm-shield':  () => this._adminAction('shield'),
+      'adm-apple':   () => this._adminAction('apple'),
+      'adm-score':   () => this._adminAction('score'),
+      'adm-speed':   () => this._adminAction('speed'),
+      'adm-slow':    () => this._adminAction('slow'),
+      'adm-clear':   () => this._adminAction('clear'),
+      'adm-upgrade': () => this._adminAction('upgrade'),
+    };
+    for (const [id, handler] of Object.entries(actions)) {
+      const btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', handler);
+    }
+  }
+
+  _showAdminOpenBtn() {
+    const btn = document.getElementById('admin-open-btn');
+    if (btn) btn.style.display = '';
+  }
+
+  _openAdminModal() {
+    const modal = document.getElementById('admin-modal');
+    if (!modal) return;
+    const pwInput = document.getElementById('admin-pw-input');
+    if (pwInput) pwInput.value = '';
+    const errEl = document.getElementById('admin-pw-error');
+    if (errEl) errEl.textContent = '';
+    modal.style.display = 'flex';
+    if (pwInput) setTimeout(() => pwInput.focus(), 50);
+  }
+
+  _closeAdminModal() {
+    const modal = document.getElementById('admin-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  _submitAdminLogin() {
+    const pwInput = document.getElementById('admin-pw-input');
+    const errEl   = document.getElementById('admin-pw-error');
+    const password = pwInput ? pwInput.value : '';
+    if (!password) { if (errEl) errEl.textContent = 'Enter a password.'; return; }
+
+    fetch(`${API_SERVER}/api/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.token) {
+          this._adminMode  = true;
+          this._adminToken = data.token;
+          this._closeAdminModal();
+          this._openAdminPanel();
+        } else {
+          if (errEl) errEl.textContent = 'Incorrect password.';
+          if (pwInput) pwInput.value = '';
+        }
+      })
+      .catch(() => {
+        if (errEl) errEl.textContent = 'Server error. Try again.';
+      });
+  }
+
+  _openAdminPanel() {
+    const panel = document.getElementById('admin-panel');
+    if (panel) { panel.style.display = 'flex'; this._adminPanelOpen = true; }
+    // Hide open button while panel is visible
+    const openBtn = document.getElementById('admin-open-btn');
+    if (openBtn) openBtn.style.display = 'none';
+  }
+
+  _closeAdminPanel() {
+    const panel = document.getElementById('admin-panel');
+    if (panel) { panel.style.display = 'none'; this._adminPanelOpen = false; }
+    // Show open button again if on main menu
+    if (this.phase === 'start') {
+      const openBtn = document.getElementById('admin-open-btn');
+      if (openBtn) openBtn.style.display = '';
+    }
+  }
+
+  _adminAction(action) {
+    // Apply debug actions to the current game state (solo or online)
+    const s = this.state;
+    switch (action) {
+      case 'godmode':
+        if (s) {
+          s.ghost = (s.ghost || 0) ? 0 : 1;
+          s.shields = s.ghost ? 99 : s.shields;
+          this._flashAdminBtn('adm-godmode', s.ghost ? '👻 God Mode ON' : '👻 God Mode OFF');
+        }
+        break;
+      case 'shield':
+        if (s) { s.shields = Math.min(99, (s.shields || 0) + 1); this._updateHUD(); }
+        break;
+      case 'apple':
+        if (s) {
+          for (let i = 0; i < 5; i++) spawnApple(s);
+        }
+        break;
+      case 'score':
+        if (s) { s.score = (s.score || 0) + 500; this._updateHUD(); }
+        break;
+      case 'speed':
+        if (s) { s.baseInterval = Math.max(40, (s.baseInterval || 140) - 20); }
+        break;
+      case 'slow':
+        if (s) { s.baseInterval = Math.min(400, (s.baseInterval || 140) + 20); }
+        break;
+      case 'clear':
+        if (s && s.enemies) { s.enemies = []; }
+        break;
+      case 'upgrade':
+        if (s && (this.phase === 'playing' || this.phase === 'upgrade')) {
+          this._triggerUpgradeChoice();
+        }
+        break;
+    }
+  }
+
+  _flashAdminBtn(id, text) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = text;
+    setTimeout(() => { btn.textContent = orig; }, 1200);
+  }
+
+  _triggerUpgradeChoice() {
+    if (!this.state) return;
+    const s = this.state;
+    const pool = UPGRADES.filter(u => !u.oneTime || !s.upgradeCount[u.id]);
+    const choices = pickRandom(pool, s.oracle ? 4 : 3);
+    if (!choices.length) return;
+    this.pendingUpgrades = choices;
+    this.phase = 'upgrade';
+    this._showUpgradePanel();
   }
 }
 

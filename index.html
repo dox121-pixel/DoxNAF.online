@@ -52,8 +52,41 @@
         <button id="mobile-teleport-btn" class="btn btn-online">⌁ TELEPORT (0)</button>
       </div>
     </div>
+
+    <!-- Admin password modal -->
+    <div id="admin-modal" style="display:none;">
+      <div id="admin-modal-box">
+        <div id="admin-modal-title">⚙ ADMIN ACCESS</div>
+        <input id="admin-pw-input" type="password" class="room-input"
+               placeholder="PASSWORD" autocomplete="off" spellcheck="false"
+               style="width:180px;letter-spacing:4px;" />
+        <div id="admin-pw-error" style="font-size:10px;color:#f55;min-height:14px;"></div>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <button class="btn btn-settings" id="admin-login-btn">ENTER</button>
+          <button class="btn btn-back" id="admin-cancel-btn">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin panel (shown during any gamemode when admin mode is active) -->
+    <div id="admin-panel" style="display:none;">
+      <div id="admin-panel-title">⚙ ADMIN DEBUG</div>
+      <div id="admin-panel-body">
+        <button class="admin-action-btn" id="adm-godmode">👻 God Mode</button>
+        <button class="admin-action-btn" id="adm-shield">🛡 +1 Shield</button>
+        <button class="admin-action-btn" id="adm-apple">🍎 +5 Apples</button>
+        <button class="admin-action-btn" id="adm-score">⭐ +500 Score</button>
+        <button class="admin-action-btn" id="adm-speed">⚡ Speed Up</button>
+        <button class="admin-action-btn" id="adm-slow">🕰 Slow Down</button>
+        <button class="admin-action-btn" id="adm-clear">💀 Clear Enemies</button>
+        <button class="admin-action-btn" id="adm-upgrade">🎁 Force Upgrade</button>
+      </div>
+      <button class="btn btn-back" id="admin-panel-close" style="font-size:10px;padding:4px 12px;">CLOSE</button>
+    </div>
   </div>
 
   <script src="game.js"></script>
+  <!-- Admin open button: shown on main menu; remains visible during gameplay when admin is authenticated -->
+  <button id="admin-open-btn" style="display:none;">⚙ ADMIN</button>
 </body>
 </html>
