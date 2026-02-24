@@ -12,6 +12,13 @@ APPLE_IMG_YELLOW.src = 'sprites/APPLEY.png';
 const TELEPORT_PERK_IMG = new Image();
 TELEPORT_PERK_IMG.src = 'sprites/TELEPORTPERK.png';
 
+// ── Bat (chaser enemy) sprite ─────────────────
+const BAT_IMG = new Image();
+BAT_IMG.src = 'sprites/BAT.png';
+
+// ── Inline red apple img tag for HTML contexts ─
+const APPLE_SPRITE_TAG = '<img src="sprites/APPLER.png" style="width:14px;height:14px;vertical-align:middle;display:inline-block;">';
+
 const GRID = 20;          // cell size in pixels
 const NIGHTMARE_COLS = 30;
 const NIGHTMARE_ROWS = 30;
@@ -513,7 +520,7 @@ const ENEMY_TYPES = {
     color: '#9933ff',
     glowColor: 'rgba(153,51,255,0.4)',
     size: 1.2,
-    shape: 'circle',
+    shape: 'bat',
     speed: 0.0018,
     score: 5,
     maxHp: 3,
@@ -899,7 +906,37 @@ function drawEnemies(ctx, state, tick) {
     ctx.shadowColor = type.glowColor;
     ctx.fillStyle = type.color;
 
-    if (type.shape === 'circle') {
+    if (type.shape === 'bat') {
+      if (BAT_IMG.complete && BAT_IMG.naturalWidth > 0) {
+        ctx.save();
+        const head = state.snake[0];
+        const angle = Math.atan2(head.y - e.y, head.x - e.x);
+        ctx.translate(cx, cy);
+        ctx.rotate(angle);
+        const bSize = r * 3.2;
+        ctx.shadowBlur = 16;
+        ctx.shadowColor = type.glowColor;
+        ctx.drawImage(BAT_IMG, -bSize / 2, -bSize / 2, bSize, bSize);
+        ctx.restore();
+        // Health bar
+        const maxHp2 = e.maxHp || 1;
+        if (e.hp < maxHp2) {
+          const barW = r * 2.4, barH = 3;
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#400';
+          ctx.fillRect(cx - barW / 2, cy - r - 7, barW, barH);
+          const hpFrac2 = Math.max(0, e.hp / maxHp2);
+          ctx.fillStyle = hpFrac2 > 0.5 ? '#4f4' : hpFrac2 > 0.25 ? '#ff4' : '#f44';
+          ctx.fillRect(cx - barW / 2, cy - r - 7, barW * hpFrac2, barH);
+        }
+        ctx.shadowBlur = 0;
+        continue;
+      }
+      // Fallback to circle if sprite not loaded
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (type.shape === 'circle') {
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
@@ -1183,6 +1220,8 @@ class SnakeRogue {
     catch(_) { this._controlMode = 'mouse'; }
     try { this._playerName = localStorage.getItem('playerName') || ''; }
     catch(_) { this._playerName = ''; }
+    try { this._guiScale = parseFloat(localStorage.getItem('guiScale')) || 1.0; }
+    catch(_) { this._guiScale = 1.0; }
 
     // ── Admin state ──────────────────────────
     this._adminMode  = false;
@@ -1221,14 +1260,19 @@ class SnakeRogue {
       H = VIEW_ROWS * GRID;
       this.canvas.width  = W;
       this.canvas.height = H;
+      this.canvas.style.width  = '';
+      this.canvas.style.height = '';
       document.getElementById('app').classList.remove('game-fullscreen');
     } else {
-      VIEW_COLS = Math.floor(window.innerWidth / GRID);
-      VIEW_ROWS = Math.floor(window.innerHeight / GRID);
+      const scale = this._guiScale || 1.0;
+      VIEW_COLS = Math.max(10, Math.floor(window.innerWidth  / GRID / scale));
+      VIEW_ROWS = Math.max(10, Math.floor(window.innerHeight / GRID / scale));
       W = VIEW_COLS * GRID;
       H = VIEW_ROWS * GRID;
       this.canvas.width  = W;
       this.canvas.height = H;
+      this.canvas.style.width  = window.innerWidth  + 'px';
+      this.canvas.style.height = window.innerHeight + 'px';
       document.getElementById('app').classList.add('game-fullscreen');
     }
   }
@@ -1779,8 +1823,8 @@ class SnakeRogue {
     // ── Enemy spawning (time-based target count) ──────────────
     state.enemySpawnTimer += dt;
     const targetCount = getTargetEnemyCount(elapsedMs, state.nightmareMode);
-    const spawnInterval = state.nightmareMode ? 800 : (elapsedMs >= 90000 ? 400 : 2500);
-    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 5000) {
+    const spawnInterval = state.nightmareMode ? 800 : (elapsedMs >= 90000 ? 400 : 500);
+    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 10000) {
       state.enemySpawnTimer = 0;
       spawnEnemy(state, elapsedMs);
     }
@@ -2061,7 +2105,7 @@ class SnakeRogue {
     } else {
       if (s.applesForNextUpgrade > 1) {
         const needed = s.applesForNextUpgrade - s.applesEatenSinceUpgrade;
-        parts.push(`🍎×${needed}→perk`);
+        parts.push(`${APPLE_SPRITE_TAG}×${needed}→perk`);
       }
       if (s.ghost) parts.push('👻');
       if (s.shields) parts.push(`🛡️×${s.shields}`);
@@ -2076,7 +2120,7 @@ class SnakeRogue {
       if (s.multishot) parts.push(`✳️×${s.multishot}`);
       if (s.bulletDamage && s.bulletDamage > 2) parts.push(`🔥×${s.bulletDamage - 2}`);
     }
-    document.getElementById('hud-upgrades').textContent = parts.join('  ');
+    document.getElementById('hud-upgrades').innerHTML = parts.join('  ');
   }
 
   _renderFrame(timestamp) {
@@ -2208,6 +2252,11 @@ class SnakeRogue {
 
     ctx.restore();
 
+    // ── Off-screen enemy indicators ─────────────────────────────
+    if (state && state.enemies.length > 0 && this.phase === 'playing') {
+      this._drawEnemyIndicators(ctx, state, timestamp);
+    }
+
     // ── Chest pickup notification (screen-space, after camera restore) ──
     if (state.chestNotif) {
       const now = performance.now();
@@ -2233,6 +2282,57 @@ class SnakeRogue {
         state.chestNotif = null;
       }
     }
+  }
+
+  _drawEnemyIndicators(ctx, state, timestamp) {
+    const margin = 20;
+    const camX = state.snake[0].x;
+    const camY = state.snake[0].y;
+    // Flash at ~2 Hz
+    const flash = Math.floor(timestamp / 400) % 2 === 0;
+    if (!flash) return;
+
+    ctx.save();
+    for (const e of state.enemies) {
+      // Compute screen-space position of enemy
+      const sx = (e.x - camX) * GRID + W / 2;
+      const sy = (e.y - camY) * GRID + H / 2;
+
+      // Only draw indicator if enemy is off-screen
+      if (sx >= margin && sx <= W - margin && sy >= margin && sy <= H - margin) continue;
+
+      // Angle from screen center to enemy screen pos
+      const angle = Math.atan2(sy - H / 2, sx - W / 2);
+      const cos = Math.cos(angle), sin = Math.sin(angle);
+
+      // Find intersection with screen rectangle (inset by margin)
+      const hw = W / 2 - margin, hh = H / 2 - margin;
+      let ex, ey;
+      if (Math.abs(cos) * hh > Math.abs(sin) * hw) {
+        ex = Math.sign(cos) * hw;
+        ey = ex * Math.tan(angle);
+      } else {
+        ey = Math.sign(sin) * hh;
+        ex = ey / Math.tan(angle);
+      }
+      ex += W / 2;
+      ey += H / 2;
+
+      ctx.save();
+      ctx.translate(ex, ey);
+      ctx.rotate(angle);
+      ctx.fillStyle = 'rgba(255,50,50,0.9)';
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#ff0000';
+      ctx.beginPath();
+      ctx.moveTo(12, 0);
+      ctx.lineTo(-7, -6);
+      ctx.lineTo(-7, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
   }
 
   _gameLoop(timestamp) {
@@ -2334,7 +2434,7 @@ class SnakeRogue {
       <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
         <button class="btn" id="start-btn">SOLO [Enter]</button>
         <button class="btn btn-online" id="online-btn">⚡ ONLINE</button>
-        <button class="btn btn-settings" id="settings-btn">⚙ ${ctrlLabel}</button>
+        <button class="btn btn-settings" id="settings-btn">⚙ SETTINGS</button>
       </div>
       ${nightmareUnlocked ? '<button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>' : ''}
       <div id="leaderboard-section" style="margin-top:16px;">
@@ -2364,7 +2464,7 @@ class SnakeRogue {
     nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') e.stopPropagation(); });
     document.getElementById('start-btn').addEventListener('click', () => this._startGame());
     document.getElementById('online-btn').addEventListener('click', () => this._startOnlineMode());
-    document.getElementById('settings-btn').addEventListener('click', () => this._toggleControlMode());
+    document.getElementById('settings-btn').addEventListener('click', () => this._openSettings());
     const loreBtn = document.getElementById('lore-red-btn');
     if (loreBtn) loreBtn.addEventListener('click', () => this._startNightmareMode());
     this._loadLeaderboard('leaderboard-list');
@@ -2378,7 +2478,83 @@ class SnakeRogue {
   _toggleControlMode() {
     this._controlMode = this._controlMode === 'wasd' ? 'mouse' : 'wasd';
     try { localStorage.setItem('controlMode', this._controlMode); } catch(_) {}
-    this._renderOverlay();
+  }
+
+  _openSettings() {
+    // Remove any existing settings overlay
+    const existing = document.getElementById('settings-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'settings-overlay';
+    overlay.style.cssText = [
+      'position:fixed', 'inset:0', 'background:rgba(5,5,15,0.92)',
+      'display:flex', 'align-items:center', 'justify-content:center', 'z-index:200',
+    ].join(';');
+
+    const ctrlLabel = this._controlMode === 'wasd' ? '⌨ WASD' : '🖱 MOUSE';
+    const scaleVal = (this._guiScale || 1.0).toFixed(2);
+
+    overlay.innerHTML = `
+      <div style="background:#0e0e1a;border:1px solid #446;border-radius:10px;padding:60px 32px 28px 32px;
+                  display:flex;flex-direction:column;align-items:center;gap:18px;min-width:280px;position:relative;">
+        <img id="settings-bat-img" src="sprites/BAT.png"
+             style="position:absolute;top:-50px;left:50%;transform:translateX(-50%) scaleY(-1);width:100px;height:100px;
+                    filter:drop-shadow(0 0 12px rgba(153,51,255,0.8));"
+             alt="bat">
+        <div style="font-size:16px;color:#89b;letter-spacing:4px;text-transform:uppercase;">⚙ SETTINGS</div>
+        <div style="width:100%;display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <span style="font-size:12px;color:#7ab;letter-spacing:1px;">CONTROL MODE</span>
+            <button id="settings-ctrl-btn" class="btn btn-settings" style="margin-top:0;font-size:12px;padding:6px 18px;">${ctrlLabel}</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:#7ab;letter-spacing:1px;">GUI SCALE</span>
+              <span id="settings-scale-val" style="font-size:12px;color:#aef;letter-spacing:1px;">${scaleVal}×</span>
+            </div>
+            <input id="settings-scale-slider" type="range" min="0.5" max="2.0" step="0.05"
+                   value="${scaleVal}"
+                   style="width:100%;accent-color:#89b;cursor:pointer;">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:#456;">
+              <span>0.5× (zoom out)</span><span>2.0× (zoom in)</span>
+            </div>
+          </div>
+        </div>
+        <button id="settings-close-btn" class="btn btn-back" style="margin-top:4px;font-size:12px;padding:6px 24px;">✕ CLOSE</button>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('settings-ctrl-btn').addEventListener('click', () => {
+      this._toggleControlMode();
+      const btn = document.getElementById('settings-ctrl-btn');
+      if (btn) btn.textContent = this._controlMode === 'wasd' ? '⌨ WASD' : '🖱 MOUSE';
+    });
+
+    const slider = document.getElementById('settings-scale-slider');
+    const scaleDisplay = document.getElementById('settings-scale-val');
+    slider.addEventListener('input', () => {
+      const v = parseFloat(slider.value);
+      this._guiScale = v;
+      scaleDisplay.textContent = v.toFixed(2) + '×';
+      try { localStorage.setItem('guiScale', v.toFixed(2)); } catch(_) {}
+      this._resizeCanvas(false);
+    });
+
+    document.getElementById('settings-close-btn').addEventListener('click', () => {
+      overlay.remove();
+      this._renderOverlay();
+    });
+
+    // Close on backdrop click
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) {
+        overlay.remove();
+        this._renderOverlay();
+      }
+    });
   }
 
   _submitScore(score, applesEaten) {
@@ -2404,7 +2580,7 @@ class SnakeRogue {
         el.innerHTML = data.entries.map((e, i) => {
           const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
           const safeName = escapeHtml(e.name || 'Anonymous');
-          return `<div>${medal} ${safeName} — ${e.score} pts (${e.applesEaten}🍎)</div>`;
+          return `<div>${medal} ${safeName} — ${e.score} pts (${e.applesEaten}${APPLE_SPRITE_TAG})</div>`;
         }).join('');
       })
       .catch(() => {
@@ -2436,7 +2612,7 @@ class SnakeRogue {
         el.innerHTML = data.entries.map((e, i) => {
           const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
           const safeName = escapeHtml(e.name || 'Anonymous');
-          return `<div>${medal} ${safeName} — ${e.score} pts (${e.applesEaten}🍎)</div>`;
+          return `<div>${medal} ${safeName} — ${e.score} pts (${e.applesEaten}${APPLE_SPRITE_TAG})</div>`;
         }).join('');
       })
       .catch(() => {
@@ -3166,7 +3342,7 @@ class SnakeRogue {
             <div style="display:flex;flex-wrap:wrap;gap:3px;">
               <button class="adm-sp-spectate-btn" data-sid="${s.sessionId}" data-name="${safeName}" style="${spectateStyle}">👁 Spectate</button>
               <button class="adm-sp-btn" data-sid="${s.sessionId}" data-cmd="sp_spawn_enemy" style="${btnStyle}">👾 Enemy</button>
-              <button class="adm-sp-btn" data-sid="${s.sessionId}" data-cmd="sp_spawn_apple" style="${btnStyle}">🍎 Apples</button>
+              <button class="adm-sp-btn" data-sid="${s.sessionId}" data-cmd="sp_spawn_apple" style="${btnStyle}">${APPLE_SPRITE_TAG} Apples</button>
               <button class="adm-sp-btn" data-sid="${s.sessionId}" data-cmd="sp_spawn_chest" style="${btnStyle}">🎁 Chest</button>
               <button class="adm-sp-btn" data-sid="${s.sessionId}" data-cmd="sp_toggle_nightmare" style="${btnStyle}">☠ Nightmare</button>
             </div>
@@ -3311,7 +3487,7 @@ class SnakeRogue {
       const apples = snapshot.applesEaten || 0;
       const nm     = snapshot.nightmareMode ? ' ☠' : '';
       const upg    = snapshot.phase === 'upgrade' ? ' · CHOOSING UPGRADE' : '';
-      statsEl.textContent = `Score: ${score}  ·  🛡 ${shields}  ·  🍎 ${apples}${nm}${upg}`;
+      statsEl.innerHTML = `Score: ${score}  ·  🛡 ${shields}  ·  ${APPLE_SPRITE_TAG} ${apples}${nm}${upg}`;
     }
   }
 
