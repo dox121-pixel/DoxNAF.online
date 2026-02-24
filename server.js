@@ -61,11 +61,46 @@ async function initDb() {
   if (!dbPool) { console.warn('DATABASE_URL not set -- leaderboard persistence disabled.'); return; }
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS leaderboard (
-      name         VARCHAR(30)  PRIMARY KEY,
+      id           SERIAL       PRIMARY KEY,
+      name         VARCHAR(30)  NOT NULL,
       score        INTEGER      NOT NULL DEFAULT 0,
       apples_eaten INTEGER      NOT NULL DEFAULT 0,
       date         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     )
+  `);
+  // Migrate existing leaderboard table: add id column if missing (old schema used name as PK)
+  await dbPool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'leaderboard' AND column_name = 'id'
+      ) THEN
+        ALTER TABLE leaderboard ADD COLUMN id SERIAL;
+      END IF;
+    END $$
+  `).catch(() => {}); 
+  // Drop old primary key on name if still present, then add id as primary key
+  await dbPool.query(`
+    DO $$ BEGIN
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'leaderboard'::regclass AND contype = 'p'
+          AND conname = 'leaderboard_pkey'
+          AND array_to_string(
+            ARRAY(SELECT attname FROM pg_attribute
+                  WHERE attrelid = 'leaderboard'::regclass
+                    AND attnum = ANY(conkey)),
+            ',') = 'name'
+      ) THEN
+        ALTER TABLE leaderboard DROP CONSTRAINT leaderboard_pkey;
+        ALTER TABLE leaderboard ADD PRIMARY KEY (id);
+      END IF;
+    END $$
+  `).catch(() => {});
+  await dbPool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS leaderboard_name_unique
+      ON leaderboard (name)
+      WHERE name != 'Anonymous'
   `);
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS admin_settings (
@@ -81,11 +116,46 @@ async function initDb() {
   `);
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS nightmare_leaderboard (
-      name         VARCHAR(30)  PRIMARY KEY,
+      id           SERIAL       PRIMARY KEY,
+      name         VARCHAR(30)  NOT NULL,
       score        INTEGER      NOT NULL DEFAULT 0,
       apples_eaten INTEGER      NOT NULL DEFAULT 0,
       date         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     )
+  `);
+  // Migrate existing nightmare_leaderboard table: add id column if missing
+  await dbPool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'nightmare_leaderboard' AND column_name = 'id'
+      ) THEN
+        ALTER TABLE nightmare_leaderboard ADD COLUMN id SERIAL;
+      END IF;
+    END $$
+  `).catch(() => {});
+  // Drop old primary key on name if still present, then add id as primary key
+  await dbPool.query(`
+    DO $$ BEGIN
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'nightmare_leaderboard'::regclass AND contype = 'p'
+          AND conname = 'nightmare_leaderboard_pkey'
+          AND array_to_string(
+            ARRAY(SELECT attname FROM pg_attribute
+                  WHERE attrelid = 'nightmare_leaderboard'::regclass
+                    AND attnum = ANY(conkey)),
+            ',') = 'name'
+      ) THEN
+        ALTER TABLE nightmare_leaderboard DROP CONSTRAINT nightmare_leaderboard_pkey;
+        ALTER TABLE nightmare_leaderboard ADD PRIMARY KEY (id);
+      END IF;
+    END $$
+  `).catch(() => {});
+  await dbPool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS nightmare_leaderboard_name_unique
+      ON nightmare_leaderboard (name)
+      WHERE name != 'Anonymous'
   `);
   // Store the admin password hash if not already set
   await dbPool.query(
@@ -139,15 +209,22 @@ async function addLeaderboardEntry(name, score, applesEaten) {
   const safeApples = Math.max(0, Math.min(1e6, Math.floor(Number(applesEaten) || 0)));
 
   if (!dbPool) return;
-  await dbPool.query(
-    `INSERT INTO leaderboard (name, score, apples_eaten, date)
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (name) DO UPDATE
-       SET score        = CASE WHEN EXCLUDED.score > leaderboard.score THEN EXCLUDED.score        ELSE leaderboard.score        END,
-           apples_eaten = CASE WHEN EXCLUDED.score > leaderboard.score THEN EXCLUDED.apples_eaten ELSE leaderboard.apples_eaten END,
-           date         = CASE WHEN EXCLUDED.score > leaderboard.score THEN NOW()                 ELSE leaderboard.date         END`,
-    [safeName, safeScore, safeApples]
-  );
+  if (safeName === 'Anonymous') {
+    await dbPool.query(
+      `INSERT INTO leaderboard (name, score, apples_eaten, date) VALUES ($1, $2, $3, NOW())`,
+      [safeName, safeScore, safeApples]
+    );
+  } else {
+    await dbPool.query(
+      `INSERT INTO leaderboard (name, score, apples_eaten, date)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (name) WHERE name != 'Anonymous' DO UPDATE
+         SET score        = CASE WHEN EXCLUDED.score > leaderboard.score THEN EXCLUDED.score        ELSE leaderboard.score        END,
+             apples_eaten = CASE WHEN EXCLUDED.score > leaderboard.score THEN EXCLUDED.apples_eaten ELSE leaderboard.apples_eaten END,
+             date         = CASE WHEN EXCLUDED.score > leaderboard.score THEN NOW()                 ELSE leaderboard.date         END`,
+      [safeName, safeScore, safeApples]
+    );
+  }
 }
 
 async function getNightmareLeaderboardFromDb() {
@@ -169,15 +246,22 @@ async function addNightmareLeaderboardEntry(name, score, applesEaten) {
   const safeApples = Math.max(0, Math.min(1e6, Math.floor(Number(applesEaten) || 0)));
 
   if (!dbPool) return;
-  await dbPool.query(
-    `INSERT INTO nightmare_leaderboard (name, score, apples_eaten, date)
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (name) DO UPDATE
-       SET score        = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN EXCLUDED.score        ELSE nightmare_leaderboard.score        END,
-           apples_eaten = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN EXCLUDED.apples_eaten ELSE nightmare_leaderboard.apples_eaten END,
-           date         = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN NOW()                 ELSE nightmare_leaderboard.date         END`,
-    [safeName, safeScore, safeApples]
-  );
+  if (safeName === 'Anonymous') {
+    await dbPool.query(
+      `INSERT INTO nightmare_leaderboard (name, score, apples_eaten, date) VALUES ($1, $2, $3, NOW())`,
+      [safeName, safeScore, safeApples]
+    );
+  } else {
+    await dbPool.query(
+      `INSERT INTO nightmare_leaderboard (name, score, apples_eaten, date)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (name) WHERE name != 'Anonymous' DO UPDATE
+         SET score        = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN EXCLUDED.score        ELSE nightmare_leaderboard.score        END,
+             apples_eaten = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN EXCLUDED.apples_eaten ELSE nightmare_leaderboard.apples_eaten END,
+             date         = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN NOW()                 ELSE nightmare_leaderboard.date         END`,
+      [safeName, safeScore, safeApples]
+    );
+  }
 }
 
 async function deleteNightmareLeaderboardEntry(name) {
