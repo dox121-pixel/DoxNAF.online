@@ -15,11 +15,39 @@ const ROWS    = 40;
 const TICK_MS = 120;
 
 // ── Leaderboard ───────────────────────────────
-const LEADERBOARD_FILE = path.join(__dirname, 'leaderboard.json');
+const LEADERBOARD_FILE = path.join(process.env.DATA_DIR || __dirname, 'leaderboard.json');
 const MAX_LEADERBOARD_ENTRIES = 10;
 let leaderboard = [];
 
+// ── Slur / hate-speech filter ─────────────────
+// Normalize common leet substitutions then check for banned substrings.
+const BANNED_WORDS = [
+  'nigger', 'nigga', 'faggot', 'kike', 'chink',
+  'coon', 'spook', 'tranny', 'gook', 'wetback',
+  'cracker', 'beaner', 'zipperhead', 'slant',
+];
+
+function normalizeForFilter(str) {
+  return str.toLowerCase()
+    .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e')
+    .replace(/4/g, 'a').replace(/5/g, 's').replace(/@/g, 'a')
+    .replace(/\$/g, 's').replace(/!/g, 'i').replace(/\|/g, 'i');
+}
+
+function containsBannedWord(str) {
+  const norm = normalizeForFilter(str);
+  if (BANNED_WORDS.some(w => norm.includes(w))) return true;
+  // "fag" blocked as whole word; "faggot" already caught above
+  if (/\bfag\b/.test(norm)) return true;
+  // "spic" blocked unless immediately followed by 'e' or 'y' (spice / spicy)
+  if (/spic(?![ey])/.test(norm)) return true;
+  return false;
+}
+
 function loadLeaderboard() {
+  // Ensure the data directory exists (e.g. on first run with a fresh persistent disk)
+  const dir = path.dirname(LEADERBOARD_FILE);
+  try { fs.mkdirSync(dir, { recursive: true }); } catch (_) {}
   try {
     const data = fs.readFileSync(LEADERBOARD_FILE, 'utf8');
     leaderboard = JSON.parse(data);
@@ -36,7 +64,9 @@ function saveLeaderboard() {
 
 function addLeaderboardEntry(name, score, applesEaten) {
   // Sanitize input
-  const safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').trim() || 'Anonymous';
+  let safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').trim() || 'Anonymous';
+  // Replace banned names silently with Anonymous
+  if (containsBannedWord(safeName)) safeName = 'Anonymous';
   const safeScore  = Math.max(0, Math.min(1e7, Math.floor(Number(score) || 0)));
   const safeApples = Math.max(0, Math.min(1e6, Math.floor(Number(applesEaten) || 0)));
   const existing = leaderboard.find(e => e.name === safeName);

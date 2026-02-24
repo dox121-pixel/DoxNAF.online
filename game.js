@@ -155,6 +155,28 @@ const UPGRADES = [
   },
 ];
 
+// ── Name content filter (mirrors server-side list) ──
+const NAME_BANNED_WORDS = [
+  'nigger', 'nigga', 'faggot', 'kike', 'chink',
+  'coon', 'spook', 'tranny', 'gook', 'wetback',
+  'cracker', 'beaner', 'zipperhead', 'slant',
+];
+
+function nameNormalize(str) {
+  return str.toLowerCase()
+    .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e')
+    .replace(/4/g, 'a').replace(/5/g, 's').replace(/@/g, 'a')
+    .replace(/\$/g, 's').replace(/!/g, 'i').replace(/\|/g, 'i');
+}
+
+function nameContainsBannedWord(str) {
+  const norm = nameNormalize(str);
+  if (NAME_BANNED_WORDS.some(w => norm.includes(w))) return true;
+  if (/\bfag\b/.test(norm)) return true;
+  if (/spic(?![ey])/.test(norm)) return true;
+  return false;
+}
+
 // ── Rare chest system ────────────────────────
 const CHEST_RARITIES = [
   { id: 'common',    name: 'COMMON',    color: '#aaaaaa', glowColor: 'rgba(170,170,170,0.5)', weight: 50 },
@@ -2153,6 +2175,7 @@ class SnakeRogue {
         <input id="player-name-input" class="room-input" maxlength="20"
                placeholder="Anonymous" autocomplete="off" spellcheck="false"
                value="${safeName}" style="width:160px;margin-top:4px;" />
+        <div id="name-warn" style="font-size:10px;color:#f55;min-height:14px;margin-top:2px;"></div>
       </div>
       <div class="controls">
         ${this._controlMode === 'wasd' ? 'WASD/Arrows to steer · Mouse to aim · LMB to shoot' : 'Mouse to steer · LMB to shoot'}<br>
@@ -2170,9 +2193,17 @@ class SnakeRogue {
       </div>
     `;
     const nameInput = document.getElementById('player-name-input');
+    const nameWarn  = document.getElementById('name-warn');
     nameInput.addEventListener('input', () => {
-      this._playerName = nameInput.value.trim();
-      try { localStorage.setItem('playerName', this._playerName); } catch(_) {}
+      const val = nameInput.value.trim();
+      if (nameContainsBannedWord(val)) {
+        nameWarn.textContent = 'Name not allowed.';
+        // Don't save a banned name; leave the stored name unchanged
+      } else {
+        nameWarn.textContent = '';
+        this._playerName = val;
+        try { localStorage.setItem('playerName', this._playerName); } catch(_) {}
+      }
     });
     // Prevent Enter on name field from starting the game
     nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') e.stopPropagation(); });
