@@ -22,14 +22,21 @@
       &nbsp;·&nbsp;
       <span class="label" id="hud-lbl-timer">TIME</span>&nbsp;<span id="hud-timer">0:00</span>
       &nbsp;·&nbsp;
+      <span id="hud-perk-bar" style="display:none;align-items:center;gap:6px;"></span>
       <span id="hud-upgrades"></span>
     </div>
 
     <div style="position:relative;">
       <canvas id="canvas"></canvas>
 
+      <!-- Pause button (solo mode only) -->
+      <button id="pause-btn" style="display:none;">⏸</button>
+
       <!-- Upgrade chooser (shown after each apple) -->
       <div id="upgrade-panel" style="display:none;"></div>
+
+      <!-- Pause menu overlay -->
+      <div id="pause-menu" style="display:none;"></div>
 
       <!-- Start / Game Over overlay -->
       <div id="overlay"></div>
