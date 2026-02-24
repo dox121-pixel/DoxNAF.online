@@ -564,7 +564,7 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(160,180,255,0.6)',
     size: 0.9,
     shape: 'ghost',
-    speed: 0.0014,
+    speed: 0.0024,
     score: 20,
     maxHp: 5,
     label: 'PHANTOM',
