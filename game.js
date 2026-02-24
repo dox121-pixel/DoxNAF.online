@@ -103,11 +103,11 @@ const UPGRADES = [
     apply(state) { state.pulse = (state.pulse || 0) + 1; }
   },
   {
-    id: 'lifesteal',
-    name: 'LIFESTEAL',
-    icon: '🩸',
-    desc: 'Gain a shield charge each time you kill an enemy. Stack for more charges.',
-    apply(state) { state.lifesteal = (state.lifesteal || 0) + 1; }
+    id: 'power_shot',
+    name: 'POWER SHOT',
+    icon: '🔥',
+    desc: 'Bullets deal +1 damage per stack. Body always deals minimum damage.',
+    apply(state) { state.bulletDamage = (state.bulletDamage || 2) + 1; }
   },
   // ── Pistol perks ─────────────────────────────
   {
@@ -166,6 +166,10 @@ function isNightmareUnlocked() {
 
 function setNightmareUnlocked() {
   try { localStorage.setItem('nightmare_unlocked', '1'); } catch (_) {}
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
 }
 
 function shuffle(arr) {
@@ -247,6 +251,7 @@ const ENEMY_TYPES = {
     shape: 'circle',
     speed: 0.0018,
     score: 5,
+    maxHp: 3,
     label: 'CHASER',
     update(e, state, dt) {
       const head = state.snake[0];
@@ -265,6 +270,7 @@ const ENEMY_TYPES = {
     shape: 'square',
     speed: 0.0022,
     score: 8,
+    maxHp: 4,
     label: 'PATROLLER',
     init(e) {
       e.angle = Math.random() * Math.PI * 2;
@@ -295,6 +301,7 @@ const ENEMY_TYPES = {
     shape: 'triangle',
     speed: 0.0026,
     score: 12,
+    maxHp: 3,
     label: 'INTERCEPTOR',
     update(e, state, dt) {
       const head = state.snake[0];
@@ -315,6 +322,7 @@ const ENEMY_TYPES = {
     shape: 'diamond',
     speed: 0.0005,
     score: 15,
+    maxHp: 6,
     label: 'BLOCKER',
     init(e, state) {
       if (state.apples.length > 0) {
@@ -342,6 +350,7 @@ const ENEMY_TYPES = {
     shape: 'hexagon',
     speed: 0.0008,
     score: 30,
+    maxHp: 15,
     label: 'TITAN',
     update(e, state, dt) {
       const head = state.snake[0];
@@ -360,6 +369,7 @@ const ENEMY_TYPES = {
     shape: 'circle',
     speed: 0.0042,
     score: 10,
+    maxHp: 2,
     label: 'SPEEDER',
     init(e) {
       e.angle = Math.random() * Math.PI * 2;
@@ -426,7 +436,8 @@ function spawnEnemy(state, elapsedMs) {
     x: pos.x, y: pos.y,
     type: typeKey,
     speed: type.speed * speedMult * (state.nightmareMode ? 2.5 : 1.0),
-    hp: 1,
+    hp: type.maxHp || 1,
+    maxHp: type.maxHp || 1,
     id: Math.random(),
   };
 
@@ -554,10 +565,16 @@ function drawApples(ctx, state, tick, grid = GRID) {
     const cx = ax * grid + grid / 2;
     const cy = ay * grid + grid / 2;
 
+    // Dropped apples are golden, regular apples are red
+    const appleColor   = apple.dropped ? '#cc8800' : '#cc2200';
+    const glowColor    = apple.dropped ? '#a60'    : '#c30';
+    const stemColor    = apple.dropped ? '#6a3a00' : '#5a3a10';
+    const leafColor    = apple.dropped ? '#806020' : '#3a8020';
+
     // Apple body
     ctx.shadowBlur = 14;
-    ctx.shadowColor = '#c30';
-    ctx.fillStyle = '#cc2200';
+    ctx.shadowColor = glowColor;
+    ctx.fillStyle = appleColor;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
@@ -570,7 +587,7 @@ function drawApples(ctx, state, tick, grid = GRID) {
     ctx.fill();
 
     // Stem
-    ctx.strokeStyle = '#5a3a10';
+    ctx.strokeStyle = stemColor;
     ctx.lineWidth = r * 0.18;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -579,7 +596,7 @@ function drawApples(ctx, state, tick, grid = GRID) {
     ctx.stroke();
 
     // Leaf
-    ctx.fillStyle = '#3a8020';
+    ctx.fillStyle = leafColor;
     ctx.beginPath();
     ctx.ellipse(cx + r * 0.42, cy - r * 1.35, r * 0.36, r * 0.17, Math.PI / 4, 0, Math.PI * 2);
     ctx.fill();
@@ -663,6 +680,20 @@ function drawEnemies(ctx, state, tick) {
     ctx.beginPath();
     ctx.arc(cx + r * 0.3, cy - r * 0.2, r * 0.18, 0, Math.PI * 2);
     ctx.fill();
+
+    // Health bar (shown when enemy has taken damage)
+    const maxHp = e.maxHp || 1;
+    if (e.hp < maxHp) {
+      const barW = r * 2.4;
+      const barH = 3;
+      const barX = cx - barW / 2;
+      const barY = cy - r - 7;
+      ctx.fillStyle = '#400';
+      ctx.fillRect(barX, barY, barW, barH);
+      const hpFrac = Math.max(0, e.hp / maxHp);
+      ctx.fillStyle = hpFrac > 0.5 ? '#4f4' : hpFrac > 0.25 ? '#ff4' : '#f44';
+      ctx.fillRect(barX, barY, barW * hpFrac, barH);
+    }
   }
   ctx.shadowBlur = 0;
 }
@@ -861,6 +892,8 @@ class SnakeRogue {
     // ── Settings ──────────────────────────────
     try { this._controlMode = localStorage.getItem('controlMode') || 'mouse'; }
     catch(_) { this._controlMode = 'mouse'; }
+    try { this._playerName = localStorage.getItem('playerName') || ''; }
+    catch(_) { this._playerName = ''; }
 
     this._keys = {};
     this._setupInput();
@@ -1157,7 +1190,6 @@ class SnakeRogue {
       freeze: 0,
       repel: 0,
       pulse: 0,
-      lifesteal: 0,
       upgradeCount: {},
       enemySpawnTimer: 0,
       applesForNextUpgrade: 1,
@@ -1168,6 +1200,7 @@ class SnakeRogue {
       bullets: [],
       lastShot: 0,
       shootInterval: 400,
+      bulletDamage: 2,
       bulletPiercing: false,
       bulletExplosive: false,
       multishot: 0,
@@ -1342,9 +1375,8 @@ class SnakeRogue {
             if (ex * ex + ey * ey <= pulseRadius * pulseRadius) {
               spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#f0f', 8);
               state.score += ENEMY_TYPES[e.type].score;
-              if (state.lifesteal > 0) state.shields += state.lifesteal;
-              // Enemy drops apple
-              state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y });
+              // Pulse instantly kills enemies
+              state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y, dropped: true });
               state.enemies.splice(j, 1);
             }
           }
@@ -1371,6 +1403,7 @@ class SnakeRogue {
 
     // ── Respawn apples that drifted too far from snake head ──────────
     for (const apple of state.apples) {
+      if (apple.dropped) continue; // enemy-dropped apples stay in place
       const dax = apple.x - nx, day = apple.y - ny;
       if (dax * dax + day * day > VIEW_COLS * VIEW_COLS) {
         const cell = emptyCell(state);
@@ -1381,6 +1414,7 @@ class SnakeRogue {
 
     // ── Apple collision with snake body (push apples away) ───────────
     for (const apple of state.apples) {
+      if (apple.dropped) continue; // enemy-dropped apples stay fixed
       const ax = apple.fx !== undefined ? apple.fx : apple.x;
       const ay = apple.fy !== undefined ? apple.fy : apple.y;
       let closestSeg = null;
@@ -1430,6 +1464,7 @@ class SnakeRogue {
           const hitR = ENEMY_TYPES[e.type].size * 0.45;
           const bex = e.x - b.x, bey = e.y - b.y;
           if (bex * bex + bey * bey < hitR * hitR) {
+            const dmg = state.bulletDamage || 2;
             if (state.bulletExplosive) {
               // Explosion: damage enemies in radius
               state.pulseEffects = state.pulseEffects || [];
@@ -1438,20 +1473,24 @@ class SnakeRogue {
                 const ek = state.enemies[k];
                 const exdx = ek.x - e.x, exdy = ek.y - e.y;
                 if (exdx * exdx + exdy * exdy < EXPLOSIVE_ROUNDS_RADIUS * EXPLOSIVE_ROUNDS_RADIUS) {
+                  ek.hp = (ek.hp || 1) - dmg;
                   spawnParticles(this.particles, Math.round(ek.x), Math.round(ek.y), '#ff8', 10);
-                  state.score += ENEMY_TYPES[ek.type].score;
-                  if (state.lifesteal > 0) state.shields += state.lifesteal;
-                  state.apples.push({ x: Math.round(ek.x), y: Math.round(ek.y), fx: ek.x, fy: ek.y });
-                  state.enemies.splice(k, 1);
-                  if (k < j) j--;
+                  if (ek.hp <= 0) {
+                    state.score += ENEMY_TYPES[ek.type].score;
+                    state.apples.push({ x: Math.round(ek.x), y: Math.round(ek.y), fx: ek.x, fy: ek.y, dropped: true });
+                    state.enemies.splice(k, 1);
+                    if (k < j) j--;
+                  }
                 }
               }
             } else {
+              e.hp = (e.hp || 1) - dmg;
               spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#ff8', 8);
-              state.score += ENEMY_TYPES[e.type].score;
-              if (state.lifesteal > 0) state.shields += state.lifesteal;
-              state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y });
-              state.enemies.splice(j, 1);
+              if (e.hp <= 0) {
+                state.score += ENEMY_TYPES[e.type].score;
+                state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y, dropped: true });
+                state.enemies.splice(j, 1);
+              }
             }
             if (!state.bulletPiercing) { bulletRemoved = true; break; }
           }
@@ -1469,14 +1508,14 @@ class SnakeRogue {
     for (let i = state.enemies.length - 1; i >= 0; i--) {
       const e = state.enemies[i];
 
-      // Head collision
+      // Head collision — head instantly kills enemy
       const hitR = ENEMY_TYPES[e.type].size * 0.45 + SNAKE_RADIUS;
       const hdx = e.x - nx, hdy = e.y - ny;
       if (hdx * hdx + hdy * hdy < hitR * hitR) {
         if (state.shields > 0) {
           state.shields--;
           spawnParticles(this.particles, Math.round(nx), Math.round(ny), '#4af', 16);
-          state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y });
+          state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y, dropped: true });
           state.enemies.splice(i, 1);
           this.flashTimer = 20;
           if (this._checkLoreDamage(timestamp)) return;
@@ -1487,7 +1526,7 @@ class SnakeRogue {
         return;
       }
 
-      // Body collision (skip head segment)
+      // Body collision — body deals minimum damage (1) with cooldown to avoid per-frame spam
       let bodyHit = false;
       for (let si = 1; si < state.snake.length; si++) {
         const s = state.snake[si];
@@ -1501,12 +1540,17 @@ class SnakeRogue {
       }
 
       if (bodyHit) {
-        // Body contact always kills the enemy
-        spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#c0f', 10);
-        state.score += ENEMY_TYPES[e.type].score;
-        if (state.lifesteal > 0) state.shields += state.lifesteal;
-        state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y });
-        state.enemies.splice(i, 1);
+        const now2 = performance.now();
+        if (!e.lastBodyHit || now2 - e.lastBodyHit >= 500) {
+          e.lastBodyHit = now2;
+          e.hp = (e.hp || 1) - 1; // body always deals 1 damage (minimum)
+          spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#c0f', 6);
+          if (e.hp <= 0) {
+            state.score += ENEMY_TYPES[e.type].score;
+            state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y, dropped: true });
+            state.enemies.splice(i, 1);
+          }
+        }
       }
     }
 
@@ -1639,13 +1683,13 @@ class SnakeRogue {
       if (s.freeze) parts.push(`❄️×${s.freeze}`);
       if (s.repel) parts.push(`💥×${s.repel}`);
       if (s.pulse) parts.push(`💫×${s.pulse}`);
-      if (s.lifesteal) parts.push(`🩸×${s.lifesteal}`);
       if (s.oracle) parts.push('🔮');
       if (s.upgradeCount && s.upgradeCount['behemoth']) parts.push('🐉');
       if (s.upgradeCount && s.upgradeCount['rapid_fire']) parts.push(`🔫×${s.upgradeCount['rapid_fire']}`);
       if (s.bulletPiercing) parts.push('🏹');
       if (s.bulletExplosive) parts.push('💣');
       if (s.multishot) parts.push(`✳️×${s.multishot}`);
+      if (s.bulletDamage && s.bulletDamage > 2) parts.push(`🔥×${s.bulletDamage - 2}`);
     }
     document.getElementById('hud-upgrades').textContent = parts.join('  ');
   }
@@ -1820,6 +1864,10 @@ class SnakeRogue {
           <button class="btn btn-back" id="menu-btn">← MENU</button>
         </div>
         <div class="controls">Mouse to steer · Mobile: joystick · LMB to shoot</div>
+        <div style="margin-top:12px;">
+          <div style="font-size:11px;color:#555;letter-spacing:1px;">🏆 LEADERBOARD</div>
+          <div id="leaderboard-list" style="font-size:11px;color:#888;margin-top:4px;">Loading…</div>
+        </div>
       `;
       document.getElementById('restart-btn').addEventListener('click', () => this._startGame());
       document.getElementById('menu-btn').addEventListener('click', () => {
@@ -1827,6 +1875,9 @@ class SnakeRogue {
         this.phase = 'start';
         this._renderOverlay();
       });
+      // Submit score and load leaderboard
+      this._submitScore(s.score, s.applesEaten);
+      this._loadLeaderboard('leaderboard-list');
     }
   }
 
@@ -1842,12 +1893,19 @@ class SnakeRogue {
     el.className = 'start';
     const nightmareUnlocked = isNightmareUnlocked();
     const ctrlLabel = this._controlMode === 'wasd' ? '⌨ WASD' : '🖱 MOUSE';
+    const safeName = escapeHtml(this._playerName || '');
     el.innerHTML = `
       <h1>VIPER.exe</h1>
       <div class="info">
         A roguelike snake<br>
         Eat apples → choose upgrades → survive<br>
         Enemies grow stronger over time
+      </div>
+      <div class="name-chooser">
+        <label for="player-name-input" style="font-size:12px;color:#aaa;letter-spacing:1px;">YOUR NAME</label><br>
+        <input id="player-name-input" class="room-input" maxlength="20"
+               placeholder="Anonymous" autocomplete="off" spellcheck="false"
+               value="${safeName}" style="width:160px;margin-top:4px;" />
       </div>
       <div class="controls">
         ${this._controlMode === 'wasd' ? 'WASD/Arrows to steer · Mouse to aim · LMB to shoot' : 'Mouse to steer · LMB to shoot'}<br>
@@ -1859,18 +1917,62 @@ class SnakeRogue {
         <button class="btn btn-settings" id="settings-btn">⚙ ${ctrlLabel}</button>
       </div>
       ${nightmareUnlocked ? '<button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>' : ''}
+      <div id="leaderboard-section" style="margin-top:16px;">
+        <div style="font-size:11px;color:#555;letter-spacing:1px;">🏆 LEADERBOARD</div>
+        <div id="leaderboard-list" style="font-size:11px;color:#888;margin-top:4px;">Loading…</div>
+      </div>
     `;
+    const nameInput = document.getElementById('player-name-input');
+    nameInput.addEventListener('input', () => {
+      this._playerName = nameInput.value.trim();
+      try { localStorage.setItem('playerName', this._playerName); } catch(_) {}
+    });
+    // Prevent Enter on name field from starting the game
+    nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') e.stopPropagation(); });
     document.getElementById('start-btn').addEventListener('click', () => this._startGame());
     document.getElementById('online-btn').addEventListener('click', () => this._startOnlineMode());
     document.getElementById('settings-btn').addEventListener('click', () => this._toggleControlMode());
     const loreBtn = document.getElementById('lore-red-btn');
     if (loreBtn) loreBtn.addEventListener('click', () => this._startNightmareMode());
+    this._loadLeaderboard('leaderboard-list');
   }
 
   _toggleControlMode() {
     this._controlMode = this._controlMode === 'wasd' ? 'mouse' : 'wasd';
     try { localStorage.setItem('controlMode', this._controlMode); } catch(_) {}
     this._renderOverlay();
+  }
+
+  _submitScore(score, applesEaten) {
+    if (score <= 0) return;
+    const name = this._playerName || 'Anonymous';
+    fetch('/api/leaderboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, score, applesEaten }),
+    }).catch(() => {}); // silently ignore if server unavailable
+  }
+
+  _loadLeaderboard(targetId) {
+    fetch('/api/leaderboard')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        if (!data.entries || data.entries.length === 0) {
+          el.textContent = 'No scores yet — be the first!';
+          return;
+        }
+        el.innerHTML = data.entries.map((e, i) => {
+          const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+          const safeName = escapeHtml(e.name || 'Anonymous');
+          return `<div>${medal} ${safeName} — ${e.score} pts (${e.applesEaten}🍎)</div>`;
+        }).join('');
+      })
+      .catch(() => {
+        const el = document.getElementById(targetId);
+        if (el) el.textContent = 'Leaderboard unavailable';
+      });
   }
 
   _hideUpgradePanel() {
