@@ -421,7 +421,7 @@ function drawChests(ctx, state, tick, grid = GRID) {
     const cx = chest.x * grid + grid / 2;
     const cy = chest.y * grid + grid / 2;
     const pulse = 0.9 + 0.1 * Math.sin(tick * 0.08);
-    const r = grid * 0.38 * pulse;
+    const r = grid * 0.85 * pulse;
 
     ctx.save();
     ctx.shadowBlur = 24;
@@ -496,9 +496,9 @@ function pickUpgrades(state) {
 // ── Enemy types ──────────────────────────────
 const ENEMY_TYPES = {
   chaser: {
-    color: '#e07820',
-    glowColor: 'rgba(220,130,20,0.4)',
-    size: 0.7,
+    color: '#9933ff',
+    glowColor: 'rgba(153,51,255,0.4)',
+    size: 1.2,
     shape: 'circle',
     speed: 0.0018,
     score: 5,
@@ -515,9 +515,9 @@ const ENEMY_TYPES = {
     }
   },
   patrol: {
-    color: '#c07020',
-    glowColor: 'rgba(200,120,30,0.4)',
-    size: 0.65,
+    color: '#1155dd',
+    glowColor: 'rgba(17,85,220,0.4)',
+    size: 1.1,
     shape: 'square',
     speed: 0.0022,
     score: 8,
@@ -548,7 +548,7 @@ const ENEMY_TYPES = {
   phantom: {
     color: 'rgba(180,200,255,0.85)',
     glowColor: 'rgba(160,180,255,0.6)',
-    size: 0.55,
+    size: 0.9,
     shape: 'ghost',
     speed: 0.0028,
     score: 20,
@@ -568,7 +568,7 @@ const ENEMY_TYPES = {
   titan: {
     color: '#c00060',
     glowColor: 'rgba(200,0,100,0.5)',
-    size: 1.6,
+    size: 2.4,
     shape: 'hexagon',
     speed: 0.0008,
     score: 30,
@@ -587,7 +587,7 @@ const ENEMY_TYPES = {
   speeder: {
     color: '#00e0c0',
     glowColor: 'rgba(0,200,180,0.4)',
-    size: 0.4,
+    size: 0.7,
     shape: 'circle',
     speed: 0.0042,
     score: 10,
