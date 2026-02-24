@@ -162,6 +162,10 @@ const wss = new WebSocket.Server({ server: httpServer });
 
 const rooms = new Map(); // code → room
 
+// ── Quick-play matchmaking ─────────────────────
+const matchmakingQueue    = []; // entries: { room, botTimeout }
+const QUICK_PLAY_WAIT_MS  = 8000; // milliseconds to wait for PvP before spawning a bot
+
 // ── Helpers ───────────────────────────────────
 function randInt(n) { return Math.floor(Math.random() * n); }
 
@@ -384,16 +388,111 @@ function checkGameOver(room) {
   return true;
 }
 
+// ── Bot AI ────────────────────────────────────
+function tickBot(room) {
+  const gs     = room.gameState;
+  const bot    = gs.snakes[1];
+  const player = gs.snakes[0];
+  if (!bot || !bot.alive || !player || !player.alive) return;
+
+  const bs   = room.botState;
+  const head = bot.body[0];
+  const ph   = player.body[0];
+
+  // Wrapped distance components to the player
+  const dx   = wrappedDiff(ph.x, head.x, COLS);
+  const dy   = wrappedDiff(ph.y, head.y, ROWS);
+  const dist = Math.sqrt(dx * dx + dy * dy);
+
+  // Determine bot mode
+  const now        = Date.now();
+  const canSurprise = bot.teleportCharges > 0 && dist < 16 && (now - bs.lastTeleport) > 4000;
+
+  if (canSurprise) {
+    bs.mode = 'surprise';
+  } else if (dist < 12) {
+    bs.mode = 'attack';
+  } else if (dist < 26) {
+    bs.mode = 'stalk';
+  } else {
+    bs.mode = 'idle';
+  }
+
+  switch (bs.mode) {
+
+    case 'surprise': {
+      // Orient toward player; execute teleport once aligned
+      const a2p = Math.atan2(dy, dx);
+      bot.targetAngle = a2p;
+      const angleDiff = Math.abs(normalizeAngle(bot.angle - a2p));
+      if (bot.teleportCharges > 0 && angleDiff < 0.6 && dist > 2) {
+        bot.teleportCharges--;
+        const TDIST = 5;
+        bot.body = bot.body.map(seg => ({
+          x: ((seg.x + Math.cos(bot.angle) * TDIST) % COLS + COLS) % COLS,
+          y: ((seg.y + Math.sin(bot.angle) * TDIST) % ROWS + ROWS) % ROWS,
+        }));
+        bs.lastTeleport = now;
+        bs.mode = 'attack';
+      }
+      break;
+    }
+
+    case 'attack': {
+      bot.targetAngle = Math.atan2(dy, dx);
+      break;
+    }
+
+    case 'stalk': {
+      const a2p = Math.atan2(dy, dx);
+      // Approach at an offset angle to avoid head-on collision and position for a side attack
+      if (dist > 10) {
+        bot.targetAngle = normalizeAngle(a2p + Math.PI / 3);
+      } else {
+        // Close enough — orbit the player waiting for the right moment
+        bot.targetAngle = normalizeAngle(a2p + Math.PI / 2);
+      }
+      break;
+    }
+
+    case 'idle': {
+      // Seek the nearest apple; prefer teleport perks (for future surprise attacks)
+      let bestScore = Infinity;
+      let bestAngle = bot.angle;
+
+      for (const apple of gs.apples) {
+        const adx = wrappedDiff(apple.x, head.x, COLS);
+        const ady = wrappedDiff(apple.y, head.y, ROWS);
+        const s   = adx * adx + ady * ady;
+        if (s < bestScore) { bestScore = s; bestAngle = Math.atan2(ady, adx); }
+      }
+
+      for (const tp of gs.teleportPerks) {
+        const tdx = wrappedDiff(tp.x, head.x, COLS);
+        const tdy = wrappedDiff(tp.y, head.y, ROWS);
+        const s   = (tdx * tdx + tdy * tdy) * 0.75; // 25 % preference bonus for perks
+        if (s < bestScore) { bestScore = s; bestAngle = Math.atan2(tdy, tdx); }
+      }
+
+      bot.targetAngle = bestAngle;
+      break;
+    }
+  }
+}
+
 function startGame(room) {
   if (room.ticker) { clearInterval(room.ticker); room.ticker = null; }
   room.gameState    = createGameState();
   room.phase        = 'playing';
   room.rematchVotes = 0;
 
-  broadcast(room, { type: 'game_start', state: room.gameState });
+  if (room.isBot) room.botState = { mode: 'idle', lastTeleport: 0 };
+
+  broadcast(room, { type: 'game_start', state: room.gameState, isBot: room.isBot || false });
 
   room.ticker = setInterval(() => {
     if (room.phase !== 'playing') return;
+    if (room.isBot) tickBot(room);
     tickGame(room);
     if (!checkGameOver(room)) {
       broadcast(room, { type: 'game_tick', state: room.gameState });
@@ -429,10 +528,58 @@ wss.on('connection', ws => {
           phase:        'waiting',
           ticker:       null,
           rematchVotes: 0,
+          isBot:        false,
         };
         rooms.set(code, playerRoom);
         playerIdx = 0;
         ws.send(JSON.stringify({ type: 'room_created', code, player: 0 }));
+        break;
+      }
+
+      case 'quick_play': {
+        if (playerRoom) return;
+
+        // Try to pair with a player already waiting in the matchmaking queue
+        const queued = matchmakingQueue.shift();
+        if (queued && queued.room.clients[0] &&
+            queued.room.clients[0].readyState === WebSocket.OPEN) {
+          // PvP match found — cancel the bot fallback timer and start the game
+          clearTimeout(queued.botTimeout);
+          const room   = queued.room;
+          room.clients[1] = ws;
+          playerRoom   = room;
+          playerIdx    = 1;
+          ws.send(JSON.stringify({ type: 'room_joined', code: room.code, player: 1 }));
+          startGame(room);
+        } else {
+          // No match yet — put the player in a room and queue them
+          if (queued) clearTimeout(queued.botTimeout); // discard stale entry
+          const code = genCode();
+          playerRoom = {
+            code,
+            clients:      [ws, null],
+            gameState:    null,
+            phase:        'waiting',
+            ticker:       null,
+            rematchVotes: 0,
+            isBot:        false,
+          };
+          rooms.set(code, playerRoom);
+          playerIdx = 0;
+          ws.send(JSON.stringify({ type: 'room_created', code, player: 0 }));
+
+          // After QUICK_PLAY_WAIT_MS with no opponent, fall back to a bot
+          const entry = { room: playerRoom, botTimeout: null };
+          entry.botTimeout = setTimeout(() => {
+            const qi = matchmakingQueue.indexOf(entry);
+            if (qi >= 0) matchmakingQueue.splice(qi, 1);
+            if (playerRoom && playerRoom.phase === 'waiting') {
+              playerRoom.isBot = true;
+              startGame(playerRoom);
+            }
+          }, QUICK_PLAY_WAIT_MS);
+          matchmakingQueue.push(entry);
+        }
         break;
       }
 
@@ -490,11 +637,16 @@ wss.on('connection', ws => {
 
       case 'rematch': {
         if (!playerRoom || playerRoom.phase !== 'over') return;
-        playerRoom.rematchVotes++;
-        if (playerRoom.rematchVotes >= 2) {
+        if (playerRoom.isBot) {
+          // Bot game — restart immediately without needing a second vote
           startGame(playerRoom);
         } else {
-          sendTo(playerRoom, 1 - playerIdx, { type: 'rematch_requested' });
+          playerRoom.rematchVotes++;
+          if (playerRoom.rematchVotes >= 2) {
+            startGame(playerRoom);
+          } else {
+            sendTo(playerRoom, 1 - playerIdx, { type: 'rematch_requested' });
+          }
         }
         break;
       }
@@ -503,6 +655,12 @@ wss.on('connection', ws => {
 
   ws.on('close', () => {
     if (!playerRoom) return;
+    // Remove from matchmaking queue if this player was still waiting for a PvP match
+    const qi = matchmakingQueue.findIndex(e => e.room === playerRoom);
+    if (qi >= 0) {
+      clearTimeout(matchmakingQueue[qi].botTimeout);
+      matchmakingQueue.splice(qi, 1);
+    }
     broadcast(playerRoom, { type: 'player_disconnected', player: playerIdx });
     closeRoom(playerRoom);
     playerRoom = null;
