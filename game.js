@@ -1037,7 +1037,7 @@ const API_SERVER = (() => {
   return 'https://doxnaf-online.onrender.com';
 })();
 
-const SPECTATE_POLL_INTERVAL_MS = 1500;
+const SPECTATE_POLL_INTERVAL_MS = 500;
 
 function drawOnlineSnake(ctx, body, playerIdx, prevBody, t, grid = GRID) {
   if (body.length < 2) return;
@@ -2837,18 +2837,20 @@ class SnakeRogue {
       if (this._spWs && this._spWs.readyState === WebSocket.OPEN) {
         const s = this.state;
         const snapshot = s ? {
-          snake:    s.snake,
-          apples:   s.apples.map(a => ({ x: a.fx, y: a.fy })),
-          enemies:  s.enemies.map(e => ({ x: e.x, y: e.y, type: e.type })),
-          chests:   s.chests.map(c => ({ x: c.x, y: c.y })),
-          bullets:  s.bullets.map(b => ({ x: b.x, y: b.y })),
-          score:       s.score,
-          shields:     s.shields,
-          applesEaten: s.applesEaten,
+          snake:      s.snake,
+          snakeAngle: s.snakeAngle || 0,
+          apples:     s.apples.map(a => ({ x: a.fx, y: a.fy, dropped: a.dropped })),
+          enemies:    s.enemies.map(e => ({ x: e.x, y: e.y, type: e.type, id: e.id, hp: e.hp, maxHp: e.maxHp })),
+          chests:     s.chests.map(c => ({ x: c.x, y: c.y, rarity: c.rarity, itemId: c.itemId })),
+          bullets:    s.bullets.map(b => ({ x: b.x, y: b.y, life: b.life, maxLife: b.maxLife })),
+          score:        s.score,
+          shields:      s.shields,
+          applesEaten:  s.applesEaten,
           nightmareMode: s.nightmareMode,
-          phase:       this.phase,
-          viewCols:    VIEW_COLS,
-          viewRows:    VIEW_ROWS,
+          phase:        this.phase,
+          viewCols:     VIEW_COLS,
+          viewRows:     VIEW_ROWS,
+          tick:         this.tick,
         } : { phase: this.phase, viewCols: VIEW_COLS, viewRows: VIEW_ROWS };
         this._spWs.send(JSON.stringify({ type: 'sp_state_update', snapshot }));
       }
@@ -3235,83 +3237,79 @@ class SnakeRogue {
 
     const cols = snapshot.viewCols || 30;
     const rows = snapshot.viewRows || 30;
-    const cw = canvas.width;
-    const ch = canvas.height;
-    const cellW = cw / cols;
-    const cellH = ch / rows;
+    const cw = cols * GRID;
+    const ch = rows * GRID;
+
+    // Resize canvas to match the player's actual game resolution
+    if (canvas.width !== cw || canvas.height !== ch) {
+      canvas.width  = cw;
+      canvas.height = ch;
+    }
 
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#060610';
+    ctx.fillStyle = '#08080f';
     ctx.fillRect(0, 0, cw, ch);
 
-    // Draw grid dots
-    ctx.fillStyle = '#1a1a2a';
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        ctx.fillRect(c * cellW + cellW * 0.45, r * cellH + cellH * 0.45, cellW * 0.1, cellH * 0.1);
-      }
+    // If no active game state, show a placeholder
+    if (!snapshot.snake || !snapshot.snake.length) {
+      ctx.fillStyle = '#446';
+      ctx.font = '14px Courier New';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(snapshot.phase === 'upgrade' ? '[ UPGRADE SCREEN ]' : '[ WAITING FOR GAME ]', cw / 2, ch / 2);
+      ctx.textBaseline = 'alphabetic';
+      if (statsEl) statsEl.textContent = snapshot.phase ? `Phase: ${snapshot.phase}` : '';
+      return;
     }
 
-    // Draw apples
-    if (snapshot.apples) {
-      ctx.fillStyle = '#e03030';
-      for (const a of snapshot.apples) {
-        const ax = ((a.x % cols) + cols) % cols;
-        const ay = ((a.y % rows) + rows) % rows;
-        ctx.fillRect(ax * cellW + cellW * 0.2, ay * cellH + cellH * 0.2, cellW * 0.6, cellH * 0.6);
-      }
+    // Temporarily override view globals so the shared drawGrid helper knows how
+    // many cells to render.  This is safe: JS is single-threaded and this entire
+    // block executes synchronously, so the game-loop rAF callback cannot interleave.
+    const savedCols = VIEW_COLS;
+    const savedRows = VIEW_ROWS;
+    VIEW_COLS = cols;
+    VIEW_ROWS = rows;
+    try {
+      // Apply the same camera transform the player's game uses: centre on snake head
+      const camX = snapshot.snake[0].x;
+      const camY = snapshot.snake[0].y;
+      ctx.save();
+      ctx.translate(cw / 2 - camX * GRID, ch / 2 - camY * GRID);
+
+      drawGrid(ctx, camX, camY);
+
+      const tick = snapshot.tick || 0;
+      const pseudoState = {
+        snake:      snapshot.snake,
+        snakeAngle: snapshot.snakeAngle || 0,
+        shields:    snapshot.shields || 0,
+        apples:     snapshot.apples   || [],
+        enemies:    snapshot.enemies  || [],
+        chests:     snapshot.chests   || [],
+        bullets:    snapshot.bullets  || [],
+      };
+
+      drawApples(ctx, pseudoState, tick);
+      drawChests(ctx, pseudoState, tick);
+      drawBullets(ctx, pseudoState.bullets);
+      drawSnake(ctx, pseudoState);
+      drawEnemies(ctx, pseudoState, tick);
+
+      ctx.restore();
+    } finally {
+      // Always restore view globals even if drawing throws
+      VIEW_COLS = savedCols;
+      VIEW_ROWS = savedRows;
     }
 
-    // Draw chests
-    if (snapshot.chests) {
-      ctx.fillStyle = '#c8a020';
-      for (const c of snapshot.chests) {
-        const cx = ((c.x % cols) + cols) % cols;
-        const cy = ((c.y % rows) + rows) % rows;
-        ctx.fillRect(cx * cellW + cellW * 0.15, cy * cellH + cellH * 0.15, cellW * 0.7, cellH * 0.7);
-      }
-    }
-
-    // Draw enemies
-    if (snapshot.enemies) {
-      ctx.fillStyle = '#e05820';
-      for (const e of snapshot.enemies) {
-        const ex = ((e.x % cols) + cols) % cols;
-        const ey = ((e.y % rows) + rows) % rows;
-        ctx.fillRect(ex * cellW + cellW * 0.1, ey * cellH + cellH * 0.1, cellW * 0.8, cellH * 0.8);
-      }
-    }
-
-    // Draw bullets
-    if (snapshot.bullets) {
-      ctx.fillStyle = '#ffe060';
-      for (const b of snapshot.bullets) {
-        const bx = ((b.x % cols) + cols) % cols;
-        const by = ((b.y % rows) + rows) % rows;
-        ctx.fillRect(bx * cellW + cellW * 0.35, by * cellH + cellH * 0.35, cellW * 0.3, cellH * 0.3);
-      }
-    }
-
-    // Draw snake
-    if (snapshot.snake && snapshot.snake.length) {
-      const headColor = (snapshot.shields > 0) ? '#66b8ff' : '#50e678';
-      const bodyColor = (snapshot.shields > 0) ? '#2060a0' : '#205040';
-      for (let i = snapshot.snake.length - 1; i >= 0; i--) {
-        const seg = snapshot.snake[i];
-        const sx = ((seg.x % cols) + cols) % cols;
-        const sy = ((seg.y % rows) + rows) % rows;
-        ctx.fillStyle = i === 0 ? headColor : bodyColor;
-        ctx.fillRect(sx * cellW + 1, sy * cellH + 1, cellW - 2, cellH - 2);
-      }
-    }
-
-    // Update stats
+    // Update stats bar
     if (statsEl) {
-      const score = snapshot.score || 0;
+      const score  = snapshot.score  || 0;
       const shields = snapshot.shields || 0;
       const apples = snapshot.applesEaten || 0;
-      const nm = snapshot.nightmareMode ? ' ☠' : '';
-      statsEl.textContent = `Score: ${score}  Shields: ${shields}  Apples: ${apples}${nm}`;
+      const nm     = snapshot.nightmareMode ? ' ☠' : '';
+      const upg    = snapshot.phase === 'upgrade' ? ' · CHOOSING UPGRADE' : '';
+      statsEl.textContent = `Score: ${score}  ·  🛡 ${shields}  ·  🍎 ${apples}${nm}${upg}`;
     }
   }
 
