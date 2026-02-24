@@ -1374,7 +1374,7 @@ class SnakeRogue {
           }
         }
 
-        spawnApple(state);
+        if (!apple.dropped) spawnApple(state);
 
         if (!state.nightmareMode) {
           state.applesEatenSinceUpgrade++;
@@ -1434,7 +1434,7 @@ class SnakeRogue {
     // ── Enemy spawning (time-based target count) ──────────────
     state.enemySpawnTimer += dt;
     const targetCount = getTargetEnemyCount(elapsedMs, state.nightmareMode);
-    const spawnInterval = state.nightmareMode ? 800 : 2500;
+    const spawnInterval = state.nightmareMode ? 800 : (elapsedMs >= 90000 ? 400 : 2500);
     if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 5000) {
       state.enemySpawnTimer = 0;
       spawnEnemy(state, elapsedMs);
@@ -1520,15 +1520,24 @@ class SnakeRogue {
 
       // Body collision — body deals minimum damage (1) with cooldown to avoid per-frame spam
       let bodyHit = false;
+      let closestBodySeg = null, closestBodyDx = 0, closestBodyDy = 0, closestBodyD2 = Infinity;
+      const bodyR = ENEMY_TYPES[e.type].size * 0.40 + SNAKE_RADIUS;
       for (let si = 1; si < state.snake.length; si++) {
         const s = state.snake[si];
-        const bx = s.x - e.x, by = s.y - e.y;
+        const bx = e.x - s.x, by = e.y - s.y;
         const d2 = bx * bx + by * by;
-        const bodyR = ENEMY_TYPES[e.type].size * 0.40;
-        if (d2 < bodyR * bodyR) {
+        if (d2 < bodyR * bodyR && d2 < closestBodyD2) {
           bodyHit = true;
-          break;
+          closestBodySeg = s;
+          closestBodyDx = bx; closestBodyDy = by; closestBodyD2 = d2;
         }
+      }
+
+      // Push enemy out of snake body so it cannot noclip through
+      if (closestBodySeg) {
+        const dist = Math.sqrt(closestBodyD2) || 0.001;
+        e.x = closestBodySeg.x + (closestBodyDx / dist) * (bodyR + 0.02);
+        e.y = closestBodySeg.y + (closestBodyDy / dist) * (bodyR + 0.02);
       }
 
       if (bodyHit) {
