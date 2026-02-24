@@ -2728,6 +2728,8 @@ class SnakeRogue {
     const closeBtn = document.getElementById('admin-panel-close');
     if (closeBtn) closeBtn.addEventListener('click', () => this._closeAdminPanel());
 
+    this._makePanelDraggable();
+
     // Admin action buttons
     const actions = {
       'adm-godmode': () => this._adminAction('godmode'),
@@ -2857,6 +2859,37 @@ class SnakeRogue {
     const orig = btn.textContent;
     btn.textContent = text;
     setTimeout(() => { btn.textContent = orig; }, 1200);
+  }
+
+  _makePanelDraggable() {
+    const panel  = document.getElementById('admin-panel');
+    const handle = document.getElementById('admin-panel-title');
+    if (!panel || !handle) return;
+    let dragging = false, offsetX = 0, offsetY = 0;
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const rect = panel.getBoundingClientRect();
+      panel.style.bottom = '';
+      panel.style.right  = '';
+      panel.style.top    = rect.top  + 'px';
+      panel.style.left   = rect.left + 'px';
+      offsetX = e.clientX - rect.left;
+      offsetY = e.clientY - rect.top;
+      dragging = true;
+      handle.style.cursor = 'grabbing';
+    });
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      let nx = e.clientX - offsetX;
+      let ny = e.clientY - offsetY;
+      nx = Math.max(0, Math.min(window.innerWidth  - panel.offsetWidth,  nx));
+      ny = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, ny));
+      panel.style.left = nx + 'px';
+      panel.style.top  = ny + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (dragging) { dragging = false; handle.style.cursor = 'grab'; }
+    });
   }
 
   _triggerUpgradeChoice() {
