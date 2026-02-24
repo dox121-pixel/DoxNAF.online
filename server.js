@@ -179,13 +179,14 @@ async function deleteLeaderboardEntry(name) {
 }
 
 async function checkLeaderboardRemoval(name) {
-  if (!dbPool) return false;
+  if (!dbPool) return { removed: false, removedAt: null };
   const safeName = String(name).slice(0, 30);
   const res = await dbPool.query(
-    `SELECT 1 FROM leaderboard_removals WHERE name = $1 LIMIT 1`,
+    `SELECT removed_at FROM leaderboard_removals WHERE name = $1 LIMIT 1`,
     [safeName]
   );
-  return res.rows.length > 0;
+  if (res.rows.length === 0) return { removed: false, removedAt: null };
+  return { removed: true, removedAt: res.rows[0].removed_at };
 }
 
 async function getLeaderboardFromDb() {
@@ -268,6 +269,12 @@ async function deleteNightmareLeaderboardEntry(name) {
   if (!dbPool) return;
   const safeName = String(name).slice(0, 30);
   await dbPool.query(`DELETE FROM nightmare_leaderboard WHERE name = $1`, [safeName]);
+  await dbPool.query(
+    `INSERT INTO leaderboard_removals (name, removed_at)
+     VALUES ($1, NOW())
+     ON CONFLICT (name) DO UPDATE SET removed_at = NOW()`,
+    [safeName]
+  );
 }
 
 // ── Slur / hate-speech filter ─────────────────
@@ -331,9 +338,9 @@ const httpServer = http.createServer((req, res) => {
     const params = new URLSearchParams(qs);
     const name = String(params.get('name') || '').slice(0, 30);
     if (!name) { res.writeHead(400); res.end('Bad Request'); return; }
-    checkLeaderboardRemoval(name).then(removed => {
+    checkLeaderboardRemoval(name).then(result => {
       res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
-      res.end(JSON.stringify({ removed }));
+      res.end(JSON.stringify({ removed: result.removed, removedAt: result.removedAt }));
     }).catch(err => {
       console.error('Check removal error:', err.message);
       res.writeHead(500); res.end('Internal Server Error');

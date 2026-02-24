@@ -2371,6 +2371,8 @@ class SnakeRogue {
     if (nightmareUnlocked) this._loadNightmareLeaderboard('nm-leaderboard-list');
     // Show admin open button on main menu (bottom-right, outside the overlay)
     this._showAdminOpenBtn();
+    // Check if the player's leaderboard rank was removed
+    this._checkRemovalNotice();
   }
 
   _toggleControlMode() {
@@ -3316,22 +3318,25 @@ class SnakeRogue {
   _checkRemovalNotice() {
     const name = this._playerName;
     if (!name) return;
-    let seenKey;
-    try { seenKey = localStorage.getItem('removalNoticeSeen_' + name); } catch(_) {}
-    if (seenKey) return; // already acknowledged
     fetch(`${API_SERVER}/api/leaderboard/check-removal?name=${encodeURIComponent(name)}`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
-        if (data.removed) {
-          const notice = document.getElementById('removal-notice');
-          if (notice) notice.style.display = 'flex';
-          const okBtn = document.getElementById('removal-notice-ok');
-          if (okBtn) {
-            okBtn.addEventListener('click', () => {
-              if (notice) notice.style.display = 'none';
-              try { localStorage.setItem('removalNoticeSeen_' + name, '1'); } catch(_) {}
-            }, { once: true });
-          }
+        if (!data.removed) return;
+        // Only show if this specific removal hasn't been acknowledged yet
+        const storageKey = 'removalNoticeAckedAt_' + name;
+        let ackedAt;
+        try { ackedAt = localStorage.getItem(storageKey); } catch(_) {}
+        const removedAt = data.removedAt ? String(data.removedAt) : '';
+        if (ackedAt && ackedAt === removedAt) return; // already acknowledged this removal
+        const notice = document.getElementById('removal-notice');
+        if (notice && notice.style.display === 'flex') return; // already shown, listener already attached
+        if (notice) notice.style.display = 'flex';
+        const okBtn = document.getElementById('removal-notice-ok');
+        if (okBtn) {
+          okBtn.addEventListener('click', () => {
+            if (notice) notice.style.display = 'none';
+            try { localStorage.setItem(storageKey, removedAt); } catch(_) {}
+          }, { once: true });
         }
       })
       .catch(() => {}); // silently ignore if server unavailable
