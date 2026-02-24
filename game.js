@@ -856,9 +856,9 @@ function drawApples(ctx, state, tick, grid = GRID) {
 
 function drawTeleportPerks(ctx, teleportPerks, tick, grid = GRID) {
   for (const tp of teleportPerks) {
-    const pulse = 0.8 + 0.2 * Math.sin(tick * 0.1 + 1.5);
-    const r = grid * 0.38 * pulse;
-    const size = r * 2;
+    const pulse = 0.85 + 0.15 * Math.sin(tick * 0.1 + 1.5);
+    const size = grid * 1.6 * pulse;
+    const r = size / 2;
     const cx = tp.x * grid + grid / 2;
     const cy = tp.y * grid + grid / 2;
 
@@ -2325,7 +2325,6 @@ class SnakeRogue {
       ${nightmareUnlocked ? '<button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>' : ''}
       <div id="leaderboard-section" style="margin-top:16px;">
         <div style="font-size:11px;color:#555;letter-spacing:1px;">🏆 LEADERBOARD</div>
-        <div style="font-size:9px;color:#444;margin-top:2px;">(resets when the site updates)</div>
         <div id="leaderboard-list" style="font-size:11px;color:#888;margin-top:4px;">Loading…</div>
       </div>
       ${nightmareUnlocked ? `
