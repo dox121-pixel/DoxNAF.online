@@ -2,6 +2,12 @@
 //  SNAKE ROGUELIKE — game.js
 // ─────────────────────────────────────────────
 
+// ── Apple sprites ────────────────────────────
+const APPLE_IMG_RED    = new Image();
+const APPLE_IMG_YELLOW = new Image();
+APPLE_IMG_RED.src    = 'sprites/APPLER.png';
+APPLE_IMG_YELLOW.src = 'sprites/APPLEY.png';
+
 const GRID = 20;          // cell size in pixels
 const NIGHTMARE_COLS = 30;
 const NIGHTMARE_ROWS = 30;
@@ -786,47 +792,57 @@ function drawApples(ctx, state, tick, grid = GRID) {
     const ax = apple.fx !== undefined ? apple.fx : apple.x;
     const ay = apple.fy !== undefined ? apple.fy : apple.y;
     const pulse = 0.85 + 0.15 * Math.sin(tick * 0.08);
-    const r = grid * 0.38 * pulse;
+    const size = grid * 0.76 * pulse;
     const cx = ax * grid + grid / 2;
     const cy = ay * grid + grid / 2;
 
-    // Dropped apples are golden, regular apples are red
-    const appleColor   = apple.dropped ? '#cc8800' : '#cc2200';
-    const glowColor    = apple.dropped ? '#a60'    : '#c30';
-    const stemColor    = apple.dropped ? '#6a3a00' : '#5a3a10';
-    const leafColor    = apple.dropped ? '#806020' : '#3a8020';
+    // Choose sprite: dropped apples use yellow, regular apples use red
+    const sprite = apple.dropped ? APPLE_IMG_YELLOW : APPLE_IMG_RED;
 
-    // Apple body
-    ctx.shadowBlur = 14;
-    ctx.shadowColor = glowColor;
-    ctx.fillStyle = appleColor;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fill();
+    if (sprite.complete && sprite.naturalWidth > 0) {
+      // Draw sprite centred on the apple position
+      ctx.save();
+      ctx.shadowBlur = 14;
+      ctx.shadowColor = apple.dropped ? '#a60' : '#c30';
+      ctx.drawImage(sprite, cx - size / 2, cy - size / 2, size, size);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    } else {
+      // Fallback: canvas drawing while sprite loads
+      const r = size / 2;
+      const appleColor = apple.dropped ? '#cc8800' : '#cc2200';
+      const glowColor  = apple.dropped ? '#a60'    : '#c30';
+      const stemColor  = apple.dropped ? '#6a3a00' : '#5a3a10';
+      const leafColor  = apple.dropped ? '#806020' : '#3a8020';
 
-    // Highlight (top-left sheen)
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(255,200,180,0.3)';
-    ctx.beginPath();
-    ctx.arc(cx - r * 0.28, cy - r * 0.28, r * 0.42, 0, Math.PI * 2);
-    ctx.fill();
+      ctx.shadowBlur = 14;
+      ctx.shadowColor = glowColor;
+      ctx.fillStyle = appleColor;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
 
-    // Stem
-    ctx.strokeStyle = stemColor;
-    ctx.lineWidth = r * 0.18;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - r * 0.9);
-    ctx.lineTo(cx + r * 0.22, cy - r * 1.45);
-    ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,200,180,0.3)';
+      ctx.beginPath();
+      ctx.arc(cx - r * 0.28, cy - r * 0.28, r * 0.42, 0, Math.PI * 2);
+      ctx.fill();
 
-    // Leaf
-    ctx.fillStyle = leafColor;
-    ctx.beginPath();
-    ctx.ellipse(cx + r * 0.42, cy - r * 1.35, r * 0.36, r * 0.17, Math.PI / 4, 0, Math.PI * 2);
-    ctx.fill();
+      ctx.strokeStyle = stemColor;
+      ctx.lineWidth = r * 0.18;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r * 0.9);
+      ctx.lineTo(cx + r * 0.22, cy - r * 1.45);
+      ctx.stroke();
 
-    ctx.shadowBlur = 0;
+      ctx.fillStyle = leafColor;
+      ctx.beginPath();
+      ctx.ellipse(cx + r * 0.42, cy - r * 1.35, r * 0.36, r * 0.17, Math.PI / 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+    }
   }
 }
 
