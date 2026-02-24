@@ -935,6 +935,8 @@ function spawnParticles(particles, x, y, color, count, grid = GRID) {
 }
 
 // ── Online mode helpers ───────────────────────
+// Must match QUICK_PLAY_WAIT_MS in server.js
+const QUICK_PLAY_WAIT_S = 8;
 const WS_SERVER = (() => {
   if (typeof location === 'undefined' || location.protocol === 'file:') {
     return 'wss://doxnaf-online.onrender.com';
@@ -1072,6 +1074,8 @@ class SnakeRogue {
     this.onlineState    = null;  // Latest game state from server
     this.prevOnlineState = null; // Previous game state for interpolation
     this.lastOnlineTick  = 0;   // Timestamp of last received tick
+    this.isQuickPlay    = false; // true while in quick-play matchmaking flow
+    this.onlineIsBot    = false; // true when playing against the server bot
 
     // ── Lore / horror state ──────────────────
     this.gameStartTime       = 0;
@@ -2316,8 +2320,9 @@ class SnakeRogue {
     el.innerHTML = `
       <h1>ONLINE</h1>
       <div class="info">Play against a friend over the internet</div>
+      <button class="btn btn-online" id="quick-play-btn">⚡ QUICK PLAY</button>
+      <div class="online-sep">— or set up a private room —</div>
       <button class="btn btn-online" id="create-room-btn">CREATE ROOM</button>
-      <div class="online-sep">— or join existing room —</div>
       <div class="online-join-row">
         <input id="room-code-input" class="room-input" maxlength="4"
                placeholder="ABCD" autocomplete="off" spellcheck="false" />
@@ -2326,6 +2331,7 @@ class SnakeRogue {
       <div id="online-error" class="online-error"></div>
       <button class="btn btn-back" id="back-btn">← BACK</button>
     `;
+    document.getElementById('quick-play-btn').addEventListener('click', () => this._quickPlay());
     document.getElementById('create-room-btn').addEventListener('click', () => this._createRoom());
     document.getElementById('join-room-btn').addEventListener('click', () => {
       const code = document.getElementById('room-code-input').value.toUpperCase().trim();
@@ -2339,6 +2345,30 @@ class SnakeRogue {
         else this._setOnlineError('Enter a 4-character room code');
       }
     });
+    document.getElementById('back-btn').addEventListener('click', () => {
+      this._leaveOnline();
+      this._renderOverlay();
+    });
+  }
+
+  _quickPlay() {
+    this._connectWS(() => {
+      this.isQuickPlay = true;  // set after _leaveOnline() runs inside _connectWS
+      this.online.send(JSON.stringify({ type: 'quick_play' }));
+      this._showQuickPlayWaiting();
+    });
+  }
+
+  _showQuickPlayWaiting() {
+    const el = document.getElementById('overlay');
+    el.className = 'online';
+    el.style.display = '';
+    el.innerHTML = `
+      <h1>QUICK PLAY</h1>
+      <div class="info">Searching for an opponent…</div>
+      <div id="online-error" class="online-error"></div>
+      <button class="btn btn-back" id="back-btn">← CANCEL</button>
+    `;
     document.getElementById('back-btn').addEventListener('click', () => {
       this._leaveOnline();
       this._renderOverlay();
@@ -2410,6 +2440,8 @@ class SnakeRogue {
     this.onlineState     = null;
     this.prevOnlineState = null;
     this.lastOnlineTick  = 0;
+    this.isQuickPlay     = false;
+    this.onlineIsBot     = false;
     this._hideMobileTeleportBtn();
   }
 
@@ -2424,7 +2456,8 @@ class SnakeRogue {
       case 'room_created':
         this.onlineRole     = msg.player;
         this.onlineRoomCode = msg.code;
-        this._showOnlineWaiting();
+        // In quick-play mode the waiting screen is already shown; don't switch to room-code screen
+        if (!this.isQuickPlay) this._showOnlineWaiting();
         break;
 
       case 'room_joined':
@@ -2435,6 +2468,7 @@ class SnakeRogue {
 
       case 'game_start':
         this.onlineState     = msg.state;
+        this.onlineIsBot     = msg.isBot || false;
         this.prevOnlineState = null;
         this.lastOnlineTick  = performance.now();
         this.particles       = [];
