@@ -72,8 +72,18 @@ const httpServer = http.createServer((req, res) => {
 
   // ── Leaderboard API ───────────────────────────
   if (urlPath === '/api/leaderboard') {
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': 'https://doxnaf.online',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, corsHeaders);
+      res.end();
+      return;
+    }
     if (req.method === 'GET') {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
       res.end(JSON.stringify({ entries: leaderboard }));
       return;
     }
@@ -84,7 +94,7 @@ const httpServer = http.createServer((req, res) => {
         try {
           const d = JSON.parse(body);
           addLeaderboardEntry(d.name, d.score, d.applesEaten);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
           res.end(JSON.stringify({ ok: true }));
         } catch (_) {
           res.writeHead(400); res.end('Bad Request');
