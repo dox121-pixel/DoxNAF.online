@@ -2189,6 +2189,7 @@ class SnakeRogue {
       ${nightmareUnlocked ? '<button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>' : ''}
       <div id="leaderboard-section" style="margin-top:16px;">
         <div style="font-size:11px;color:#555;letter-spacing:1px;">🏆 LEADERBOARD</div>
+        <div style="font-size:9px;color:#444;margin-top:2px;">(resets when the site updates)</div>
         <div id="leaderboard-list" style="font-size:11px;color:#888;margin-top:4px;">Loading…</div>
       </div>
     `;

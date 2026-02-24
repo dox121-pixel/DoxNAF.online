@@ -15,7 +15,7 @@ const ROWS    = 40;
 const TICK_MS = 120;
 
 // ── Leaderboard ───────────────────────────────
-const LEADERBOARD_FILE = path.join(process.env.DATA_DIR || __dirname, 'leaderboard.json');
+const LEADERBOARD_FILE = path.join(__dirname, 'leaderboard.json');
 const MAX_LEADERBOARD_ENTRIES = 10;
 let leaderboard = [];
 
@@ -45,9 +45,6 @@ function containsBannedWord(str) {
 }
 
 function loadLeaderboard() {
-  // Ensure the data directory exists (e.g. on first run with a fresh persistent disk)
-  const dir = path.dirname(LEADERBOARD_FILE);
-  try { fs.mkdirSync(dir, { recursive: true }); } catch (_) {}
   try {
     const data = fs.readFileSync(LEADERBOARD_FILE, 'utf8');
     leaderboard = JSON.parse(data);
