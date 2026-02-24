@@ -613,7 +613,50 @@ canvas {
   color: #89b;
 }
 
-/* Show controls on touch devices or small screens */
+/* ── Spectate overlay ──────────────────────────── */
+#spectate-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 5, 15, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 250;
+}
+
+#spectate-box {
+  background: #0e0e1a;
+  border: 1px solid #264;
+  border-radius: 8px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+#spectate-title {
+  font-size: 11px;
+  color: #7fc;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+#spectate-canvas {
+  border: 1px solid #264;
+  border-radius: 4px;
+  display: block;
+  image-rendering: pixelated;
+}
+
+#spectate-stats {
+  font-size: 10px;
+  color: #7ab;
+  letter-spacing: 1px;
+  min-height: 14px;
+}
+
+
 @media (max-width: 640px), (pointer: coarse) {
   #mobile-controls {
     display: flex;

@@ -1037,6 +1037,8 @@ const API_SERVER = (() => {
   return 'https://doxnaf-online.onrender.com';
 })();
 
+const SPECTATE_POLL_INTERVAL_MS = 1500;
+
 function drawOnlineSnake(ctx, body, playerIdx, prevBody, t, grid = GRID) {
   if (body.length < 2) return;
 
@@ -1191,6 +1193,10 @@ class SnakeRogue {
     // ── Singleplayer session (admin observability) ──
     this._spWs        = null;
     this._spSessionId = null;
+
+    // ── Admin spectate state ──
+    this._spectateSessionId = null;
+    this._spectateInterval  = null;
 
     window.addEventListener('resize', () => {
       const isNightmare = this.state && this.state.nightmareMode;
@@ -2826,6 +2832,28 @@ class SnakeRogue {
       this._spSessionId = msg.sessionId;
       return;
     }
+    if (msg.type === 'sp_request_state') {
+      // Admin requested a state snapshot — send current game state back
+      if (this._spWs && this._spWs.readyState === WebSocket.OPEN) {
+        const s = this.state;
+        const snapshot = s ? {
+          snake:    s.snake,
+          apples:   s.apples.map(a => ({ x: a.fx, y: a.fy })),
+          enemies:  s.enemies.map(e => ({ x: e.x, y: e.y, type: e.type })),
+          chests:   s.chests.map(c => ({ x: c.x, y: c.y })),
+          bullets:  s.bullets.map(b => ({ x: b.x, y: b.y })),
+          score:       s.score,
+          shields:     s.shields,
+          applesEaten: s.applesEaten,
+          nightmareMode: s.nightmareMode,
+          phase:       this.phase,
+          viewCols:    VIEW_COLS,
+          viewRows:    VIEW_ROWS,
+        } : { phase: this.phase, viewCols: VIEW_COLS, viewRows: VIEW_ROWS };
+        this._spWs.send(JSON.stringify({ type: 'sp_state_update', snapshot }));
+      }
+      return;
+    }
     // All other commands require an active singleplayer game
     if (!this.state || this.phase !== 'playing') return;
     const state = this.state;
@@ -2884,6 +2912,10 @@ class SnakeRogue {
     const closeBtn = document.getElementById('admin-panel-close');
     if (closeBtn) closeBtn.addEventListener('click', () => this._closeAdminPanel());
 
+    // Spectate overlay close
+    const spectateClose = document.getElementById('spectate-close');
+    if (spectateClose) spectateClose.addEventListener('click', () => this._stopSpectating());
+
     this._makePanelDraggable();
 
     // Admin action buttons
@@ -2929,6 +2961,13 @@ class SnakeRogue {
     const spList = document.getElementById('adm-sp-sessions-list');
     if (spList) {
       spList.addEventListener('click', e => {
+        const spectateBtn = e.target.closest('.adm-sp-spectate-btn');
+        if (spectateBtn) {
+          const sid = spectateBtn.getAttribute('data-sid');
+          const name = spectateBtn.getAttribute('data-name');
+          this._spectateSession(sid, name);
+          return;
+        }
         const btn = e.target.closest('.adm-sp-btn');
         if (!btn) return;
         const sid = btn.getAttribute('data-sid');
@@ -3111,7 +3150,9 @@ class SnakeRogue {
           listEl.textContent = 'No active sessions.';
           return;
         }
-        const btnStyle = 'background:#0a1a1a;border:1px solid #246;color:#7cf;font-family:\'Courier New\',monospace;font-size:9px;padding:2px 5px;cursor:pointer;border-radius:3px;';
+        const baseBtn = 'font-family:\'Courier New\',monospace;font-size:9px;padding:2px 5px;cursor:pointer;border-radius:3px;';
+        const btnStyle = `background:#0a1a1a;border:1px solid #246;color:#7cf;${baseBtn}`;
+        const spectateStyle = `background:#0a1a0a;border:1px solid #264;color:#7fc;${baseBtn}`;
         listEl.innerHTML = data.sessions.map(s => {
           const safeName = escapeHtml(s.playerName);
           const mins = Math.floor(s.elapsedSec / 60);
@@ -3119,6 +3160,7 @@ class SnakeRogue {
           return `<div style="border:1px solid #234;padding:4px 5px;margin-bottom:4px;border-radius:3px;">
             <div style="font-size:10px;color:#7ab;margin-bottom:3px;">${safeName} — ${mins}:${secs}</div>
             <div style="display:flex;flex-wrap:wrap;gap:3px;">
+              <button class="adm-sp-spectate-btn" data-sid="${s.sessionId}" data-name="${safeName}" style="${spectateStyle}">👁 Spectate</button>
               <button class="adm-sp-btn" data-sid="${s.sessionId}" data-cmd="sp_spawn_enemy" style="${btnStyle}">👾 Enemy</button>
               <button class="adm-sp-btn" data-sid="${s.sessionId}" data-cmd="sp_spawn_apple" style="${btnStyle}">🍎 Apples</button>
               <button class="adm-sp-btn" data-sid="${s.sessionId}" data-cmd="sp_spawn_chest" style="${btnStyle}">🎁 Chest</button>
@@ -3141,6 +3183,136 @@ class SnakeRogue {
       .then(r => r.json())
       .then(() => { if (btn) { btn.disabled = false; } })
       .catch(() => { if (btn) { btn.disabled = false; } });
+  }
+
+  _spectateSession(sessionId, playerName) {
+    this._stopSpectating();
+    this._spectateSessionId = sessionId;
+
+    const overlay = document.getElementById('spectate-overlay');
+    const nameEl  = document.getElementById('spectate-player-name');
+    const statsEl = document.getElementById('spectate-stats');
+    if (!overlay) return;
+    if (nameEl) nameEl.textContent = playerName || sessionId;
+    if (statsEl) statsEl.textContent = '';
+    overlay.style.display = 'flex';
+
+    const poll = () => {
+      if (!this._spectateSessionId) return;
+      fetch(`${API_SERVER}/api/admin/sp-spectate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: this._adminToken, sessionId: this._spectateSessionId }),
+      })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => {
+          if (!this._spectateSessionId) return;
+          if (data.ok && data.snapshot) {
+            this._renderSpectateCanvas(data.snapshot);
+          }
+        })
+        .catch(() => {});
+    };
+
+    poll();
+    this._spectateInterval = setInterval(poll, SPECTATE_POLL_INTERVAL_MS);
+  }
+
+  _stopSpectating() {
+    if (this._spectateInterval) {
+      clearInterval(this._spectateInterval);
+      this._spectateInterval = null;
+    }
+    this._spectateSessionId = null;
+    const overlay = document.getElementById('spectate-overlay');
+    if (overlay) overlay.style.display = 'none';
+  }
+
+  _renderSpectateCanvas(snapshot) {
+    const canvas = document.getElementById('spectate-canvas');
+    const statsEl = document.getElementById('spectate-stats');
+    if (!canvas) return;
+
+    const cols = snapshot.viewCols || 30;
+    const rows = snapshot.viewRows || 30;
+    const cw = canvas.width;
+    const ch = canvas.height;
+    const cellW = cw / cols;
+    const cellH = ch / rows;
+
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#060610';
+    ctx.fillRect(0, 0, cw, ch);
+
+    // Draw grid dots
+    ctx.fillStyle = '#1a1a2a';
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        ctx.fillRect(c * cellW + cellW * 0.45, r * cellH + cellH * 0.45, cellW * 0.1, cellH * 0.1);
+      }
+    }
+
+    // Draw apples
+    if (snapshot.apples) {
+      ctx.fillStyle = '#e03030';
+      for (const a of snapshot.apples) {
+        const ax = ((a.x % cols) + cols) % cols;
+        const ay = ((a.y % rows) + rows) % rows;
+        ctx.fillRect(ax * cellW + cellW * 0.2, ay * cellH + cellH * 0.2, cellW * 0.6, cellH * 0.6);
+      }
+    }
+
+    // Draw chests
+    if (snapshot.chests) {
+      ctx.fillStyle = '#c8a020';
+      for (const c of snapshot.chests) {
+        const cx = ((c.x % cols) + cols) % cols;
+        const cy = ((c.y % rows) + rows) % rows;
+        ctx.fillRect(cx * cellW + cellW * 0.15, cy * cellH + cellH * 0.15, cellW * 0.7, cellH * 0.7);
+      }
+    }
+
+    // Draw enemies
+    if (snapshot.enemies) {
+      ctx.fillStyle = '#e05820';
+      for (const e of snapshot.enemies) {
+        const ex = ((e.x % cols) + cols) % cols;
+        const ey = ((e.y % rows) + rows) % rows;
+        ctx.fillRect(ex * cellW + cellW * 0.1, ey * cellH + cellH * 0.1, cellW * 0.8, cellH * 0.8);
+      }
+    }
+
+    // Draw bullets
+    if (snapshot.bullets) {
+      ctx.fillStyle = '#ffe060';
+      for (const b of snapshot.bullets) {
+        const bx = ((b.x % cols) + cols) % cols;
+        const by = ((b.y % rows) + rows) % rows;
+        ctx.fillRect(bx * cellW + cellW * 0.35, by * cellH + cellH * 0.35, cellW * 0.3, cellH * 0.3);
+      }
+    }
+
+    // Draw snake
+    if (snapshot.snake && snapshot.snake.length) {
+      const headColor = (snapshot.shields > 0) ? '#66b8ff' : '#50e678';
+      const bodyColor = (snapshot.shields > 0) ? '#2060a0' : '#205040';
+      for (let i = snapshot.snake.length - 1; i >= 0; i--) {
+        const seg = snapshot.snake[i];
+        const sx = ((seg.x % cols) + cols) % cols;
+        const sy = ((seg.y % rows) + rows) % rows;
+        ctx.fillStyle = i === 0 ? headColor : bodyColor;
+        ctx.fillRect(sx * cellW + 1, sy * cellH + 1, cellW - 2, cellH - 2);
+      }
+    }
+
+    // Update stats
+    if (statsEl) {
+      const score = snapshot.score || 0;
+      const shields = snapshot.shields || 0;
+      const apples = snapshot.applesEaten || 0;
+      const nm = snapshot.nightmareMode ? ' ☠' : '';
+      statsEl.textContent = `Score: ${score}  Shields: ${shields}  Apples: ${apples}${nm}`;
+    }
   }
 
   _checkRemovalNotice() {
