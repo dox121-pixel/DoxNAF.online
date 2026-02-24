@@ -23,15 +23,15 @@ A browser-based roguelike snake game with smooth analog controls, a pistol syste
 
 ## Enemies
 
-All enemies scale in speed over time. Nightmare mode spawns roughly 3× more enemies.
+All enemies scale in speed over time. Nightmare mode spawns roughly 3× more enemies and all enemies move 2.5× faster from the start.
 
-| Enemy | Unlocks | Behaviour |
-|-------|---------|-----------|
-| **Chaser** | Start | Directly chases the snake head |
-| **Patroller** | 60 s | Patrols randomly, periodically charges at the player |
-| **Speeder** | 90 s | Fast, erratic zigzag movement |
-| **Phantom** | 120 s | Phases through the snake body — cannot be body-blocked; still kills on head contact |
-| **Titan** | 180 s | Slow but massive; high HP tank enemy |
+| Enemy | Appearance | HP | Score | Unlocks | Behaviour |
+|-------|------------|----|-------|---------|-----------|
+| **Chaser** | 🟣 Purple circle | 3 | 5 | Start | Locks on and directly chases the snake head at all times |
+| **Patroller** | 🔵 Blue square | 4 | 8 | 60 s | Roams freely; every ~4 s it snaps to face the player and charges; changes direction randomly every 3–6 s otherwise |
+| **Speeder** | 🩵 Teal circle (small) | 2 | 10 | 90 s | Very fast; re-aims toward the player with a random angular offset every ~0.8 s, producing erratic zigzag movement |
+| **Phantom** | 👻 Pale-blue ghost | 5 | 20 | 120 s | Phases through the snake body — cannot be blocked by body segments; still kills on head contact |
+| **Titan** | 🔴 Dark-pink hexagon (large) | 15 | 30 | 180 s | Slow but enormous; chases the snake head directly; requires many bullets to destroy |
 
 > **Note:** Enemies cannot spawn inside or on top of the snake body, even if the player is using Phase Walk.
 
@@ -44,7 +44,7 @@ All enemies scale in speed over time. Nightmare mode spawns roughly 3× more ene
 
 ## Rare Chests
 
-Treasure chests spawn on the map roughly every 45–60 seconds (first one at 30 s). Up to 3 chests can be present at once. Chests expire after 90 seconds if not collected. Walk over a chest to claim its item automatically.
+Treasure chests spawn on the map every 2 minutes (first one at the 2-minute mark). Up to 3 chests can be present at once. Chests expire after 90 seconds if not collected. Walk over a chest to claim its item automatically.
 
 | Rarity | Color | Example Items |
 |--------|-------|---------------|
