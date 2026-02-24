@@ -514,7 +514,7 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(153,51,255,0.4)',
     size: 1.2,
     shape: 'bat',
-    speed: 0.0080,
+    speed: 0.0070,
     score: 5,
     maxHp: 3,
     label: 'CHASER',
@@ -1301,8 +1301,8 @@ class SnakeRogue {
       if (this.phase === 'start' && e.key === 'Enter') this._startGame();
       if (this.phase === 'gameover' && e.key === 'Enter') this._startGame();
       if (this.phase === 'gameover' && e.key === 'r') this._startGame();
-      // ESC: toggle pause menu in solo mode only (not online)
-      if (e.key === 'Escape' && !this.online && (this.phase === 'playing' || this._paused)) {
+      // ESC: toggle pause menu in solo mode only (not online, not nightmare)
+      if (e.key === 'Escape' && !this.online && (this.phase === 'playing' || this._paused) && !(this.state && this.state.nightmareMode)) {
         if (this._paused) this._resumeGame(); else this._openPauseMenu();
       }
     });
@@ -1611,6 +1611,8 @@ class SnakeRogue {
     this._startGame();
     this.state.nightmareMode = true;
     document.getElementById('app').classList.add('nightmare-mode');
+    const pauseBtn = document.getElementById('pause-btn');
+    if (pauseBtn) pauseBtn.style.display = 'none';
     this._resizeCanvas(true);
   }
 
@@ -2128,7 +2130,7 @@ class SnakeRogue {
       if (!perkBar.querySelector('#hud-perk-bar-track')) {
         perkBar.innerHTML = '<span class="label">PERK</span><span id="hud-perk-bar-track"><span id="hud-perk-bar-fill"></span></span>';
       }
-      perkBar.style.display = 'inline-flex';
+      perkBar.style.display = 'flex';
       const fill = document.getElementById('hud-perk-bar-fill');
       if (fill) fill.style.width = pct + '%';
     } else {
