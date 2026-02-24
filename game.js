@@ -18,7 +18,7 @@ const SEG_SPACING      = 0.45;  // grid-cells between body segment points
 const SNAKE_RADIUS     = 0.28;  // grid-cells half-width (rendering + collision)
 const INIT_SEGS        = 10;    // initial number of body segment points
 const MAX_TURN_SPD     = 4.5;   // radians per second max turn rate
-const APPLE_EAT_DIST   = 0.55;  // grid-cells pickup radius
+const APPLE_EAT_DIST   = 0.70;  // grid-cells pickup radius
 const ENEMY_HIT_DIST   = 0.50;  // grid-cells enemy-head collision radius
 const ENEMY_BODY_DIST  = 0.42;  // grid-cells enemy-body collision radius
 const SELF_HIT_SKIP    = 8;     // skip this many segs near head for self-collision
@@ -139,6 +139,13 @@ const UPGRADES = [
     icon: '✳️',
     desc: 'Fire an extra bullet per shot in a spread. Stack for more bullets.',
     apply(state) { state.multishot = (state.multishot || 0) + 1; }
+  },
+  {
+    id: 'magnetism',
+    name: 'MAGNETISM',
+    icon: '🧲',
+    desc: 'Increases apple pickup radius. Stack for an even wider reach.',
+    apply(state) { state.appleEatDist = (state.appleEatDist || APPLE_EAT_DIST) + 0.15; }
   },
 ];
 
@@ -1359,7 +1366,8 @@ class SnakeRogue {
       const ax = apple.fx !== undefined ? apple.fx : apple.x;
       const ay = apple.fy !== undefined ? apple.fy : apple.y;
       const dx = ax - nx, dy = ay - ny;
-      if (dx * dx + dy * dy < APPLE_EAT_DIST * APPLE_EAT_DIST) {
+      const eatDist = state.appleEatDist || APPLE_EAT_DIST;
+      if (dx * dx + dy * dy < eatDist * eatDist) {
         state.apples.splice(i, 1);
         state.score += 1;
         state.applesEaten++;
