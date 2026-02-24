@@ -3,10 +3,12 @@
 // ─────────────────────────────────────────────
 
 const GRID = 20;          // cell size in pixels
-const VIEW_COLS = 30;
-const VIEW_ROWS = 30;
-const W = VIEW_COLS * GRID;
-const H = VIEW_ROWS * GRID;
+const NIGHTMARE_COLS = 30;
+const NIGHTMARE_ROWS = 30;
+let VIEW_COLS = 30;
+let VIEW_ROWS = 30;
+let W = VIEW_COLS * GRID;
+let H = VIEW_ROWS * GRID;
 
 const ONLINE_COLS    = 40;
 const ONLINE_ROWS    = 40;
@@ -33,10 +35,10 @@ const BULLET_SPREAD_ANGLE  = 0.22;    // radians of spread between multishot bul
 const EXPLOSIVE_ROUNDS_RADIUS = 2.5; // grid-cell blast radius for explosive rounds perk
 
 // ── Chest timing ────────────────────────────
-const CHEST_FIRST_SPAWN_MS    = 30000; // first chest spawns at 30 s
-const CHEST_SPAWN_BASE_MS     = 45000; // minimum gap between chests
-const CHEST_SPAWN_VARIANCE_MS = 15000; // random extra delay
+const CHEST_FIRST_SPAWN_MS    = 120000; // first chest spawns at 2 minutes
+const CHEST_SPAWN_BASE_MS     = 120000; // 2 minute gap between chests
 const CHEST_EXPIRE_MS         = 90000; // chest disappears if not collected in 90 s
+const CHEST_RESPAWN_DIST      = 100;   // cells; chest repositions if player strays this far
 
 // ── Upgrade definitions ─────────────────────
 const UPGRADES = [
@@ -361,12 +363,52 @@ function pickChestRarity() {
   return 'common';
 }
 
+function chestCellOutsideFOV(state) {
+  // Spawn just outside the player's visible area (1–4 cells beyond each FOV edge)
+  const head = state.snake[0];
+  const fovHalfX = Math.floor(VIEW_COLS / 2) + 1; // first col outside horizontal FOV
+  const fovHalfY = Math.floor(VIEW_ROWS / 2) + 1; // first row outside vertical FOV
+  const pad = 3; // up to 3 extra cells beyond the FOV edge (total offset: 1–4)
+  let cell;
+  let attempts = 0;
+  do {
+    const side = randInt(4); // 0=left 1=right 2=top 3=bottom
+    let cx, cy;
+    switch (side) {
+      case 0:
+        cx = Math.round(head.x - fovHalfX - (1 + randInt(pad)));
+        cy = Math.round(head.y + (Math.random() - 0.5) * VIEW_ROWS);
+        break;
+      case 1:
+        cx = Math.round(head.x + fovHalfX + (1 + randInt(pad)));
+        cy = Math.round(head.y + (Math.random() - 0.5) * VIEW_ROWS);
+        break;
+      case 2:
+        cx = Math.round(head.x + (Math.random() - 0.5) * VIEW_COLS);
+        cy = Math.round(head.y - fovHalfY - (1 + randInt(pad)));
+        break;
+      default:
+        cx = Math.round(head.x + (Math.random() - 0.5) * VIEW_COLS);
+        cy = Math.round(head.y + fovHalfY + (1 + randInt(pad)));
+        break;
+    }
+    cell = { x: cx, y: cy };
+    attempts++;
+  } while ((
+    state.snake.some(s => { const dx = cell.x - s.x, dy = cell.y - s.y; return dx * dx + dy * dy < 1; }) ||
+    state.apples.some(a => Math.abs(a.x - cell.x) < 0.5 && Math.abs(a.y - cell.y) < 0.5) ||
+    state.enemies.some(e => Math.round(e.x) === cell.x && Math.round(e.y) === cell.y) ||
+    (state.chests || []).some(c => Math.abs(c.x - cell.x) < 0.5 && Math.abs(c.y - cell.y) < 0.5)
+  ) && attempts < 200);
+  return cell;
+}
+
 function spawnChest(state) {
   const rarity = pickChestRarity();
   const items = CHEST_ITEMS.filter(ci => ci.rarity === rarity);
   if (!items.length) return;
   const item = items[randInt(items.length)];
-  const cell = emptyCell(state);
+  const cell = chestCellOutsideFOV(state);
   state.chests.push({ x: cell.x, y: cell.y, rarity, itemId: item.id, spawnTime: performance.now() });
 }
 
@@ -1057,8 +1099,7 @@ class SnakeRogue {
   constructor() {
     this.canvas = document.getElementById('canvas');
     this.ctx = this.canvas.getContext('2d');
-    this.canvas.width = W;
-    this.canvas.height = H;
+    this._resizeCanvas(false);
 
     this.state = null;
     this.phase = 'start'; // 'start'|'playing'|'upgrade'|'gameover'|'online_lobby'|'online_playing'|'online_over'
@@ -1105,12 +1146,38 @@ class SnakeRogue {
     try { this._playerName = localStorage.getItem('playerName') || ''; }
     catch(_) { this._playerName = ''; }
 
+    window.addEventListener('resize', () => {
+      const isNightmare = this.state && this.state.nightmareMode;
+      if (!isNightmare) this._resizeCanvas(false);
+    });
+
     this._keys = {};
     this._setupInput();
     this._loop = this._gameLoop.bind(this);
     requestAnimationFrame(this._loop);
 
     this._renderOverlay();
+  }
+
+  _resizeCanvas(nightmareMode) {
+    const isMobile = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 640;
+    if (nightmareMode || isMobile) {
+      VIEW_COLS = NIGHTMARE_COLS;
+      VIEW_ROWS = NIGHTMARE_ROWS;
+      W = VIEW_COLS * GRID;
+      H = VIEW_ROWS * GRID;
+      this.canvas.width  = W;
+      this.canvas.height = H;
+      document.getElementById('app').classList.remove('game-fullscreen');
+    } else {
+      VIEW_COLS = Math.floor(window.innerWidth / GRID);
+      VIEW_ROWS = Math.floor(window.innerHeight / GRID);
+      W = VIEW_COLS * GRID;
+      H = VIEW_ROWS * GRID;
+      this.canvas.width  = W;
+      this.canvas.height = H;
+      document.getElementById('app').classList.add('game-fullscreen');
+    }
   }
 
   _setupInput() {
@@ -1361,6 +1428,7 @@ class SnakeRogue {
     this._lastUpdateTimestamp = 0;
     this._inputReceived = false;
     document.getElementById('app').classList.remove('nightmare-mode');
+    this._resizeCanvas(false);
 
     const now = performance.now();
     this.gameStartTime       = now;
@@ -1425,6 +1493,7 @@ class SnakeRogue {
     this._startGame();
     this.state.nightmareMode = true;
     document.getElementById('app').classList.add('nightmare-mode');
+    this._resizeCanvas(true);
   }
 
   _playNightmareJumpscare() {
@@ -1654,7 +1723,7 @@ class SnakeRogue {
 
     // ── Chest spawning (time-based) ───────────────────────────
     if (elapsedMs >= state.nextChestSpawn && state.chests.length < 3 && !state.nightmareMode) {
-      state.nextChestSpawn = elapsedMs + CHEST_SPAWN_BASE_MS + randInt(CHEST_SPAWN_VARIANCE_MS);
+      state.nextChestSpawn = elapsedMs + CHEST_SPAWN_BASE_MS;
       spawnChest(state);
     }
 
@@ -1680,6 +1749,11 @@ class SnakeRogue {
       } else if (performance.now() - chest.spawnTime > CHEST_EXPIRE_MS) {
         // Chests expire after CHEST_EXPIRE_MS if not picked up
         state.chests.splice(i, 1);
+      } else if (cdx * cdx + cdy * cdy > CHEST_RESPAWN_DIST * CHEST_RESPAWN_DIST) {
+        // Player moved more than CHEST_RESPAWN_DIST cells away — reposition near their FOV
+        const cell = chestCellOutsideFOV(state);
+        chest.x = cell.x;
+        chest.y = cell.y;
       }
     }
 
@@ -2155,6 +2229,8 @@ class SnakeRogue {
   }
 
   _renderOverlay() {
+    // Return to full-screen layout when showing main menu/start screen
+    this._resizeCanvas(false);
     // Clear HUD when returning to main menu
     document.getElementById('hud-upgrades').textContent   = '';
     document.getElementById('hud-apples').textContent     = '';
@@ -2309,6 +2385,10 @@ class SnakeRogue {
 
   // ── Online mode ──────────────────────────────
   _startOnlineMode() {
+    // Online mode uses its own fixed canvas dimensions; remove full-screen layout
+    this.canvas.width  = ONLINE_COLS * ONLINE_GRID;
+    this.canvas.height = ONLINE_ROWS * ONLINE_GRID;
+    document.getElementById('app').classList.remove('game-fullscreen');
     this.phase = 'online_lobby';
     this._showOnlineLobby();
   }
