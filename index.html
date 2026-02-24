@@ -77,6 +77,16 @@
       </div>
     </div>
 
+    <!-- Spectate overlay (shown when admin spectates an SP session) -->
+    <div id="spectate-overlay" style="display:none;">
+      <div id="spectate-box">
+        <div id="spectate-title">👁 SPECTATING: <span id="spectate-player-name"></span></div>
+        <canvas id="spectate-canvas" width="180" height="180"></canvas>
+        <div id="spectate-stats"></div>
+        <button class="btn btn-back" id="spectate-close" style="font-size:10px;padding:4px 12px;margin-top:6px;">CLOSE</button>
+      </div>
+    </div>
+
     <!-- Admin panel (shown during any gamemode when admin mode is active) -->
     <div id="admin-panel" style="display:none;">
       <div id="admin-panel-title">⚙ ADMIN DEBUG</div>
