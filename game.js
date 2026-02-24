@@ -32,6 +32,12 @@ const BULLET_LIFE_MS       = 1800;    // max bullet lifespan in ms
 const BULLET_SPREAD_ANGLE  = 0.22;    // radians of spread between multishot bullets
 const EXPLOSIVE_ROUNDS_RADIUS = 2.5; // grid-cell blast radius for explosive rounds perk
 
+// ── Chest timing ────────────────────────────
+const CHEST_FIRST_SPAWN_MS    = 30000; // first chest spawns at 30 s
+const CHEST_SPAWN_BASE_MS     = 45000; // minimum gap between chests
+const CHEST_SPAWN_VARIANCE_MS = 15000; // random extra delay
+const CHEST_EXPIRE_MS         = 90000; // chest disappears if not collected in 90 s
+
 // ── Upgrade definitions ─────────────────────
 const UPGRADES = [
   // ── One-time perks (always listed first) ────
@@ -149,6 +155,112 @@ const UPGRADES = [
   },
 ];
 
+// ── Rare chest system ────────────────────────
+const CHEST_RARITIES = [
+  { id: 'common',    name: 'COMMON',    color: '#aaaaaa', glowColor: 'rgba(170,170,170,0.5)', weight: 50 },
+  { id: 'uncommon',  name: 'UNCOMMON',  color: '#44dd44', glowColor: 'rgba(40,180,40,0.5)',   weight: 30 },
+  { id: 'rare',      name: 'RARE',      color: '#4488ff', glowColor: 'rgba(40,80,220,0.5)',   weight: 15 },
+  { id: 'epic',      name: 'EPIC',      color: '#cc44ff', glowColor: 'rgba(160,20,220,0.5)',  weight: 4  },
+  { id: 'legendary', name: 'LEGENDARY', color: '#ffcc00', glowColor: 'rgba(200,140,0,0.6)',   weight: 1  },
+];
+const CHEST_RARITIES_TOTAL_WEIGHT = CHEST_RARITIES.reduce((sum, r) => sum + r.weight, 0);
+
+const CHEST_ITEMS = [
+  // Common
+  {
+    id: 'battle_hardened', rarity: 'common',
+    name: 'BATTLE HARDENED', icon: '🛡️',
+    desc: 'Gain 2 shield charges instantly.',
+    apply(state) { state.shields = Math.min(10, (state.shields || 0) + 2); }
+  },
+  {
+    id: 'quick_draw', rarity: 'common',
+    name: 'QUICK DRAW', icon: '🔫',
+    desc: 'Fire 40% faster permanently.',
+    apply(state) { state.shootInterval = Math.max(80, Math.floor((state.shootInterval || 400) * 0.6)); }
+  },
+  // Uncommon
+  {
+    id: 'double_tap', rarity: 'uncommon',
+    name: 'DOUBLE TAP', icon: '✳️',
+    desc: '+2 multishot and faster fire rate.',
+    apply(state) {
+      state.multishot = (state.multishot || 0) + 2;
+      state.shootInterval = Math.max(80, (state.shootInterval || 400) - 80);
+    }
+  },
+  {
+    id: 'war_cry', rarity: 'uncommon',
+    name: 'WAR CRY', icon: '⚡',
+    desc: 'Massive permanent speed boost.',
+    apply(state) { state.baseInterval = Math.max(70, state.baseInterval - 25); }
+  },
+  // Rare
+  {
+    id: 'sharpshooter', rarity: 'rare',
+    name: 'SHARPSHOOTER', icon: '🏹',
+    desc: 'Piercing bullets + 4 bonus damage permanently.',
+    apply(state) {
+      state.bulletPiercing = true;
+      state.bulletDamage = (state.bulletDamage || 2) + 4;
+    }
+  },
+  {
+    id: 'ironclad', rarity: 'rare',
+    name: 'IRONCLAD', icon: '🐉',
+    desc: '+5 shields and triple growth per apple.',
+    apply(state) {
+      state.shields = Math.min(10, (state.shields || 0) + 5);
+      state.growPerApple = Math.min(30, Math.round(state.growPerApple * 3));
+    }
+  },
+  // Epic
+  {
+    id: 'omega_pulse', rarity: 'epic',
+    name: 'OMEGA PULSE', icon: '💫',
+    desc: 'PULSE ×5 — massive blast on apple pickup.',
+    apply(state) { state.pulse = (state.pulse || 0) + 5; }
+  },
+  {
+    id: 'shadow_walk', rarity: 'epic',
+    name: 'SHADOW WALK', icon: '👻',
+    desc: 'Phase walk + scatter all enemies instantly.',
+    apply(state) {
+      state.ghost = (state.ghost || 0) + 1;
+      const head = state.snake[0];
+      for (const e of state.enemies) {
+        const angle = Math.random() * Math.PI * 2;
+        e.x = head.x + Math.cos(angle) * (15 + Math.random() * 10);
+        e.y = head.y + Math.sin(angle) * (15 + Math.random() * 10);
+      }
+    }
+  },
+  // Legendary
+  {
+    id: 'annihilate', rarity: 'legendary',
+    name: 'ANNIHILATE', icon: '☄️',
+    desc: 'Destroy ALL enemies instantly. Gain score for each.',
+    apply(state) {
+      for (const e of state.enemies) {
+        state.score += (ENEMY_TYPES[e.type] ? ENEMY_TYPES[e.type].score : 5);
+        state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y, dropped: true });
+      }
+      state.enemies = [];
+    }
+  },
+  {
+    id: 'decimator', rarity: 'legendary',
+    name: 'DECIMATOR', icon: '💣',
+    desc: 'Explosive + piercing rounds. +8 damage. +5 multishot.',
+    apply(state) {
+      state.bulletExplosive = true;
+      state.bulletPiercing = true;
+      state.bulletDamage = (state.bulletDamage || 2) + 8;
+      state.multishot = (state.multishot || 0) + 5;
+    }
+  },
+];
+
 // ── Helpers ──────────────────────────────────
 function randInt(n) { return Math.floor(Math.random() * n); }
 
@@ -206,7 +318,8 @@ function emptyCell(state) {
   } while ((
     state.snake.some(s => { const dx = cell.x - s.x, dy = cell.y - s.y; return dx * dx + dy * dy < 1; }) ||
     state.apples.some(a => Math.abs(a.x - cell.x) < 0.5 && Math.abs(a.y - cell.y) < 0.5) ||
-    state.enemies.some(e => Math.round(e.x) === cell.x && Math.round(e.y) === cell.y)
+    state.enemies.some(e => Math.round(e.x) === cell.x && Math.round(e.y) === cell.y) ||
+    (state.chests || []).some(c => Math.abs(c.x - cell.x) < 0.5 && Math.abs(c.y - cell.y) < 0.5)
   ) && attempts < 400);
   return cell;
 }
@@ -214,6 +327,73 @@ function emptyCell(state) {
 function spawnApple(state) {
   const cell = emptyCell(state);
   state.apples.push({ x: cell.x, y: cell.y, fx: cell.x, fy: cell.y });
+}
+
+function pickChestRarity() {
+  const total = CHEST_RARITIES_TOTAL_WEIGHT;
+  let rand = Math.random() * total;
+  for (const r of CHEST_RARITIES) {
+    rand -= r.weight;
+    if (rand <= 0) return r.id;
+  }
+  return 'common';
+}
+
+function spawnChest(state) {
+  const rarity = pickChestRarity();
+  const items = CHEST_ITEMS.filter(ci => ci.rarity === rarity);
+  if (!items.length) return;
+  const item = items[randInt(items.length)];
+  const cell = emptyCell(state);
+  state.chests.push({ x: cell.x, y: cell.y, rarity, itemId: item.id, spawnTime: performance.now() });
+}
+
+function drawChests(ctx, state, tick, grid = GRID) {
+  if (!state.chests || !state.chests.length) return;
+  for (const chest of state.chests) {
+    const rData = CHEST_RARITIES.find(r => r.id === chest.rarity);
+    if (!rData) continue;
+    const item = CHEST_ITEMS.find(ci => ci.id === chest.itemId);
+    const cx = chest.x * grid + grid / 2;
+    const cy = chest.y * grid + grid / 2;
+    const pulse = 0.9 + 0.1 * Math.sin(tick * 0.08);
+    const r = grid * 0.38 * pulse;
+
+    ctx.save();
+    ctx.shadowBlur = 24;
+    ctx.shadowColor = rData.glowColor;
+
+    // Chest body (bottom rect)
+    ctx.fillStyle = rData.color;
+    ctx.fillRect(cx - r, cy - r * 0.2, r * 2, r * 1.1);
+    // Chest lid (top rect)
+    ctx.fillRect(cx - r, cy - r * 1.1, r * 2, r * 0.9);
+    // Divider stripe
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(cx - r, cy - r * 0.25, r * 2, r * 0.1);
+    // Clasp
+    ctx.fillStyle = '#ffdd66';
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = '#fff8aa';
+    ctx.fillRect(cx - r * 0.22, cy - r * 0.65, r * 0.44, r * 0.65);
+
+    ctx.shadowBlur = 0;
+    // Item icon above chest
+    if (item) {
+      ctx.font = `${r * 1.1}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(item.icon, cx, cy - r * 1.1);
+    }
+    // Rarity label below chest
+    ctx.font = `bold ${r * 0.52}px Courier New`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = rData.color;
+    ctx.fillText(rData.name, cx, cy + r * 0.95);
+    ctx.textBaseline = 'alphabetic';
+    ctx.restore();
+  }
 }
 
 function pickUpgrades(state) {
@@ -301,53 +481,24 @@ const ENEMY_TYPES = {
       e.y += Math.sin(e.angle) * spd;
     }
   },
-  interceptor: {
-    color: '#8040c0',
-    glowColor: 'rgba(140,60,210,0.4)',
-    size: 0.6,
-    shape: 'triangle',
-    speed: 0.0026,
-    score: 12,
-    maxHp: 3,
-    label: 'INTERCEPTOR',
+  phantom: {
+    color: 'rgba(180,200,255,0.85)',
+    glowColor: 'rgba(160,180,255,0.6)',
+    size: 0.55,
+    shape: 'ghost',
+    speed: 0.0028,
+    score: 20,
+    maxHp: 5,
+    label: 'PHANTOM',
+    isGhost: true,
     update(e, state, dt) {
       const head = state.snake[0];
-      const angle = state.snakeAngle || 0;
-      const predict = { x: head.x + Math.cos(angle) * 10, y: head.y + Math.sin(angle) * 10 };
-      const dx = predict.x - e.x;
-      const dy = predict.y - e.y;
+      const dx = head.x - e.x;
+      const dy = head.y - e.y;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
       const spd = e.speed * dt * (1 / (1 + (state.freeze || 0) * 0.25));
       e.x += (dx / len) * spd;
       e.y += (dy / len) * spd;
-    }
-  },
-  blocker: {
-    color: '#404040',
-    glowColor: 'rgba(80,80,80,0.4)',
-    size: 0.85,
-    shape: 'diamond',
-    speed: 0.0005,
-    score: 15,
-    maxHp: 6,
-    label: 'BLOCKER',
-    init(e, state) {
-      if (state.apples.length > 0) {
-        const apple = state.apples[randInt(state.apples.length)];
-        e.x = apple.x + (Math.random() - 0.5) * 4;
-        e.y = apple.y + (Math.random() - 0.5) * 4;
-      }
-    },
-    update(e, state, dt) {
-      // Slowly drift toward nearest apple
-      if (state.apples.length > 0) {
-        const apple = state.apples[0];
-        const dx = apple.x - e.x, dy = apple.y - e.y;
-        const len = Math.sqrt(dx * dx + dy * dy) || 1;
-        const spd = e.speed * dt * (1 / (1 + (state.freeze || 0) * 0.25));
-        e.x += (dx / len) * spd;
-        e.y += (dy / len) * spd;
-      }
     }
   },
   titan: {
@@ -413,8 +564,8 @@ function getEnemyTypeKeys(elapsedMs, nightmareMode) {
   // Start mostly chasers; other types unlock over time
   const keys = ['chaser', 'chaser', 'chaser'];
   if (s >= 60  || nightmareMode) keys.push('patrol');
-  if (s >= 90  || nightmareMode) keys.push('interceptor');
-  if (s >= 120 || nightmareMode) { keys.push('blocker'); keys.push('speeder'); }
+  if (s >= 90  || nightmareMode) keys.push('speeder');
+  if (s >= 120 || nightmareMode) keys.push('phantom');
   if (s >= 180 || nightmareMode) keys.push('titan');
   return keys;
 }
@@ -436,7 +587,10 @@ function spawnEnemy(state, elapsedMs) {
     else if (edge === 2) pos = { x: head.x - spawnRange, y: head.y - spawnRange + Math.random() * spawnRange * 2 };
     else                 pos = { x: head.x + spawnRange, y: head.y - spawnRange + Math.random() * spawnRange * 2 };
     attempts++;
-  } while (Math.abs(pos.x - head.x) + Math.abs(pos.y - head.y) < 8 && attempts < 50);
+  } while ((
+    Math.abs(pos.x - head.x) + Math.abs(pos.y - head.y) < 8 ||
+    state.snake.some(s => { const bx = pos.x - s.x, by = pos.y - s.y; return bx * bx + by * by < 4; })
+  ) && attempts < 50);
 
   const speedMult = 1 + (elapsedMs / 1000) / 80;
   const enemy = {
@@ -675,6 +829,19 @@ function drawEnemies(ctx, state, tick) {
       }
       ctx.closePath();
       ctx.fill();
+    } else if (type.shape === 'ghost') {
+      ctx.globalAlpha = 0.70 + 0.12 * Math.sin(tick * 0.07 + e.id * 5);
+      const wt = tick * 0.04;
+      ctx.beginPath();
+      ctx.arc(cx, cy - r * 0.15, r, Math.PI, 0);
+      ctx.lineTo(cx + r, cy + r * 0.55);
+      ctx.quadraticCurveTo(cx + r * 0.65, cy + r * (1.0 + Math.sin(wt) * 0.25),       cx + r * 0.33, cy + r * 0.55);
+      ctx.quadraticCurveTo(cx,             cy + r * (1.05 + Math.sin(wt + 1.1) * 0.25), cx - r * 0.33, cy + r * 0.55);
+      ctx.quadraticCurveTo(cx - r * 0.65, cy + r * (1.0 + Math.sin(wt + 2.2) * 0.25), cx - r, cy + r * 0.55);
+      ctx.lineTo(cx - r, cy - r * 0.15);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
     } else {
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -1186,9 +1353,12 @@ class SnakeRogue {
       snake: initSnake,
       snakeAngle: 0,       // current heading (radians, 0 = right)
       targetAngle: 0,      // desired heading set by mouse/joystick
-      direction: { x: 1, y: 0 }, // kept for online / interceptor compat
+      direction: { x: 1, y: 0 }, // kept for online compat
       apples: [],
       enemies: [],
+      chests: [],
+      nextChestSpawn: CHEST_FIRST_SPAWN_MS, // first chest spawns at 30 s
+      chestNotif: null,
       score: 0,
       applesEaten: 0,
       baseInterval: 140,
@@ -1296,7 +1466,7 @@ class SnakeRogue {
     const diff = normalizeAngle(targetAngle - state.snakeAngle);
     const maxTurn = MAX_TURN_SPD * dt / 1000;
     state.snakeAngle += Math.max(-maxTurn, Math.min(maxTurn, diff));
-    // Keep direction vector up-to-date for online / interceptor usage
+    // Keep direction vector up-to-date for online mode
     state.direction = {
       x: Math.cos(state.snakeAngle),
       y: Math.sin(state.snakeAngle),
@@ -1392,8 +1562,6 @@ class SnakeRogue {
           }
         }
 
-        if (!apple.dropped) spawnApple(state);
-
         if (!state.nightmareMode) {
           state.applesEatenSinceUpgrade++;
           if (state.applesEatenSinceUpgrade >= state.applesForNextUpgrade) {
@@ -1456,6 +1624,37 @@ class SnakeRogue {
     if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 5000) {
       state.enemySpawnTimer = 0;
       spawnEnemy(state, elapsedMs);
+    }
+
+    // ── Chest spawning (time-based) ───────────────────────────
+    if (elapsedMs >= state.nextChestSpawn && state.chests.length < 3 && !state.nightmareMode) {
+      state.nextChestSpawn = elapsedMs + CHEST_SPAWN_BASE_MS + randInt(CHEST_SPAWN_VARIANCE_MS);
+      spawnChest(state);
+    }
+
+    // ── Chest pickup ──────────────────────────────────────────
+    for (let i = state.chests.length - 1; i >= 0; i--) {
+      const chest = state.chests[i];
+      const cdx = chest.x - nx, cdy = chest.y - ny;
+      const eatDist = state.appleEatDist || APPLE_EAT_DIST;
+      if (cdx * cdx + cdy * cdy < eatDist * eatDist) {
+        const item = CHEST_ITEMS.find(ci => ci.id === chest.itemId);
+        if (item) {
+          item.apply(state);
+          state.chestNotif = {
+            text: `${item.icon} ${item.name}`,
+            subtext: item.desc,
+            rarity: chest.rarity,
+            until: performance.now() + 3000,
+          };
+        }
+        state.chests.splice(i, 1);
+        spawnParticles(this.particles, Math.round(nx), Math.round(ny), '#ffcc00', 20);
+        this._updateHUD();
+      } else if (performance.now() - chest.spawnTime > CHEST_EXPIRE_MS) {
+        // Chests expire after CHEST_EXPIRE_MS if not picked up
+        state.chests.splice(i, 1);
+      }
     }
 
     // ── Bullet update ─────────────────────────────
@@ -1537,6 +1736,8 @@ class SnakeRogue {
       }
 
       // Body collision — body deals minimum damage (1) with cooldown to avoid per-frame spam
+      // Phantom enemies phase through the snake body — skip body collision
+      if (ENEMY_TYPES[e.type] && ENEMY_TYPES[e.type].isGhost) continue;
       let bodyHit = false;
       let closestBodySeg = null, closestBodyDx = 0, closestBodyDy = 0, closestBodyD2 = Infinity;
       const bodyR = ENEMY_TYPES[e.type].size * 0.40 + SNAKE_RADIUS;
@@ -1808,6 +2009,7 @@ class SnakeRogue {
 
     // Draw elements
     drawApples(ctx, state, this.tick);
+    drawChests(ctx, state, this.tick);
     drawBullets(ctx, state.bullets);
     drawSnake(ctx, state);
     drawEnemies(ctx, state, this.tick);
@@ -1840,6 +2042,32 @@ class SnakeRogue {
     drawParticles(ctx, this.particles);
 
     ctx.restore();
+
+    // ── Chest pickup notification (screen-space, after camera restore) ──
+    if (state.chestNotif) {
+      const now = performance.now();
+      if (now < state.chestNotif.until) {
+        const remaining = state.chestNotif.until - now;
+        const alpha = Math.min(1, remaining / 600);
+        const rData = CHEST_RARITIES.find(r => r.id === state.chestNotif.rarity);
+        const color = rData ? rData.color : '#ffffff';
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.textAlign = 'center';
+        ctx.shadowBlur = 16;
+        ctx.shadowColor = color;
+        ctx.font = 'bold 22px Courier New';
+        ctx.fillStyle = color;
+        ctx.fillText(state.chestNotif.text, W / 2, H * 0.38);
+        ctx.shadowBlur = 0;
+        ctx.font = '12px Courier New';
+        ctx.fillStyle = '#cccccc';
+        ctx.fillText(state.chestNotif.subtext, W / 2, H * 0.38 + 24);
+        ctx.restore();
+      } else {
+        state.chestNotif = null;
+      }
+    }
   }
 
   _gameLoop(timestamp) {
