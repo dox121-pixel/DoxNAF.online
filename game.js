@@ -1163,6 +1163,7 @@ class SnakeRogue {
     requestAnimationFrame(this._loop);
 
     this._renderOverlay();
+    this._checkRemovalNotice();
   }
 
   _resizeCanvas(nightmareMode) {
@@ -2745,6 +2746,17 @@ class SnakeRogue {
       const btn = document.getElementById(id);
       if (btn) btn.addEventListener('click', handler);
     }
+
+    // Delegate click handler for leaderboard delete buttons (added once)
+    const lbList = document.getElementById('adm-leaderboard-list');
+    if (lbList) {
+      lbList.addEventListener('click', e => {
+        const btn = e.target.closest('.adm-del-btn');
+        if (!btn) return;
+        const name = btn.getAttribute('data-name');
+        this._deleteLeaderboardEntry(name, btn);
+      });
+    }
   }
 
   _showAdminOpenBtn() {
@@ -2802,16 +2814,83 @@ class SnakeRogue {
     // Hide open button while panel is visible
     const openBtn = document.getElementById('admin-open-btn');
     if (openBtn) openBtn.style.display = 'none';
+    // Load leaderboard entries with delete buttons
+    this._loadAdminLeaderboard();
   }
 
   _closeAdminPanel() {
     const panel = document.getElementById('admin-panel');
     if (panel) { panel.style.display = 'none'; this._adminPanelOpen = false; }
-    // Show open button again if on main menu
-    if (this.phase === 'start') {
+    // Show open button again whenever admin mode is active
+    if (this._adminMode) {
       const openBtn = document.getElementById('admin-open-btn');
       if (openBtn) openBtn.style.display = '';
     }
+  }
+
+  _loadAdminLeaderboard() {
+    const listEl = document.getElementById('adm-leaderboard-list');
+    if (!listEl) return;
+    listEl.textContent = 'Loading…';
+    fetch(`${API_SERVER}/api/leaderboard`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        if (!data.entries || data.entries.length === 0) {
+          listEl.textContent = 'No entries.';
+          return;
+        }
+        listEl.innerHTML = data.entries.map(e => {
+          const safeName = escapeHtml(e.name || 'Anonymous');
+          return `<div style="display:flex;align-items:center;justify-content:space-between;gap:4px;padding:2px 0;">
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeName} — ${e.score}</span>
+            <button data-name="${safeName}" class="adm-del-btn" style="background:#1a0a0a;border:1px solid #644;color:#f64;font-family:'Courier New',monospace;font-size:9px;padding:2px 6px;cursor:pointer;border-radius:3px;flex-shrink:0;">✕</button>
+          </div>`;
+        }).join('');
+      })
+      .catch(() => { listEl.textContent = 'Unavailable'; });
+  }
+
+  _deleteLeaderboardEntry(name, btn) {
+    if (!this._adminToken) return;
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    fetch(`${API_SERVER}/api/admin/leaderboard/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: this._adminToken, name }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          this._loadAdminLeaderboard();
+        } else {
+          if (btn) { btn.disabled = false; btn.textContent = '✕'; }
+        }
+      })
+      .catch(() => { if (btn) { btn.disabled = false; btn.textContent = '✕'; } });
+  }
+
+  _checkRemovalNotice() {
+    const name = this._playerName;
+    if (!name) return;
+    let seenKey;
+    try { seenKey = localStorage.getItem('removalNoticeSeen_' + name); } catch(_) {}
+    if (seenKey) return; // already acknowledged
+    fetch(`${API_SERVER}/api/leaderboard/check-removal?name=${encodeURIComponent(name)}`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        if (data.removed) {
+          const notice = document.getElementById('removal-notice');
+          if (notice) notice.style.display = 'flex';
+          const okBtn = document.getElementById('removal-notice-ok');
+          if (okBtn) {
+            okBtn.addEventListener('click', () => {
+              if (notice) notice.style.display = 'none';
+              try { localStorage.setItem('removalNoticeSeen_' + name, '1'); } catch(_) {}
+            }, { once: true });
+          }
+        }
+      })
+      .catch(() => {}); // silently ignore if server unavailable
   }
 
   _adminAction(action) {

@@ -68,6 +68,15 @@
       </div>
     </div>
 
+    <!-- Leaderboard removal notification -->
+    <div id="removal-notice" style="display:none;">
+      <div id="removal-notice-box">
+        <div style="font-size:13px;color:#f64;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">⚠ LEADERBOARD NOTICE</div>
+        <div style="font-size:12px;color:#aaa;line-height:1.6;">Your leaderboard ranking was removed<br>due to an inappropriate name.</div>
+        <button class="btn btn-back" id="removal-notice-ok" style="font-size:10px;padding:4px 14px;margin-top:10px;">OK</button>
+      </div>
+    </div>
+
     <!-- Admin panel (shown during any gamemode when admin mode is active) -->
     <div id="admin-panel" style="display:none;">
       <div id="admin-panel-title">⚙ ADMIN DEBUG</div>
@@ -80,6 +89,10 @@
         <button class="admin-action-btn" id="adm-slow">🕰 Slow Down</button>
         <button class="admin-action-btn" id="adm-clear">💀 Clear Enemies</button>
         <button class="admin-action-btn" id="adm-upgrade">🎁 Force Upgrade</button>
+        <div id="adm-leaderboard-section" style="margin-top:8px;width:100%;">
+          <div style="font-size:10px;color:#567;letter-spacing:1px;margin-bottom:4px;">🏆 LEADERBOARD</div>
+          <div id="adm-leaderboard-list" style="font-size:10px;color:#7ab;"></div>
+        </div>
       </div>
       <button class="btn btn-back" id="admin-panel-close" style="font-size:10px;padding:4px 12px;">CLOSE</button>
     </div>
