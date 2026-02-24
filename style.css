@@ -522,7 +522,8 @@ canvas {
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  min-width: 180px;
+  width: 220px;
+  max-height: 80vh;
   box-shadow: 0 0 20px rgba(100, 130, 200, 0.2);
 }
 
@@ -542,6 +543,31 @@ canvas {
   flex-direction: column;
   gap: 6px;
   width: 100%;
+  overflow-y: auto;
+  max-height: calc(80vh - 80px);
+}
+
+#removal-notice {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 5, 15, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+}
+
+#removal-notice-box {
+  background: #0e0e1a;
+  border: 1px solid #644;
+  border-radius: 8px;
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 300px;
+  text-align: center;
 }
 
 .admin-action-btn {

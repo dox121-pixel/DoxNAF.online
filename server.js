@@ -73,6 +73,12 @@ async function initDb() {
       value TEXT         NOT NULL
     )
   `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS leaderboard_removals (
+      name       VARCHAR(30)  PRIMARY KEY,
+      removed_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    )
+  `);
   // Store the admin password hash if not already set
   await dbPool.query(
     `INSERT INTO admin_settings (key, value)
@@ -80,6 +86,28 @@ async function initDb() {
      ON CONFLICT (key) DO NOTHING`,
     [DEFAULT_ADMIN_HASH]
   );
+}
+
+async function deleteLeaderboardEntry(name) {
+  if (!dbPool) return;
+  const safeName = String(name).slice(0, 30);
+  await dbPool.query(`DELETE FROM leaderboard WHERE name = $1`, [safeName]);
+  await dbPool.query(
+    `INSERT INTO leaderboard_removals (name, removed_at)
+     VALUES ($1, NOW())
+     ON CONFLICT (name) DO UPDATE SET removed_at = NOW()`,
+    [safeName]
+  );
+}
+
+async function checkLeaderboardRemoval(name) {
+  if (!dbPool) return false;
+  const safeName = String(name).slice(0, 30);
+  const res = await dbPool.query(
+    `SELECT 1 FROM leaderboard_removals WHERE name = $1 LIMIT 1`,
+    [safeName]
+  );
+  return res.rows.length > 0;
 }
 
 async function getLeaderboardFromDb() {
@@ -161,6 +189,29 @@ const httpServer = http.createServer((req, res) => {
   const rawPath = (req.url || '/').split('?')[0];
   let urlPath;
   try { urlPath = decodeURIComponent(rawPath); } catch { res.writeHead(400); res.end('Bad Request'); return; }
+
+  // ── Leaderboard removal check ─────────────────
+  if (urlPath === '/api/leaderboard/check-removal') {
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': 'https://doxnaf.online',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    if (req.method === 'OPTIONS') { res.writeHead(204, corsHeaders); res.end(); return; }
+    if (req.method !== 'GET') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    const qs = (req.url || '').split('?')[1] || '';
+    const params = new URLSearchParams(qs);
+    const name = String(params.get('name') || '').slice(0, 30);
+    if (!name) { res.writeHead(400); res.end('Bad Request'); return; }
+    checkLeaderboardRemoval(name).then(removed => {
+      res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+      res.end(JSON.stringify({ removed }));
+    }).catch(err => {
+      console.error('Check removal error:', err.message);
+      res.writeHead(500); res.end('Internal Server Error');
+    });
+    return;
+  }
 
   // ── Leaderboard API ───────────────────────────
   if (urlPath === '/api/leaderboard') {
@@ -271,6 +322,34 @@ const httpServer = http.createServer((req, res) => {
         res.writeHead(valid ? 200 : 401, { 'Content-Type': 'application/json', ...adminCors });
         res.end(JSON.stringify({ ok: valid }));
       } catch (_) {
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
+    return;
+  }
+
+  if (urlPath === '/api/admin/leaderboard/delete') {
+    if (req.method === 'OPTIONS') { res.writeHead(204, adminCors); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 512) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { token, name } = JSON.parse(body);
+        if (!isValidAdminToken(token)) {
+          res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: false, message: 'Unauthorized' }));
+          return;
+        }
+        deleteLeaderboardEntry(name).then(() => {
+          res.writeHead(200, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: true }));
+        }).catch(err => {
+          console.error('Leaderboard delete error:', err.message);
+          res.writeHead(500); res.end('Internal Server Error');
+        });
+      } catch (e) {
+        console.error('Admin leaderboard delete parse error:', e.message);
         res.writeHead(400); res.end('Bad Request');
       }
     });
