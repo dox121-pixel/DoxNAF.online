@@ -14,6 +14,39 @@ const COLS    = 40;
 const ROWS    = 40;
 const TICK_MS = 120;
 
+// ── Leaderboard ───────────────────────────────
+const LEADERBOARD_FILE = path.join(__dirname, 'leaderboard.json');
+const MAX_LEADERBOARD_ENTRIES = 10;
+let leaderboard = [];
+
+function loadLeaderboard() {
+  try {
+    const data = fs.readFileSync(LEADERBOARD_FILE, 'utf8');
+    leaderboard = JSON.parse(data);
+    if (!Array.isArray(leaderboard)) leaderboard = [];
+  } catch (_) {
+    leaderboard = [];
+  }
+}
+
+function saveLeaderboard() {
+  try { fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(leaderboard)); }
+  catch (err) { console.error('Failed to save leaderboard:', err.message); }
+}
+
+function addLeaderboardEntry(name, score, applesEaten) {
+  // Sanitize input
+  const safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').trim() || 'Anonymous';
+  const safeScore  = Math.max(0, Math.min(1e7, Math.floor(Number(score) || 0)));
+  const safeApples = Math.max(0, Math.min(1e6, Math.floor(Number(applesEaten) || 0)));
+  leaderboard.push({ name: safeName, score: safeScore, applesEaten: safeApples, date: new Date().toISOString() });
+  leaderboard.sort((a, b) => b.score - a.score);
+  leaderboard = leaderboard.slice(0, MAX_LEADERBOARD_ENTRIES);
+  saveLeaderboard();
+}
+
+loadLeaderboard();
+
 // ── Smooth-snake physics (mirrors singleplayer) ──
 const SEG_SPACING   = 0.45;
 const SNAKE_RADIUS  = 0.28;
@@ -36,6 +69,33 @@ const httpServer = http.createServer((req, res) => {
   const rawPath = (req.url || '/').split('?')[0];
   let urlPath;
   try { urlPath = decodeURIComponent(rawPath); } catch { res.writeHead(400); res.end('Bad Request'); return; }
+
+  // ── Leaderboard API ───────────────────────────
+  if (urlPath === '/api/leaderboard') {
+    if (req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ entries: leaderboard }));
+      return;
+    }
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; if (body.length > 1024) req.destroy(); });
+      req.on('end', () => {
+        try {
+          const d = JSON.parse(body);
+          addLeaderboardEntry(d.name, d.score, d.applesEaten);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (_) {
+          res.writeHead(400); res.end('Bad Request');
+        }
+      });
+      return;
+    }
+    res.writeHead(405); res.end('Method Not Allowed');
+    return;
+  }
+
   const file    = urlPath === '/' ? '/index.html' : urlPath;
   // Resolve the full path and ensure it stays inside __dirname
   const full    = path.resolve(__dirname, '.' + file);

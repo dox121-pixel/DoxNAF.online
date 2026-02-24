@@ -331,6 +331,33 @@ canvas {
   filter: grayscale(1) contrast(1.2);
 }
 
+/* ── Name chooser ─────────────────────────────── */
+.name-chooser {
+  text-align: center;
+}
+
+.name-chooser .room-input {
+  font-size: 14px;
+  letter-spacing: 3px;
+  width: 180px;
+}
+
+/* ── Leaderboard ──────────────────────────────── */
+#leaderboard-section {
+  text-align: center;
+  max-width: 320px;
+}
+
+#leaderboard-section > div:first-child {
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+#leaderboard-list div {
+  padding: 1px 0;
+  color: #7ab;
+}
+
 /* ── Mobile joystick control ─────────────────── */
 #mobile-controls {
   display: none;
