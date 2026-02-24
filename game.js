@@ -8,6 +8,10 @@ const APPLE_IMG_YELLOW = new Image();
 APPLE_IMG_RED.src    = 'sprites/APPLER.png';
 APPLE_IMG_YELLOW.src = 'sprites/APPLEY.png';
 
+// ── Teleport perk sprite ──────────────────────
+const TELEPORT_PERK_IMG = new Image();
+TELEPORT_PERK_IMG.src = 'sprites/TELEPORTPERK.png';
+
 const GRID = 20;          // cell size in pixels
 const NIGHTMARE_COLS = 30;
 const NIGHTMARE_ROWS = 30;
@@ -854,20 +858,32 @@ function drawTeleportPerks(ctx, teleportPerks, tick, grid = GRID) {
   for (const tp of teleportPerks) {
     const pulse = 0.8 + 0.2 * Math.sin(tick * 0.1 + 1.5);
     const r = grid * 0.38 * pulse;
-    ctx.shadowBlur = 18;
-    ctx.shadowColor = '#0af';
-    ctx.fillStyle = '#0cf';
-    ctx.beginPath();
-    ctx.arc(tp.x * grid + grid / 2, tp.y * grid + grid / 2, r, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    // Inner cross to distinguish from apple
-    ctx.strokeStyle = 'rgba(0,30,60,0.7)';
-    ctx.lineWidth = grid * 0.1;
+    const size = r * 2;
     const cx = tp.x * grid + grid / 2;
     const cy = tp.y * grid + grid / 2;
-    ctx.beginPath(); ctx.moveTo(cx - r * 0.5, cy); ctx.lineTo(cx + r * 0.5, cy); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx, cy - r * 0.5); ctx.lineTo(cx, cy + r * 0.5); ctx.stroke();
+
+    if (TELEPORT_PERK_IMG.complete && TELEPORT_PERK_IMG.naturalWidth > 0) {
+      ctx.save();
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = '#0af';
+      ctx.drawImage(TELEPORT_PERK_IMG, cx - size / 2, cy - size / 2, size, size);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    } else {
+      // Fallback: canvas drawing while sprite loads
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = '#0af';
+      ctx.fillStyle = '#0cf';
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      // Inner cross to distinguish from apple
+      ctx.strokeStyle = 'rgba(0,30,60,0.7)';
+      ctx.lineWidth = grid * 0.1;
+      ctx.beginPath(); ctx.moveTo(cx - r * 0.5, cy); ctx.lineTo(cx + r * 0.5, cy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx, cy - r * 0.5); ctx.lineTo(cx, cy + r * 0.5); ctx.stroke();
+    }
   }
 }
 
