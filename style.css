@@ -480,6 +480,109 @@ canvas {
   user-select: none;
 }
 
+/* ── Admin panel ──────────────────────────────── */
+#admin-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 5, 15, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+#admin-modal-box {
+  background: #0e0e1a;
+  border: 1px solid #446;
+  border-radius: 8px;
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+#admin-modal-title {
+  font-size: 14px;
+  color: #89b;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+#admin-panel {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: rgba(10, 10, 22, 0.95);
+  border: 1px solid #446;
+  border-radius: 8px;
+  padding: 14px 16px;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 180px;
+  box-shadow: 0 0 20px rgba(100, 130, 200, 0.2);
+}
+
+#admin-panel-title {
+  font-size: 11px;
+  color: #89b;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+#admin-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.admin-action-btn {
+  background: #0e0e1a;
+  border: 1px solid #334;
+  color: #9ab;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 5px 10px;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 4px;
+  width: 100%;
+  transition: all 0.12s;
+}
+
+.admin-action-btn:hover {
+  background: #141428;
+  border-color: #89b;
+  color: #cde;
+}
+
+#admin-open-btn {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  background: transparent;
+  border: 1px solid #335;
+  color: #556;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  z-index: 150;
+  transition: all 0.12s;
+}
+
+#admin-open-btn:hover {
+  border-color: #89b;
+  color: #89b;
+}
+
 /* Show controls on touch devices or small screens */
 @media (max-width: 640px), (pointer: coarse) {
   #mobile-controls {

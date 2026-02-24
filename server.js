@@ -5,9 +5,10 @@
 // ─────────────────────────────────────────────
 'use strict';
 
-const http = require('http');
-const fs   = require('fs');
-const path = require('path');
+const http   = require('http');
+const fs     = require('fs');
+const path   = require('path');
+const crypto = require('crypto');
 const WebSocket = require('ws');
 const { Pool } = require('pg');
 
@@ -25,6 +26,34 @@ const dbPool = process.env.DATABASE_URL
     })
   : null;
 
+// ── Admin authentication ──────────────────────
+const ADMIN_SESSION_TTL_MS = 3600000; // 1 hour
+const adminSessions = new Map(); // token → expiry timestamp
+
+function hashPassword(pw) {
+  return crypto.createHash('sha256').update(String(pw)).digest('hex');
+}
+
+function generateToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function isValidAdminToken(token) {
+  if (!token) return false;
+  const expiry = adminSessions.get(token);
+  if (!expiry) return false;
+  if (Date.now() > expiry) { adminSessions.delete(token); return false; }
+  return true;
+}
+
+async function getAdminPasswordHash() {
+  if (!dbPool) return null;
+  const res = await dbPool.query(
+    `SELECT value FROM admin_settings WHERE key = 'password_hash' LIMIT 1`
+  );
+  return res.rows.length ? res.rows[0].value : null;
+}
+
 async function initDb() {
   if (!dbPool) { console.warn('DATABASE_URL not set -- leaderboard persistence disabled.'); return; }
   await dbPool.query(`
@@ -35,6 +64,19 @@ async function initDb() {
       date         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     )
   `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS admin_settings (
+      key   VARCHAR(50)  PRIMARY KEY,
+      value TEXT         NOT NULL
+    )
+  `);
+  // Store the admin password hash if not already set
+  await dbPool.query(
+    `INSERT INTO admin_settings (key, value)
+     VALUES ('password_hash', $1)
+     ON CONFLICT (key) DO NOTHING`,
+    [hashPassword('GMMKVIPER')]
+  );
 }
 
 async function getLeaderboardFromDb() {
@@ -159,6 +201,68 @@ const httpServer = http.createServer((req, res) => {
       return;
     }
     res.writeHead(405); res.end('Method Not Allowed');
+    return;
+  }
+
+  // ── Admin API ─────────────────────────────────
+  const adminCors = {
+    'Access-Control-Allow-Origin': 'https://doxnaf.online',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+
+  if (urlPath === '/api/admin/login') {
+    if (req.method === 'OPTIONS') { res.writeHead(204, adminCors); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 512) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { password } = JSON.parse(body);
+        getAdminPasswordHash().then(storedHash => {
+          if (!storedHash) {
+            // DB not available; compare directly against in-memory default
+            const fallback = hashPassword('GMMKVIPER');
+            if (hashPassword(String(password || '')) !== fallback) {
+              res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
+              res.end(JSON.stringify({ ok: false }));
+              return;
+            }
+          } else if (hashPassword(String(password || '')) !== storedHash) {
+            res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
+            res.end(JSON.stringify({ ok: false }));
+            return;
+          }
+          const token = generateToken();
+          adminSessions.set(token, Date.now() + ADMIN_SESSION_TTL_MS);
+          res.writeHead(200, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: true, token }));
+        }).catch(err => {
+          console.error('Admin login DB error:', err.message);
+          res.writeHead(500); res.end('Internal Server Error');
+        });
+      } catch (_) {
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
+    return;
+  }
+
+  if (urlPath === '/api/admin/verify') {
+    if (req.method === 'OPTIONS') { res.writeHead(204, adminCors); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 256) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { token } = JSON.parse(body);
+        const valid = isValidAdminToken(token);
+        res.writeHead(valid ? 200 : 401, { 'Content-Type': 'application/json', ...adminCors });
+        res.end(JSON.stringify({ ok: valid }));
+      } catch (_) {
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
     return;
   }
 
