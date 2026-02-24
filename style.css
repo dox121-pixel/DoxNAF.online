@@ -326,7 +326,75 @@ canvas {
   box-shadow: 0 0 10px rgba(100, 130, 200, 0.2);
 }
 
-/* ── Nightmare mode ────────────────────────── */
+/* ── Perk progress bar ────────────────────────── */
+#hud-perk-bar {
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+
+#hud-perk-bar .label {
+  color: #567;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+#hud-perk-bar-track {
+  width: 80px;
+  height: 8px;
+  background: #1a1a2a;
+  border: 1px solid #345;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+#hud-perk-bar-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #3a8 0%, #4f8 100%);
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}
+
+/* ── Pause button ─────────────────────────────── */
+#pause-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(10, 10, 20, 0.75);
+  border: 1px solid #345;
+  color: #7ab;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  z-index: 60;
+  transition: all 0.12s;
+  line-height: 1;
+}
+
+#pause-btn:hover {
+  border-color: #7ab;
+  color: #cde;
+  background: rgba(14, 14, 28, 0.9);
+}
+
+/* ── Pause menu ───────────────────────────────── */
+#pause-menu {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 5, 15, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 90;
+}
+
+
 #app.nightmare-mode {
   filter: grayscale(1) contrast(1.2);
 }

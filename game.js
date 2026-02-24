@@ -114,13 +114,6 @@ const UPGRADES = [
     apply(state) { state.freeze = (state.freeze || 0) + 1; }
   },
   {
-    id: 'enemy_repel',
-    name: 'REPULSE',
-    icon: '💥',
-    desc: 'Enemies briefly scatter on spawn.',
-    apply(state) { state.repel = (state.repel || 0) + 1; }
-  },
-  {
     id: 'pulse',
     name: 'PULSE',
     icon: '💫',
@@ -521,7 +514,7 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(153,51,255,0.4)',
     size: 1.2,
     shape: 'bat',
-    speed: 0.0018,
+    speed: 0.0080,
     score: 5,
     maxHp: 3,
     label: 'CHASER',
@@ -571,7 +564,7 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(160,180,255,0.6)',
     size: 0.9,
     shape: 'ghost',
-    speed: 0.0024,
+    speed: 0.0082,
     score: 20,
     maxHp: 5,
     label: 'PHANTOM',
@@ -591,7 +584,7 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(200,0,100,0.5)',
     size: 2.4,
     shape: 'hexagon',
-    speed: 0.0008,
+    speed: 0.0076,
     score: 30,
     maxHp: 15,
     label: 'TITAN',
@@ -610,7 +603,7 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(0,200,180,0.4)',
     size: 0.7,
     shape: 'circle',
-    speed: 0.0042,
+    speed: 0.0110,
     score: 10,
     maxHp: 2,
     label: 'SPEEDER',
@@ -1180,6 +1173,9 @@ class SnakeRogue {
     this.particles = [];
     this.lastMoveTime = 0;
     this.flashTimer = 0;
+    this._paused = false;
+    this._pausedAt = 0;
+    this._totalPausedMs = 0;
 
     this.online         = null;  // WebSocket connection
     this.onlineRole     = null;  // 0 = P1 (green), 1 = P2 (orange)
@@ -1305,6 +1301,10 @@ class SnakeRogue {
       if (this.phase === 'start' && e.key === 'Enter') this._startGame();
       if (this.phase === 'gameover' && e.key === 'Enter') this._startGame();
       if (this.phase === 'gameover' && e.key === 'r') this._startGame();
+      // ESC: toggle pause menu in solo mode only (not online)
+      if (e.key === 'Escape' && !this.online && (this.phase === 'playing' || this._paused)) {
+        if (this._paused) this._resumeGame(); else this._openPauseMenu();
+      }
     });
 
     document.addEventListener('keyup', e => {
@@ -1445,6 +1445,14 @@ class SnakeRogue {
       mobileTeleportBtn.addEventListener('touchstart', sendTeleport, { passive: false });
       mobileTeleportBtn.addEventListener('click', sendTeleport);
     }
+
+    // ── Pause button ──────────────────────────────
+    const pauseBtn = document.getElementById('pause-btn');
+    if (pauseBtn) {
+      pauseBtn.addEventListener('click', () => {
+        if (this._paused) this._resumeGame(); else this._openPauseMenu();
+      });
+    }
   }
 
   _angle4Dir(angle) {
@@ -1530,6 +1538,9 @@ class SnakeRogue {
     this._lastFrameTime = 0;
     this._lastUpdateTimestamp = 0;
     this._inputReceived = false;
+    this._paused = false;
+    this._pausedAt = 0;
+    this._totalPausedMs = 0;
     document.getElementById('app').classList.remove('nightmare-mode');
     this._resizeCanvas(false);
 
@@ -1590,6 +1601,9 @@ class SnakeRogue {
     this._hideOverlay();
     this._hideUpgradePanel();
     this._updateHUD();
+    // Show pause button for solo mode
+    const pauseBtn = document.getElementById('pause-btn');
+    if (pauseBtn) pauseBtn.style.display = '';
     this._connectSpSession();
   }
 
@@ -1639,6 +1653,7 @@ class SnakeRogue {
 
   _update(timestamp) {
     if (this.phase !== 'playing') return;
+    if (this._paused) { this._lastFrameTime = timestamp; return; }
     const state = this.state;
 
     // Delta time (capped to avoid big jumps after tab switch)
@@ -1649,7 +1664,7 @@ class SnakeRogue {
     this._lastUpdateTimestamp = timestamp;
     this.tick++;
 
-    const elapsedMs = timestamp - this.gameStartTime;
+    const elapsedMs = timestamp - this.gameStartTime - this._totalPausedMs;
 
     // ── Steer snake toward mouse / joystick / WASD ──────
     let targetAngle = state.targetAngle;
@@ -2104,19 +2119,31 @@ class SnakeRogue {
     document.getElementById('hud-lbl-timer').textContent = 'TIME';
     document.getElementById('hud-timer').textContent     = `${mins}:${String(secs % 60).padStart(2, '0')}`;
 
+    // Perk progress bar
+    const perkBar = document.getElementById('hud-perk-bar');
+    if (!s.nightmareMode && s.applesForNextUpgrade >= 1) {
+      const progress = s.applesEatenSinceUpgrade / s.applesForNextUpgrade;
+      const pct = Math.min(100, Math.round(progress * 100));
+      // Build the bar DOM once; afterwards just update the fill width
+      if (!perkBar.querySelector('#hud-perk-bar-track')) {
+        perkBar.innerHTML = '<span class="label">PERK</span><span id="hud-perk-bar-track"><span id="hud-perk-bar-fill"></span></span>';
+      }
+      perkBar.style.display = 'inline-flex';
+      const fill = document.getElementById('hud-perk-bar-fill');
+      if (fill) fill.style.width = pct + '%';
+    } else {
+      perkBar.style.display = 'none';
+      perkBar.innerHTML = '';
+    }
+
     // Build upgrade summary
     const parts = [];
     if (s.nightmareMode) {
       parts.push('☠ NIGHTMARE');
     } else {
-      if (s.applesForNextUpgrade > 1) {
-        const needed = s.applesForNextUpgrade - s.applesEatenSinceUpgrade;
-        parts.push(`${APPLE_SPRITE_TAG}×${needed}→perk`);
-      }
       if (s.ghost) parts.push('👻');
       if (s.shields) parts.push(`🛡️×${s.shields}`);
       if (s.freeze) parts.push(`❄️×${s.freeze}`);
-      if (s.repel) parts.push(`💥×${s.repel}`);
       if (s.pulse) parts.push(`💫×${s.pulse}`);
       if (s.oracle) parts.push('🔮');
       if (s.upgradeCount && s.upgradeCount['behemoth']) parts.push('🐉');
@@ -2360,6 +2387,11 @@ class SnakeRogue {
     const el = document.getElementById('overlay');
     el.className = type;
     el.style.display = '';
+    // Hide pause button when game ends
+    const pauseBtn = document.getElementById('pause-btn');
+    if (pauseBtn) pauseBtn.style.display = 'none';
+    const pauseMenu = document.getElementById('pause-menu');
+    if (pauseMenu) pauseMenu.style.display = 'none';
 
     if (type === 'gameover') {
       const s = this.state;
@@ -2413,6 +2445,14 @@ class SnakeRogue {
     document.getElementById('hud-timer').textContent      = '';
     document.getElementById('hud-lbl-apples').textContent = '';
     document.getElementById('hud-lbl-timer').textContent  = '';
+    const perkBar = document.getElementById('hud-perk-bar');
+    if (perkBar) { perkBar.style.display = 'none'; perkBar.innerHTML = ''; }
+    // Hide pause button on main menu
+    const pauseBtn = document.getElementById('pause-btn');
+    if (pauseBtn) pauseBtn.style.display = 'none';
+    const pauseMenu = document.getElementById('pause-menu');
+    if (pauseMenu) pauseMenu.style.display = 'none';
+    this._paused = false;
 
     const el = document.getElementById('overlay');
     el.className = 'start';
@@ -2486,7 +2526,48 @@ class SnakeRogue {
     try { localStorage.setItem('controlMode', this._controlMode); } catch(_) {}
   }
 
-  _openSettings() {
+  _openPauseMenu() {
+    if (this.phase !== 'playing' || this.online) return;
+    this._paused = true;
+    this._pausedAt = performance.now();
+    const pauseMenu = document.getElementById('pause-menu');
+    if (!pauseMenu) return;
+    pauseMenu.innerHTML = `
+      <div style="font-size:22px;color:#7ef;letter-spacing:4px;text-transform:uppercase;text-shadow:0 0 12px #4af;">⏸ PAUSED</div>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:center;">
+        <button class="btn" id="pm-resume-btn">▶ RESUME [ESC]</button>
+        <button class="btn btn-settings" id="pm-settings-btn">⚙ SETTINGS</button>
+        <button class="btn btn-back" id="pm-menu-btn">← MAIN MENU</button>
+      </div>
+    `;
+    pauseMenu.style.display = 'flex';
+    document.getElementById('pm-resume-btn').addEventListener('click', () => this._resumeGame());
+    document.getElementById('pm-settings-btn').addEventListener('click', () => {
+      pauseMenu.style.display = 'none';
+      this._openSettings(() => {
+        pauseMenu.style.display = 'flex';
+      });
+    });
+    document.getElementById('pm-menu-btn').addEventListener('click', () => {
+      this._resumeGame();
+      this.state = null;
+      this.phase = 'start';
+      this._renderOverlay();
+    });
+  }
+
+  _resumeGame() {
+    if (!this._paused) return;
+    const pausedDuration = performance.now() - this._pausedAt;
+    this._totalPausedMs += pausedDuration;
+    this._paused = false;
+    this._pausedAt = 0;
+    this._lastFrameTime = 0; // reset so dt doesn't spike
+    const pauseMenu = document.getElementById('pause-menu');
+    if (pauseMenu) pauseMenu.style.display = 'none';
+  }
+
+  _openSettings(onClose) {
     // Remove any existing settings overlay
     const existing = document.getElementById('settings-overlay');
     if (existing) existing.remove();
@@ -2561,14 +2642,14 @@ class SnakeRogue {
 
     document.getElementById('settings-close-btn').addEventListener('click', () => {
       overlay.remove();
-      this._renderOverlay();
+      if (onClose) onClose(); else this._renderOverlay();
     });
 
     // Close on backdrop click
     overlay.addEventListener('click', e => {
       if (e.target === overlay) {
         overlay.remove();
-        this._renderOverlay();
+        if (onClose) onClose(); else this._renderOverlay();
       }
     });
   }
