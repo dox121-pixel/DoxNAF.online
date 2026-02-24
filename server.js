@@ -34,6 +34,9 @@ function hashPassword(pw) {
   return crypto.createHash('sha256').update(String(pw)).digest('hex');
 }
 
+// Pre-computed default password hash (used when DB is unavailable)
+const DEFAULT_ADMIN_HASH = hashPassword('GMMKVIPER');
+
 function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
@@ -75,7 +78,7 @@ async function initDb() {
     `INSERT INTO admin_settings (key, value)
      VALUES ('password_hash', $1)
      ON CONFLICT (key) DO NOTHING`,
-    [hashPassword('GMMKVIPER')]
+    [DEFAULT_ADMIN_HASH]
   );
 }
 
@@ -222,8 +225,7 @@ const httpServer = http.createServer((req, res) => {
         getAdminPasswordHash().then(storedHash => {
           if (!storedHash) {
             // DB not available; compare directly against in-memory default
-            const fallback = hashPassword('GMMKVIPER');
-            if (hashPassword(String(password || '')) !== fallback) {
+            if (hashPassword(String(password || '')) !== DEFAULT_ADMIN_HASH) {
               res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
               res.end(JSON.stringify({ ok: false }));
               return;
@@ -239,7 +241,16 @@ const httpServer = http.createServer((req, res) => {
           res.end(JSON.stringify({ ok: true, token }));
         }).catch(err => {
           console.error('Admin login DB error:', err.message);
-          res.writeHead(500); res.end('Internal Server Error');
+          // DB unavailable — fall back to in-memory default hash
+          if (hashPassword(String(password || '')) !== DEFAULT_ADMIN_HASH) {
+            res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
+            res.end(JSON.stringify({ ok: false }));
+            return;
+          }
+          const token = generateToken();
+          adminSessions.set(token, Date.now() + ADMIN_SESSION_TTL_MS);
+          res.writeHead(200, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: true, token }));
         });
       } catch (_) {
         res.writeHead(400); res.end('Bad Request');
