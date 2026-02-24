@@ -39,7 +39,15 @@ function addLeaderboardEntry(name, score, applesEaten) {
   const safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').trim() || 'Anonymous';
   const safeScore  = Math.max(0, Math.min(1e7, Math.floor(Number(score) || 0)));
   const safeApples = Math.max(0, Math.min(1e6, Math.floor(Number(applesEaten) || 0)));
-  leaderboard.push({ name: safeName, score: safeScore, applesEaten: safeApples, date: new Date().toISOString() });
+  const existing = leaderboard.find(e => e.name === safeName);
+  if (existing) {
+    if (safeScore <= existing.score) return; // keep the better score
+    existing.score = safeScore;
+    existing.applesEaten = safeApples;
+    existing.date = new Date().toISOString();
+  } else {
+    leaderboard.push({ name: safeName, score: safeScore, applesEaten: safeApples, date: new Date().toISOString() });
+  }
   leaderboard.sort((a, b) => b.score - a.score);
   leaderboard = leaderboard.slice(0, MAX_LEADERBOARD_ENTRIES);
   saveLeaderboard();
@@ -51,7 +59,7 @@ loadLeaderboard();
 const SEG_SPACING   = 0.45;
 const SNAKE_RADIUS  = 0.28;
 const SELF_HIT_SKIP = 8;
-const APPLE_EAT_DIST = 0.55;
+const APPLE_EAT_DIST = 0.70;
 const PERK_PICK_DIST = 0.55;
 const MAX_TURN_SPD  = 4.5;   // radians per second
 const BASE_INTERVAL = 140;   // ms per grid-cell (speed baseline)
