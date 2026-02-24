@@ -751,6 +751,16 @@ const WS_SERVER = (() => {
   return 'wss://doxnaf-online.onrender.com';
 })();
 
+const API_SERVER = (() => {
+  if (typeof location === 'undefined' || location.protocol === 'file:') {
+    return 'https://doxnaf-online.onrender.com';
+  }
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    return '';
+  }
+  return 'https://doxnaf-online.onrender.com';
+})();
+
 function drawOnlineSnake(ctx, body, playerIdx, prevBody, t, grid = GRID) {
   if (body.length < 2) return;
 
@@ -1947,7 +1957,7 @@ class SnakeRogue {
   _submitScore(score, applesEaten) {
     if (score <= 0) return;
     const name = this._playerName || 'Anonymous';
-    fetch('/api/leaderboard', {
+    fetch(`${API_SERVER}/api/leaderboard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, score, applesEaten }),
@@ -1955,7 +1965,7 @@ class SnakeRogue {
   }
 
   _loadLeaderboard(targetId) {
-    fetch('/api/leaderboard')
+    fetch(`${API_SERVER}/api/leaderboard`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
         const el = document.getElementById(targetId);
