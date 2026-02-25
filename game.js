@@ -1637,7 +1637,7 @@ class SnakeRogue {
   }
 
   _startGame() {
-    if (this._siteDown && !this._adminToken) { this._showMaintenanceScreen(this._siteDownSince); return; }
+    if (this._siteDown && !this._adminToken && !this._authToken) { this._showMaintenanceScreen(this._siteDownSince); return; }
     this.particles = [];
     this.tick = 0;
     this.lastMoveTime = 0;
@@ -3294,7 +3294,7 @@ class SnakeRogue {
 
   // ── Online mode ──────────────────────────────
   _startOnlineMode() {
-    if (this._siteDown && !this._adminToken) { this._showMaintenanceScreen(this._siteDownSince); return; }
+    if (this._siteDown && !this._adminToken && !this._authToken) { this._showMaintenanceScreen(this._siteDownSince); return; }
     // Online mode uses its own fixed canvas dimensions; remove full-screen layout
     this.canvas.width  = ONLINE_COLS * ONLINE_GRID;
     this.canvas.height = ONLINE_ROWS * ONLINE_GRID;
@@ -3518,11 +3518,13 @@ class SnakeRogue {
         if (!this._adminToken) {
           this._siteDown = true;
           this._siteDownSince = msg.downSince || null;
-          if (this.phase === 'online_playing' && !this._siteGoingDown) {
-            this._siteGoingDown = true;
-            this._showShutdownWarning();
-          } else if (this.phase !== 'online_playing') {
-            this._showMaintenanceScreen(this._siteDownSince);
+          if (!this._authToken) {
+            if (this.phase === 'online_playing' && !this._siteGoingDown) {
+              this._siteGoingDown = true;
+              this._showShutdownWarning();
+            } else if (this.phase !== 'online_playing') {
+              this._showMaintenanceScreen(this._siteDownSince);
+            }
           }
         }
         break;
@@ -3684,12 +3686,14 @@ class SnakeRogue {
     if (msg.type === 'site_going_down' && !this._adminToken) {
       this._siteDown = true;
       this._siteDownSince = msg.downSince || null;
-      const isPlaying = this.phase === 'playing' || this.phase === 'upgrade';
-      if (isPlaying && !this._siteGoingDown) {
-        this._siteGoingDown = true;
-        this._showShutdownWarning();
-      } else if (!isPlaying) {
-        this._showMaintenanceScreen(this._siteDownSince);
+      if (!this._authToken) {
+        const isPlaying = this.phase === 'playing' || this.phase === 'upgrade';
+        if (isPlaying && !this._siteGoingDown) {
+          this._siteGoingDown = true;
+          this._showShutdownWarning();
+        } else if (!isPlaying) {
+          this._showMaintenanceScreen(this._siteDownSince);
+        }
       }
       return;
     }
@@ -4063,6 +4067,13 @@ class SnakeRogue {
     this._playerName      = username;
     try { localStorage.setItem('authToken', token); } catch(_) {}
     this._closeAuthModal();
+    // If site is down, authenticated users may now play — hide the maintenance screen
+    const overlay = document.getElementById('site-down-overlay');
+    if (this._siteDown && overlay && overlay.style.display !== 'none') {
+      overlay.style.display = 'none';
+      if (this._siteDownTimer) { clearInterval(this._siteDownTimer); this._siteDownTimer = null; }
+      if (this._sleepSnakeRaf) { cancelAnimationFrame(this._sleepSnakeRaf); this._sleepSnakeRaf = null; }
+    }
     if (this.phase === 'start') this._renderOverlay();
   }
 
@@ -4078,6 +4089,11 @@ class SnakeRogue {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),
       }).catch(() => {});
+    }
+    // If site is down, logged-out users must see the maintenance screen
+    if (this._siteDown && !this._adminToken) {
+      this._showMaintenanceScreen(this._siteDownSince);
+      return;
     }
     if (this.phase === 'start') this._renderOverlay();
   }
@@ -4624,7 +4640,7 @@ class SnakeRogue {
       .then(r => r.ok ? r.json() : { down: false })
       .then(data => {
         this._siteDown = !!data.down;
-        if (this._siteDown && !this._adminToken) {
+        if (this._siteDown && !this._adminToken && !this._authToken) {
           const isPlaying = this.phase === 'playing' || this.phase === 'online_playing' || this.phase === 'upgrade';
           if (isPlaying && !this._siteGoingDown) {
             this._siteGoingDown = true;
@@ -4667,6 +4683,19 @@ class SnakeRogue {
     };
     updateTimer();
     this._siteDownTimer = setInterval(updateTimer, 1000);
+
+    // Show "Sign In to Play" button for anonymous users
+    const box = document.getElementById('site-down-box');
+    const existingSignIn = document.getElementById('site-down-signin-btn');
+    if (box && !existingSignIn && !this._authToken) {
+      const btn = document.createElement('button');
+      btn.id = 'site-down-signin-btn';
+      btn.className = 'btn btn-online';
+      btn.style.marginTop = '14px';
+      btn.textContent = '👤 Sign In to Play';
+      btn.addEventListener('click', () => this._openAuthModal('login'));
+      box.appendChild(btn);
+    }
 
     // Draw the sleeping snake canvas
     this._startSleepingSnakeAnimation();
@@ -4751,6 +4780,9 @@ class SnakeRogue {
     if (this._sleepSnakeRaf) { cancelAnimationFrame(this._sleepSnakeRaf); this._sleepSnakeRaf = null; }
     const overlay = document.getElementById('site-down-overlay');
     if (overlay) overlay.style.display = 'none';
+    // Remove the "Sign In to Play" button if present
+    const signinBtn = document.getElementById('site-down-signin-btn');
+    if (signinBtn) signinBtn.remove();
     this._hideShutdownWarning();
     this._updateSiteToggleBtn();
     this._showGreetingIfNeeded();
