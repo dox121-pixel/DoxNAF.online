@@ -2461,6 +2461,7 @@ class SnakeRogue {
     this._paused = false;
 
     const el = document.getElementById('overlay');
+    el.style.display = '';
     el.className = 'start';
     const nightmareUnlocked = isNightmareUnlocked();
     const ctrlLabel = this._controlMode === 'wasd' ? '⌨ WASD' : '🖱 MOUSE';
