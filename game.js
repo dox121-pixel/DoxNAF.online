@@ -1972,6 +1972,8 @@ class SnakeRogue {
 
     // ── Enemy movement (per-frame with dt) ────────
     for (const e of state.enemies) {
+      e._prevX = e.x; // save previous position for swept collision detection
+      e._prevY = e.y;
       ENEMY_TYPES[e.type].update(e, state, dt);
     }
 
@@ -2003,14 +2005,34 @@ class SnakeRogue {
       let bodyHit = false;
       let closestBodySeg = null, closestBodyDx = 0, closestBodyDy = 0, closestBodyD2 = Infinity;
       const bodyR = ENEMY_TYPES[e.type].size * 0.40 + SNAKE_RADIUS;
+      // Swept collision: use previous position to detect fast enemies that tunnel through the body
+      const prevX = e._prevX !== undefined ? e._prevX : e.x;
+      const prevY = e._prevY !== undefined ? e._prevY : e.y;
+      const movX = e.x - prevX, movY = e.y - prevY;
+      const movLen2 = movX * movX + movY * movY;
       for (let si = 1; si < state.snake.length; si++) {
         const s = state.snake[si];
         const bx = e.x - s.x, by = e.y - s.y;
         const d2 = bx * bx + by * by;
-        if (d2 < bodyR * bodyR && d2 < closestBodyD2) {
-          bodyHit = true;
-          closestBodySeg = s;
-          closestBodyDx = bx; closestBodyDy = by; closestBodyD2 = d2;
+        if (d2 < bodyR * bodyR) {
+          if (d2 < closestBodyD2) {
+            bodyHit = true;
+            closestBodySeg = s;
+            closestBodyDx = bx; closestBodyDy = by; closestBodyD2 = d2;
+          }
+        } else if (movLen2 > 0) {
+          // Check if the enemy swept through this segment during this frame
+          const t = Math.max(0, Math.min(1, ((s.x - prevX) * movX + (s.y - prevY) * movY) / movLen2));
+          const cx = prevX + movX * t - s.x;
+          const cy = prevY + movY * t - s.y;
+          const sd2 = cx * cx + cy * cy;
+          if (sd2 < bodyR * bodyR && sd2 < closestBodyD2) {
+            bodyHit = true;
+            closestBodySeg = s;
+            // Push direction: away from body segment at the closest approach point
+            closestBodyDx = cx || (e.x - s.x); closestBodyDy = cy || (e.y - s.y);
+            closestBodyD2 = sd2 || 0.0001;
+          }
         }
       }
 
