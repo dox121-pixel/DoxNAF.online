@@ -4478,7 +4478,7 @@ class SnakeRogue {
   // ── Greeting screen ───────────────────────────
   _showGreetingIfNeeded() {
     let shown;
-    try { shown = localStorage.getItem('greetingShown'); } catch(_) {}
+    try { shown = localStorage.getItem('greetingShown_v2'); } catch(_) {}
     if (shown) return;
     const modal = document.getElementById('greeting-modal');
     if (!modal) return;
@@ -4487,7 +4487,7 @@ class SnakeRogue {
     if (enterBtn) {
       enterBtn.addEventListener('click', () => {
         modal.style.display = 'none';
-        try { localStorage.setItem('greetingShown', '1'); } catch(_) {}
+        try { localStorage.setItem('greetingShown_v2', '1'); } catch(_) {}
       }, { once: true });
     }
     const tosBtn = document.getElementById('greeting-tos-btn');
@@ -4498,7 +4498,7 @@ class SnakeRogue {
     modal.addEventListener('click', e => {
       if (e.target === modal) {
         modal.style.display = 'none';
-        try { localStorage.setItem('greetingShown', '1'); } catch(_) {}
+        try { localStorage.setItem('greetingShown_v2', '1'); } catch(_) {}
       }
     });
   }
