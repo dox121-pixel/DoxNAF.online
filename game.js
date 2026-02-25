@@ -1850,7 +1850,7 @@ class SnakeRogue {
     // ── Enemy spawning (time-based target count) ──────────────
     state.enemySpawnTimer += dt;
     const targetCount = getTargetEnemyCount(elapsedMs, state.nightmareMode);
-    const spawnInterval = state.nightmareMode ? 800 : (elapsedMs >= 90000 ? 400 : 500);
+    const spawnInterval = state.nightmareMode ? 800 : (elapsedMs >= 90000 ? 400 : (elapsedMs < 30000 ? 800 : 500));
     if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 10000) {
       state.enemySpawnTimer = 0;
       spawnEnemy(state, elapsedMs);
