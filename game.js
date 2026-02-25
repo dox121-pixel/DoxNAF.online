@@ -4449,6 +4449,7 @@ class SnakeRogue {
   }
 
   _adminAction(action) {
+    if (!this._adminToken) return;
     // Apply debug actions to the current game state (solo or online)
     const s = this.state;
     switch (action) {
@@ -4507,6 +4508,7 @@ class SnakeRogue {
   }
 
   _adminSetTime() {
+    if (!this._adminToken) return;
     const input = document.getElementById('adm-time-input');
     if (!input) return;
     const val = input.value.trim();
