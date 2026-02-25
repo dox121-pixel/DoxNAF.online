@@ -3588,13 +3588,16 @@ class SnakeRogue {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
     })
-      .then(r => r.json())
-      .then(data => {
+      .then(r => r.json().then(data => ({ status: r.status, data })))
+      .then(({ status, data }) => {
         if (data.ok && data.token) {
           this._adminMode  = true;
           this._adminToken = data.token;
           this._closeAdminModal();
           this._openAdminPanel();
+        } else if (status === 429) {
+          if (errEl) errEl.textContent = data.message || 'Too many attempts. Try again later.';
+          if (pwInput) pwInput.value = '';
         } else {
           if (errEl) errEl.textContent = 'Incorrect password.';
           if (pwInput) pwInput.value = '';
