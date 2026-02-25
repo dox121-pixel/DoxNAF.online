@@ -1227,8 +1227,7 @@ class SnakeRogue {
     // ── Settings ──────────────────────────────
     try { this._controlMode = localStorage.getItem('controlMode') || 'mouse'; }
     catch(_) { this._controlMode = 'mouse'; }
-    try { this._playerName = localStorage.getItem('playerName') || ''; }
-    catch(_) { this._playerName = ''; }
+    this._playerName = ''; // name comes from account; Anonymous if not logged in
     try { this._guiScale = parseFloat(localStorage.getItem('guiScale')) || 1.0; }
     catch(_) { this._guiScale = 1.0; }
     try { this._fpsCap = parseInt(localStorage.getItem('fpsCap'), 10) || 0; }
@@ -1245,6 +1244,12 @@ class SnakeRogue {
     this._adminPanelOpen = false;
     this._setupAdmin();
     this._setupFeedback();
+
+    // ── User account state ────────────────────
+    this._authToken       = null;
+    this._accountUsername = null;
+    this._authCurrentTab  = 'login';
+    this._setupAuth();
 
     // ── Singleplayer session (admin observability) ──
     this._spWs        = null;
@@ -2702,8 +2707,17 @@ class SnakeRogue {
     el.style.display = '';
     el.className = 'start';
     const nightmareUnlocked = isNightmareUnlocked();
-    const ctrlLabel = this._controlMode === 'wasd' ? '⌨ WASD' : '🖱 MOUSE';
-    const safeName = escapeHtml(this._playerName || '');
+    const accountSection = this._accountUsername
+      ? `<div class="account-section">
+           <div class="account-logged-in">
+             👤 ${escapeHtml(this._accountUsername)}
+             <button class="btn btn-back" id="account-logout-btn" style="font-size:10px;padding:2px 10px;margin-top:0;">Logout</button>
+           </div>
+         </div>`
+      : `<div class="account-section">
+           <button class="btn btn-online" id="account-login-btn" style="font-size:12px;padding:6px 20px;margin-top:0;">👤 Login / Create Account</button>
+           <div style="font-size:10px;color:#456;margin-top:2px;">No account? You'll play as Anonymous</div>
+         </div>`;
     el.innerHTML = `
       <h1>VIPER.exe</h1>
       <div class="info">
@@ -2711,13 +2725,7 @@ class SnakeRogue {
         Eat apples → choose upgrades → survive<br>
         Enemies grow stronger over time
       </div>
-      <div class="name-chooser">
-        <label for="player-name-input" style="font-size:12px;color:#aaa;letter-spacing:1px;">YOUR NAME</label><br>
-        <input id="player-name-input" class="room-input" maxlength="20"
-               placeholder="Anonymous" autocomplete="off" spellcheck="false"
-               value="${safeName}" style="width:160px;margin-top:4px;" />
-        <div id="name-warn" style="font-size:10px;color:#f55;min-height:14px;margin-top:2px;"></div>
-      </div>
+      ${accountSection}
       <div class="controls">
         ${this._controlMode === 'wasd' ? 'WASD/Arrows to steer · Mouse to aim · LMB to shoot' : 'Mouse to steer · LMB to shoot'}<br>
         Mobile: joystick to move · gun joystick to shoot
@@ -2738,21 +2746,10 @@ class SnakeRogue {
         <div id="nm-leaderboard-list" style="font-size:11px;color:#888;margin-top:4px;">Loading…</div>
       </div>` : ''}
     `;
-    const nameInput = document.getElementById('player-name-input');
-    const nameWarn  = document.getElementById('name-warn');
-    nameInput.addEventListener('input', () => {
-      const val = nameInput.value.trim();
-      if (nameContainsBannedWord(val)) {
-        nameWarn.textContent = 'Name not allowed.';
-        // Don't save a banned name; leave the stored name unchanged
-      } else {
-        nameWarn.textContent = '';
-        this._playerName = val;
-        try { localStorage.setItem('playerName', this._playerName); } catch(_) {}
-      }
-    });
-    // Prevent Enter on name field from starting the game
-    nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') e.stopPropagation(); });
+    const loginBtn = document.getElementById('account-login-btn');
+    if (loginBtn) loginBtn.addEventListener('click', () => this._openAuthModal('login'));
+    const logoutBtn = document.getElementById('account-logout-btn');
+    if (logoutBtn) logoutBtn.addEventListener('click', () => this._logoutAccount());
     document.getElementById('start-btn').addEventListener('click', () => this._startGame());
     document.getElementById('online-btn').addEventListener('click', () => this._startOnlineMode());
     document.getElementById('settings-btn').addEventListener('click', () => this._openSettings());
@@ -3689,6 +3686,165 @@ class SnakeRogue {
     if (modal) {
       modal.addEventListener('click', e => { if (e.target === modal) this._closeFeedbackModal(); });
     }
+  }
+
+  // ── User account / auth ───────────────────────
+  _setupAuth() {
+    const modal = document.getElementById('auth-modal');
+    if (!modal) return;
+
+    // Tab switching
+    const tabLogin    = document.getElementById('auth-tab-login');
+    const tabRegister = document.getElementById('auth-tab-register');
+    if (tabLogin)    tabLogin.addEventListener('click',    () => this._switchAuthTab('login'));
+    if (tabRegister) tabRegister.addEventListener('click', () => this._switchAuthTab('register'));
+
+    // Cancel / backdrop
+    const cancelBtn = document.getElementById('auth-cancel-btn');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => this._closeAuthModal());
+    modal.addEventListener('click', e => { if (e.target === modal) this._closeAuthModal(); });
+
+    // Submit
+    const submitBtn = document.getElementById('auth-submit-btn');
+    if (submitBtn) submitBtn.addEventListener('click', () => this._submitAuth());
+
+    // Enter key on inputs
+    for (const id of ['auth-username-input', 'auth-password-input']) {
+      const inp = document.getElementById(id);
+      if (inp) inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') this._submitAuth();
+        if (e.key === 'Escape') this._closeAuthModal();
+      });
+    }
+
+    // Verify stored token on startup (async — updates overlay if on start screen)
+    this._verifyStoredToken();
+  }
+
+  _verifyStoredToken() {
+    let token;
+    try { token = localStorage.getItem('authToken'); } catch(_) {}
+    if (!token) return;
+    fetch(`${API_SERVER}/api/auth/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        if (data.ok && data.username) {
+          this._authToken       = token;
+          this._accountUsername = data.username;
+          this._playerName      = data.username;
+          if (this.phase === 'start') this._renderOverlay();
+        }
+      })
+      .catch(() => {});
+  }
+
+  _openAuthModal(tab = 'login') {
+    const modal = document.getElementById('auth-modal');
+    if (!modal) return;
+    const uInput = document.getElementById('auth-username-input');
+    const pInput = document.getElementById('auth-password-input');
+    const errEl  = document.getElementById('auth-error');
+    if (uInput) uInput.value = '';
+    if (pInput) pInput.value = '';
+    if (errEl)  errEl.textContent = '';
+    this._switchAuthTab(tab);
+    modal.style.display = 'flex';
+    if (uInput) setTimeout(() => uInput.focus(), 50);
+  }
+
+  _closeAuthModal() {
+    const modal = document.getElementById('auth-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  _switchAuthTab(tab) {
+    const tabLogin    = document.getElementById('auth-tab-login');
+    const tabRegister = document.getElementById('auth-tab-register');
+    const submitBtn   = document.getElementById('auth-submit-btn');
+    const noteEl      = document.getElementById('auth-register-note');
+    const errEl       = document.getElementById('auth-error');
+    if (errEl) errEl.textContent = '';
+    if (tab === 'register') {
+      if (tabLogin)    tabLogin.classList.remove('active');
+      if (tabRegister) tabRegister.classList.add('active');
+      if (submitBtn)   submitBtn.textContent = 'CREATE ACCOUNT';
+      if (noteEl)      noteEl.style.display = '';
+    } else {
+      if (tabLogin)    tabLogin.classList.add('active');
+      if (tabRegister) tabRegister.classList.remove('active');
+      if (submitBtn)   submitBtn.textContent = 'SIGN IN';
+      if (noteEl)      noteEl.style.display = 'none';
+    }
+    this._authCurrentTab = tab;
+  }
+
+  _submitAuth() {
+    const uInput    = document.getElementById('auth-username-input');
+    const pInput    = document.getElementById('auth-password-input');
+    const errEl     = document.getElementById('auth-error');
+    const submitBtn = document.getElementById('auth-submit-btn');
+    const username  = uInput ? uInput.value.trim() : '';
+    const password  = pInput ? pInput.value : '';
+    if (!username) { if (errEl) errEl.textContent = 'Enter a username.'; return; }
+    if (!password) { if (errEl) errEl.textContent = 'Enter a password.'; return; }
+    const isRegister = this._authCurrentTab === 'register';
+    const endpoint   = isRegister ? '/api/auth/register' : '/api/auth/login';
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '…'; }
+    fetch(`${API_SERVER}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+      .then(r => r.json().then(data => ({ status: r.status, data })))
+      .then(({ status, data }) => {
+        if (data.ok && data.token) {
+          this._onAuthSuccess(data.token, data.username);
+        } else if (status === 429) {
+          if (errEl) errEl.textContent = data.message || 'Too many attempts. Try again later.';
+        } else {
+          if (errEl) errEl.textContent = data.message || (isRegister ? 'Registration failed.' : 'Incorrect username or password.');
+        }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = isRegister ? 'CREATE ACCOUNT' : 'SIGN IN';
+        }
+      })
+      .catch(() => {
+        if (errEl) errEl.textContent = 'Server error. Try again.';
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = isRegister ? 'CREATE ACCOUNT' : 'SIGN IN';
+        }
+      });
+  }
+
+  _onAuthSuccess(token, username) {
+    this._authToken       = token;
+    this._accountUsername = username;
+    this._playerName      = username;
+    try { localStorage.setItem('authToken', token); } catch(_) {}
+    this._closeAuthModal();
+    if (this.phase === 'start') this._renderOverlay();
+  }
+
+  _logoutAccount() {
+    const token = this._authToken;
+    this._authToken       = null;
+    this._accountUsername = null;
+    this._playerName      = '';
+    try { localStorage.removeItem('authToken'); } catch(_) {}
+    if (token) {
+      fetch(`${API_SERVER}/api/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      }).catch(() => {});
+    }
+    if (this.phase === 'start') this._renderOverlay();
   }
 
   _closeAdminModal() {
