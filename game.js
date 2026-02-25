@@ -558,30 +558,41 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(17,85,220,0.4)',
     size: 1.1,
     shape: 'square',
-    speed: 0.0020,
+    speed: 0.0015,
     score: 8,
     maxHp: 4,
     label: 'PATROLLER',
     init(e) {
       e.angle = Math.random() * Math.PI * 2;
       e.turnTimer = 0;
-      e.chaseTimer = 0;
+      e.charging = false;
+      e.chargeShield = false;
     },
     update(e, state, dt) {
-      e.turnTimer = (e.turnTimer || 0) + dt;
-      e.chaseTimer = (e.chaseTimer || 0) + dt;
-      // Occasionally switch to chasing
-      if (e.chaseTimer > 4000) {
-        const head = state.snake[0];
-        e.angle = Math.atan2(head.y - e.y, head.x - e.x);
-        e.chaseTimer = 0;
-      } else if (e.turnTimer > 3000 + randInt(3000)) {
-        e.angle += (Math.random() - 0.5) * Math.PI * 1.5;
-        e.turnTimer = 0;
-      }
+      const head = state.snake[0];
+      const dx = head.x - e.x;
+      const dy = head.y - e.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
       const spd = e.speed * dt * (1 / (1 + (state.freeze || 0) * 0.25));
-      e.x += Math.cos(e.angle) * spd;
-      e.y += Math.sin(e.angle) * spd;
+      // Trigger charge when player gets close
+      if (!e.charging && dist < 8) {
+        e.charging = true;
+        e.chargeShield = true;
+      }
+      if (e.charging) {
+        const len = dist || 1;
+        e.x += (dx / len) * spd * 4;
+        e.y += (dy / len) * spd * 4;
+        e.angle = Math.atan2(dy, dx);
+      } else {
+        e.turnTimer = (e.turnTimer || 0) + dt;
+        if (e.turnTimer > 3000 + randInt(3000)) {
+          e.angle += (Math.random() - 0.5) * Math.PI * 1.5;
+          e.turnTimer = 0;
+        }
+        e.x += Math.cos(e.angle) * spd;
+        e.y += Math.sin(e.angle) * spd;
+      }
     }
   },
   phantom: {
@@ -589,7 +600,7 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(160,180,255,0.6)',
     size: 1.5,
     shape: 'ghost',
-    speed: 0.0073,
+    speed: 0.0055,
     score: 20,
     maxHp: 5,
     label: 'PHANTOM',
@@ -1022,6 +1033,18 @@ function drawEnemies(ctx, state, tick) {
       const hpFrac = Math.max(0, e.hp / maxHp);
       ctx.fillStyle = hpFrac > 0.5 ? '#4f4' : hpFrac > 0.25 ? '#ff4' : '#f44';
       ctx.fillRect(barX, barY, barW * hpFrac, barH);
+    }
+
+    // Charge shield visual (glowing ring around the enemy)
+    if (e.chargeShield) {
+      ctx.shadowBlur = _fxEnabled ? 20 : 0;
+      ctx.shadowColor = 'rgba(136,136,255,0.9)';
+      ctx.strokeStyle = `rgba(180,180,255,${0.7 + 0.3 * Math.sin(tick * 0.15 + e.id * 3)})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 1.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
     }
   }
   ctx.shadowBlur = 0;
@@ -2013,6 +2036,13 @@ class SnakeRogue {
           const hitR = ENEMY_TYPES[e.type].size * 0.45;
           const bex = e.x - b.x, bey = e.y - b.y;
           if (bex * bex + bey * bey < hitR * hitR) {
+            // Charge shield absorbs any single hit
+            if (e.chargeShield) {
+              e.chargeShield = false;
+              spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#88f', 12);
+              if (!state.bulletPiercing) { bulletRemoved = true; break; }
+              continue;
+            }
             const dmg = state.bulletDamage || 2;
             if (state.bulletExplosive) {
               // Explosion: damage enemies in radius
@@ -2075,6 +2105,16 @@ class SnakeRogue {
         }
       }
       if (headHit) {
+        // Charge shield absorbs the collision entirely — both enemy and player survive
+        if (e.chargeShield) {
+          e.chargeShield = false;
+          spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#88f', 16);
+          const pushLen = Math.sqrt(hdx * hdx + hdy * hdy) || 1;
+          e.x = nx + (hdx / pushLen) * (hitR + 0.5);
+          e.y = ny + (hdy / pushLen) * (hitR + 0.5);
+          this.flashTimer = 20;
+          continue;
+        }
         if (state.shields > 0) {
           state.shields--;
           spawnParticles(this.particles, Math.round(nx), Math.round(ny), '#4af', 16);
@@ -2134,6 +2174,12 @@ class SnakeRogue {
       }
 
       if (bodyHit) {
+        // Charge shield absorbs body hit
+        if (e.chargeShield) {
+          e.chargeShield = false;
+          spawnParticles(this.particles, Math.round(e.x), Math.round(e.y), '#88f', 12);
+          continue;
+        }
         const now2 = performance.now();
         if (!e.lastBodyHit || now2 - e.lastBodyHit >= 500) {
           e.lastBodyHit = now2;
