@@ -2295,7 +2295,7 @@ class SnakeRogue {
       osc2.frequency.exponentialRampToValueAtTime(430,  now + 2.6);
       osc2.frequency.exponentialRampToValueAtTime(2100, now + 3.0);
 
-      gain.gain.setValueAtTime(0.55, now);
+      gain.gain.setValueAtTime(0.25, now);
       gain.gain.exponentialRampToValueAtTime(0.01, now + 3.0);
 
       osc1.connect(gain);
@@ -2450,10 +2450,10 @@ class SnakeRogue {
     // ── Nightmare jumpscare phase ─────────────
     if (this.phase === 'nightmare_jumpscare') {
       const elapsed = timestamp - this.nightmareJumpscareStart;
-      const frame = Math.floor(elapsed / 80) % 2;
-      ctx.fillStyle = frame === 0 ? '#cc0000' : '#ffffff';
+      const frame = Math.floor(elapsed / 200) % 2;
+      ctx.fillStyle = frame === 0 ? '#660000' : '#1a0000';
       ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = frame === 0 ? '#ffffff' : '#cc0000';
+      ctx.fillStyle = frame === 0 ? '#ff6666' : '#cc0000';
       ctx.font = `bold ${Math.floor(80 + Math.sin(elapsed * 0.05) * 10)}px Courier New`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -2491,11 +2491,9 @@ class SnakeRogue {
         this._showLoreEndOverlay();
         return;
       }
-      if (Math.floor(elapsed / 50) % 2 === 0) {
-        ctx.globalCompositeOperation = 'difference';
-        ctx.fillStyle = '#ffffff';
+      if (Math.floor(elapsed / 200) % 2 === 0) {
+        ctx.fillStyle = 'rgba(255, 0, 0, 0.25)';
         ctx.fillRect(0, 0, W, H);
-        ctx.globalCompositeOperation = 'source-over';
       }
       return;
     }
