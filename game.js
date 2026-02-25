@@ -12,9 +12,11 @@ APPLE_IMG_YELLOW.src = 'sprites/APPLEY.png';
 const TELEPORT_PERK_IMG = new Image();
 TELEPORT_PERK_IMG.src = 'sprites/TELEPORTPERK.png';
 
-// ── Bat (chaser enemy) sprite ─────────────────
+// ── Bat (chaser enemy) sprites ────────────────
 const BAT_IMG = new Image();
 BAT_IMG.src = 'sprites/BAT.png';
+const BAT_FLAP_IMG = new Image();
+BAT_FLAP_IMG.src = 'sprites/BATFLAP.png';
 
 // ── Inline red apple img tag for HTML contexts ─
 const APPLE_SPRITE_TAG = '<img src="sprites/APPLER.png" style="width:14px;height:14px;vertical-align:middle;display:inline-block;">';
@@ -512,7 +514,7 @@ const ENEMY_TYPES = {
   chaser: {
     color: '#9933ff',
     glowColor: 'rgba(153,51,255,0.4)',
-    size: 1.2,
+    size: 1.8,
     shape: 'bat',
     speed: 0.0070,
     score: 5,
@@ -900,13 +902,15 @@ function drawEnemies(ctx, state, tick) {
     ctx.fillStyle = type.color;
 
     if (type.shape === 'bat') {
-      if (BAT_IMG.complete && BAT_IMG.naturalWidth > 0) {
+      const batFrame = Math.floor(tick / 15) % 2 === 0 ? BAT_IMG : BAT_FLAP_IMG;
+      const batImgReady = batFrame.complete && batFrame.naturalWidth > 0;
+      if (batImgReady) {
         ctx.save();
         ctx.translate(cx, cy);
-        const bSize = r * 6.5;
+        const bSize = GRID * 1.2 * 0.45 * 6.5;
         ctx.shadowBlur = 16;
         ctx.shadowColor = type.glowColor;
-        ctx.drawImage(BAT_IMG, -bSize / 2, -bSize / 2, bSize, bSize);
+        ctx.drawImage(batFrame, -bSize / 2, -bSize / 2, bSize, bSize);
         ctx.restore();
         // Health bar
         const maxHp2 = e.maxHp || 1;
