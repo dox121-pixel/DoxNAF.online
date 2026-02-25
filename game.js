@@ -1035,8 +1035,12 @@ function drawBullets(ctx, bullets, grid = GRID) {
   }
 }
 
+let _particleQualityMult = 1.0; // controlled by graphics settings
+
 function spawnParticles(particles, x, y, color, count, grid = GRID) {
-  for (let i = 0; i < count; i++) {
+  const n = Math.round(count * _particleQualityMult);
+  if (n <= 0) return;
+  for (let i = 0; i < n; i++) {
     particles.push({
       x: x * grid + grid / 2 + (Math.random() - 0.5) * grid,
       y: y * grid + grid / 2 + (Math.random() - 0.5) * grid,
@@ -1226,6 +1230,11 @@ class SnakeRogue {
     catch(_) { this._playerName = ''; }
     try { this._guiScale = parseFloat(localStorage.getItem('guiScale')) || 1.0; }
     catch(_) { this._guiScale = 1.0; }
+    try { this._fpsCap = parseInt(localStorage.getItem('fpsCap'), 10) || 0; }
+    catch(_) { this._fpsCap = 0; }
+    try { this._particleQuality = localStorage.getItem('particleQuality') || 'full'; }
+    catch(_) { this._particleQuality = 'full'; }
+    this._applyParticleQuality();
 
     // ── Admin state ──────────────────────────
     this._adminMode  = false;
@@ -1294,6 +1303,11 @@ class SnakeRogue {
       const el = document.getElementById(id);
       if (el) el.style.zoom = scale;
     }
+  }
+
+  _applyParticleQuality() {
+    const q = this._particleQuality || 'full';
+    _particleQualityMult = q === 'off' ? 0 : q === 'reduced' ? 0.4 : 1.0;
   }
 
   _setupInput() {
@@ -1993,10 +2007,22 @@ class SnakeRogue {
     for (let i = state.enemies.length - 1; i >= 0; i--) {
       const e = state.enemies[i];
 
-      // Head collision — head instantly kills enemy
+      // Head collision — head instantly kills enemy (swept for low-FPS safety)
       const hitR = ENEMY_TYPES[e.type].size * 0.45 + SNAKE_RADIUS;
       const hdx = e.x - nx, hdy = e.y - ny;
-      if (hdx * hdx + hdy * hdy < hitR * hitR) {
+      let headHit = (hdx * hdx + hdy * hdy < hitR * hitR);
+      if (!headHit && e._prevX !== undefined) {
+        const movX = e.x - e._prevX, movY = e.y - e._prevY;
+        const movLen2 = movX * movX + movY * movY;
+        if (movLen2 > 0) {
+          const phX = nx - e._prevX, phY = ny - e._prevY;
+          const t = Math.max(0, Math.min(1, (phX * movX + phY * movY) / movLen2));
+          const cx = e._prevX + movX * t - nx;
+          const cy = e._prevY + movY * t - ny;
+          if (cx * cx + cy * cy < hitR * hitR) headHit = true;
+        }
+      }
+      if (headHit) {
         if (state.shields > 0) {
           state.shields--;
           spawnParticles(this.particles, Math.round(nx), Math.round(ny), '#4af', 16);
@@ -2339,7 +2365,12 @@ class SnakeRogue {
       return;
     }
 
-    if (!state) return;
+    // ── Main menu / gameover background grid ──────
+    if (!state) {
+      // Draw a subtle grid so GUI scale changes are visually apparent
+      drawGrid(ctx, VIEW_COLS / 2, VIEW_ROWS / 2);
+      return;
+    }
 
     // Camera transform: center view on snake head
     const camX = state.snake[0].x;
@@ -2471,6 +2502,15 @@ class SnakeRogue {
   }
 
   _gameLoop(timestamp) {
+    // FPS cap: skip render if running faster than the target
+    if (this._fpsCap > 0) {
+      const minInterval = 1000 / this._fpsCap;
+      if (timestamp - (this._lastRenderTimestamp || 0) < minInterval - 1) {
+        requestAnimationFrame(this._loop);
+        return;
+      }
+    }
+    this._lastRenderTimestamp = timestamp;
     this._update(timestamp);
     this._sendMouseDirection();
     this._renderFrame(timestamp);
@@ -2764,24 +2804,47 @@ class SnakeRogue {
     overlay.style.cssText = [
       'position:fixed', 'inset:0', 'background:rgba(5,5,15,0.92)',
       'display:flex', 'align-items:center', 'justify-content:center', 'z-index:200',
+      'overflow-y:auto',
     ].join(';');
 
     const ctrlLabel = this._controlMode === 'wasd' ? '⌨ WASD' : '🖱 MOUSE';
     const scaleVal = (this._guiScale || 1.0).toFixed(2);
+    const fpsOptions = [
+      { label: '∞ UNLIMITED', value: 0 },
+      { label: '60 FPS', value: 60 },
+      { label: '30 FPS', value: 30 },
+    ];
+    const particleOptions = [
+      { label: '✦ FULL', value: 'full' },
+      { label: '◈ REDUCED', value: 'reduced' },
+      { label: '○ OFF', value: 'off' },
+    ];
+    const fpsButtons = fpsOptions.map(o => {
+      const active = (this._fpsCap || 0) === o.value;
+      return `<button class="gfx-opt-btn${active ? ' active' : ''}" data-fps="${o.value}" style="flex:1;padding:5px 2px;font-size:10px;font-family:'Courier New',monospace;letter-spacing:1px;background:${active ? '#1a1a3a' : '#0a0a18'};border:1px solid ${active ? '#89b' : '#334'};color:${active ? '#cde' : '#567'};cursor:pointer;border-radius:3px;transition:all 0.1s;">${o.label}</button>`;
+    }).join('');
+    const particleButtons = particleOptions.map(o => {
+      const active = (this._particleQuality || 'full') === o.value;
+      return `<button class="gfx-opt-btn${active ? ' active' : ''}" data-particle="${o.value}" style="flex:1;padding:5px 2px;font-size:10px;font-family:'Courier New',monospace;letter-spacing:1px;background:${active ? '#1a1a3a' : '#0a0a18'};border:1px solid ${active ? '#89b' : '#334'};color:${active ? '#cde' : '#567'};cursor:pointer;border-radius:3px;transition:all 0.1s;">${o.label}</button>`;
+    }).join('');
 
     overlay.innerHTML = `
       <div style="background:#0e0e1a;border:1px solid #446;border-radius:10px;padding:28px 32px 28px 32px;
-                  display:flex;flex-direction:column;align-items:center;gap:18px;min-width:280px;position:relative;overflow:visible;">
+                  display:flex;flex-direction:column;align-items:center;gap:18px;min-width:300px;max-width:360px;position:relative;overflow:visible;">
         <img id="settings-bat-img" src="sprites/BAT.png"
              style="position:absolute;top:-22px;right:-22px;width:56px;height:56px;
                     filter:drop-shadow(0 0 8px rgba(153,51,255,0.9));transform:rotate(25deg);"
              alt="bat">
         <div style="font-size:16px;color:#89b;letter-spacing:4px;text-transform:uppercase;">⚙ SETTINGS</div>
-        <div style="width:100%;display:flex;flex-direction:column;gap:12px;">
+        <div style="width:100%;display:flex;flex-direction:column;gap:14px;">
+
+          <!-- Control mode -->
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
             <span style="font-size:12px;color:#7ab;letter-spacing:1px;">CONTROL MODE</span>
             <button id="settings-ctrl-btn" class="btn btn-settings" style="margin-top:0;font-size:12px;padding:6px 18px;">${ctrlLabel}</button>
           </div>
+
+          <!-- GUI Scale -->
           <div style="display:flex;flex-direction:column;gap:6px;">
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <span style="font-size:12px;color:#7ab;letter-spacing:1px;">GUI SCALE</span>
@@ -2801,6 +2864,23 @@ class SnakeRogue {
               </div>
             </div>
           </div>
+
+          <!-- Graphics separator -->
+          <div style="border-top:1px solid #223;margin:2px 0;"></div>
+          <div style="font-size:11px;color:#567;letter-spacing:2px;text-transform:uppercase;">🖥 GRAPHICS</div>
+
+          <!-- FPS Cap -->
+          <div style="display:flex;flex-direction:column;gap:5px;">
+            <span style="font-size:12px;color:#7ab;letter-spacing:1px;">FRAME RATE CAP</span>
+            <div id="fps-btns" style="display:flex;gap:6px;">${fpsButtons}</div>
+          </div>
+
+          <!-- Particle Quality -->
+          <div style="display:flex;flex-direction:column;gap:5px;">
+            <span style="font-size:12px;color:#7ab;letter-spacing:1px;">PARTICLE EFFECTS</span>
+            <div id="particle-btns" style="display:flex;gap:6px;">${particleButtons}</div>
+          </div>
+
         </div>
         <button id="settings-close-btn" class="btn btn-back" style="margin-top:4px;font-size:12px;padding:6px 24px;">✕ CLOSE</button>
       </div>
@@ -2825,6 +2905,37 @@ class SnakeRogue {
       try { localStorage.setItem('guiScale', v.toFixed(2)); } catch(_) {}
       this._resizeCanvas(false);
       this._applyGuiScaleToUI();
+    });
+
+    // FPS cap buttons
+    document.getElementById('fps-btns').addEventListener('click', e => {
+      const btn = e.target.closest('[data-fps]');
+      if (!btn) return;
+      const val = parseInt(btn.dataset.fps, 10);
+      this._fpsCap = val;
+      try { localStorage.setItem('fpsCap', val); } catch(_) {}
+      document.querySelectorAll('#fps-btns [data-fps]').forEach(b => {
+        const active = parseInt(b.dataset.fps, 10) === val;
+        b.style.background = active ? '#1a1a3a' : '#0a0a18';
+        b.style.borderColor = active ? '#89b' : '#334';
+        b.style.color = active ? '#cde' : '#567';
+      });
+    });
+
+    // Particle quality buttons
+    document.getElementById('particle-btns').addEventListener('click', e => {
+      const btn = e.target.closest('[data-particle]');
+      if (!btn) return;
+      const val = btn.dataset.particle;
+      this._particleQuality = val;
+      this._applyParticleQuality();
+      try { localStorage.setItem('particleQuality', val); } catch(_) {}
+      document.querySelectorAll('#particle-btns [data-particle]').forEach(b => {
+        const active = b.dataset.particle === val;
+        b.style.background = active ? '#1a1a3a' : '#0a0a18';
+        b.style.borderColor = active ? '#89b' : '#334';
+        b.style.color = active ? '#cde' : '#567';
+      });
     });
 
     document.getElementById('settings-close-btn').addEventListener('click', () => {
