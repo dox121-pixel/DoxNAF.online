@@ -516,7 +516,7 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(153,51,255,0.4)',
     size: 1.8,
     shape: 'bat',
-    speed: 0.0070,
+    speed: 0.0045,
     score: 5,
     maxHp: 3,
     label: 'CHASER',
