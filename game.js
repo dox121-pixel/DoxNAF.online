@@ -4750,6 +4750,10 @@ class SnakeRogue {
             this._siteGoingDown = true;
             this._siteDownSince = data.downSince || null;
             this._showShutdownWarning();
+            // Schedule jumpscare for players who snuck in during downtime via reload exploit
+            if (!this._siteDownJumpscareTimer) {
+              this._siteDownJumpscareTimer = setTimeout(() => this._playSiteDownJumpscare(), 30000);
+            }
           } else if (!isPlaying) {
             this._showMaintenanceScreen(data.downSince);
           }
