@@ -280,6 +280,7 @@ const CHEST_ITEMS = [
         state.score += (ENEMY_TYPES[e.type] ? ENEMY_TYPES[e.type].score : 5);
         state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y, dropped: true });
       }
+      state.enemyKills = (state.enemyKills || 0) + state.enemies.length;
       state.enemies = [];
     }
   },
@@ -1681,6 +1682,7 @@ class SnakeRogue {
       chestNotif: null,
       score: 0,
       applesEaten: 0,
+      enemyKills: 0,
       baseInterval: 140,
       growBuffer: 0,
       growPerApple: 2,
@@ -1736,6 +1738,10 @@ class SnakeRogue {
     // Capture score before state is cleared
     const nmScore   = this.state ? (this.state.score || 0) : 0;
     const nmApples  = this.state ? (this.state.applesEaten || 0) : 0;
+    const nmKills   = this.state ? (this.state.enemyKills || 0) : 0;
+    const nmElapsed = Math.max(0, (this._lastUpdateTimestamp || this.gameStartTime) - this.gameStartTime - this._totalPausedMs);
+    const nmTimeSec = Math.floor(nmElapsed / 1000);
+    const nmTimeFmt = `${Math.floor(nmTimeSec / 60)}:${String(nmTimeSec % 60).padStart(2, '0')}`;
     this._jumpscareTimeout = setTimeout(() => {
       this.state = null;
       this.phase = 'gameover';
@@ -1753,7 +1759,15 @@ class SnakeRogue {
       el.innerHTML = `
         <h1>☠ YOU DIED</h1>
         <div class="info">NIGHTMARE MODE</div>
-        <div class="score-display">SCORE: ${nmScore} &nbsp;|&nbsp; APPLES: ${nmApples}</div>
+        <div class="score-display">
+          <span>SCORE: ${nmScore}</span>
+          &nbsp;·&nbsp;
+          <span>APPLES: ${nmApples}</span>
+          &nbsp;·&nbsp;
+          <span>KILLS: ${nmKills}</span>
+          &nbsp;·&nbsp;
+          <span>TIME: ${nmTimeFmt}</span>
+        </div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
           <button class="btn btn-lore" id="nm-restart-btn">NIGHTMARE AGAIN</button>
           <button class="btn btn-back" id="nm-menu-btn">← MENU</button>
@@ -1768,7 +1782,7 @@ class SnakeRogue {
         this.phase = 'start';
         this._renderOverlay();
       });
-      this._submitNightmareScore(nmScore, nmApples);
+      this._submitNightmareScore(nmScore, nmApples, nmKills, nmTimeSec);
       this._loadNightmareLeaderboard('nm-leaderboard-list');
     }, 2500);
   }
@@ -1916,6 +1930,7 @@ class SnakeRogue {
               // Pulse instantly kills enemies
               state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y, dropped: true });
               state.enemies.splice(j, 1);
+              state.enemyKills = (state.enemyKills || 0) + 1;
             }
           }
         }
@@ -2058,6 +2073,7 @@ class SnakeRogue {
                     state.score += ENEMY_TYPES[ek.type].score;
                     state.apples.push({ x: Math.round(ek.x), y: Math.round(ek.y), fx: ek.x, fy: ek.y, dropped: true });
                     state.enemies.splice(k, 1);
+                    state.enemyKills = (state.enemyKills || 0) + 1;
                     if (k < j) j--;
                   }
                 }
@@ -2069,6 +2085,7 @@ class SnakeRogue {
                 state.score += ENEMY_TYPES[e.type].score;
                 state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y, dropped: true });
                 state.enemies.splice(j, 1);
+                state.enemyKills = (state.enemyKills || 0) + 1;
               }
             }
             if (!state.bulletPiercing) { bulletRemoved = true; break; }
@@ -2120,6 +2137,7 @@ class SnakeRogue {
           spawnParticles(this.particles, Math.round(nx), Math.round(ny), '#4af', 16);
           state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y, dropped: true });
           state.enemies.splice(i, 1);
+          state.enemyKills = (state.enemyKills || 0) + 1;
           this.flashTimer = 20;
           if (this._checkLoreDamage(timestamp)) return;
           continue;
@@ -2189,6 +2207,7 @@ class SnakeRogue {
             state.score += ENEMY_TYPES[e.type].score;
             state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y, dropped: true });
             state.enemies.splice(i, 1);
+            state.enemyKills = (state.enemyKills || 0) + 1;
           }
         }
       }
@@ -2305,6 +2324,9 @@ class SnakeRogue {
     spawnParticles(this.particles, state.snake[0].x, state.snake[0].y, '#f44', 20);
     // Capture sessionId before disconnect so score submission can reference it
     this._submittedSessionId = this._spSessionId;
+    // Capture elapsed time and kill count before disconnect
+    this._deathElapsedMs = Math.max(0, (this._lastUpdateTimestamp || this.gameStartTime) - this.gameStartTime - this._totalPausedMs);
+    this._deathKills = state.enemyKills || 0;
     this._disconnectSpSession();
     if (state.nightmareMode) {
       this._playNightmareJumpscare();
@@ -2745,6 +2767,9 @@ class SnakeRogue {
 
       const s = this.state;
       const reasonText = reason === 'wall' ? 'hit a wall' : reason === 'self' ? 'bit your own tail' : 'caught by an enemy';
+      const deathTimeSec = Math.floor((this._deathElapsedMs || 0) / 1000);
+      const deathTimeFmt = `${Math.floor(deathTimeSec / 60)}:${String(deathTimeSec % 60).padStart(2, '0')}`;
+      const deathKills   = this._deathKills || 0;
 
       // Build upgrade list
       const upgradeNames = Object.entries(s.upgradeCount)
@@ -2758,7 +2783,15 @@ class SnakeRogue {
 
       el.innerHTML = `
         <h1>YOU DIED</h1>
-        <div class="score-display">SCORE: ${s.score} &nbsp;|&nbsp; APPLES: ${s.applesEaten}</div>
+        <div class="score-display">
+          <span>SCORE: ${s.score}</span>
+          &nbsp;·&nbsp;
+          <span>APPLES: ${s.applesEaten}</span>
+          &nbsp;·&nbsp;
+          <span>KILLS: ${deathKills}</span>
+          &nbsp;·&nbsp;
+          <span>TIME: ${deathTimeFmt}</span>
+        </div>
         <div class="info">You ${reasonText}.</div>
         ${upgradeNames ? `<div id="upgrades-list">${upgradeNames}</div>` : ''}
         <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
@@ -2783,7 +2816,7 @@ class SnakeRogue {
         this._renderOverlay();
       });
       // Submit score and load leaderboard
-      this._submitScore(s.score, s.applesEaten);
+      this._submitScore(s.score, s.applesEaten, deathKills, deathTimeSec);
       this._loadLeaderboard('leaderboard-list');
     }
   }
@@ -2881,8 +2914,19 @@ class SnakeRogue {
     this._pausedAt = performance.now();
     const pauseMenu = document.getElementById('pause-menu');
     if (!pauseMenu) return;
+    const s = this.state;
+    const elapsedMs = Math.max(0, (this._lastUpdateTimestamp || this.gameStartTime) - this.gameStartTime - this._totalPausedMs);
+    const secs = Math.floor(elapsedMs / 1000);
+    const timeFmt = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+    const kills = s ? (s.enemyKills || 0) : 0;
     pauseMenu.innerHTML = `
       <div style="font-size:22px;color:#7ef;letter-spacing:4px;text-transform:uppercase;text-shadow:0 0 12px #4af;">⏸ PAUSED</div>
+      <div style="font-size:11px;color:#7ab;letter-spacing:1px;margin-bottom:4px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+        <span>SCORE: ${s ? s.score : 0}</span>
+        <span>APPLES: ${s ? s.applesEaten : 0}</span>
+        <span>KILLS: ${kills}</span>
+        <span>TIME: ${timeFmt}</span>
+      </div>
       <div style="display:flex;flex-direction:column;gap:10px;align-items:center;">
         <button class="btn" id="pm-resume-btn">▶ RESUME [ESC]</button>
         <button class="btn btn-settings" id="pm-settings-btn">⚙ SETTINGS</button>
@@ -3107,14 +3151,14 @@ class SnakeRogue {
     });
   }
 
-  _submitScore(score, applesEaten) {
+  _submitScore(score, applesEaten, kills, timePlayed) {
     if (score <= 0) return;
     const name      = this._playerName || 'Anonymous';
     const sessionId = this._submittedSessionId || null;
     fetch(`${API_SERVER}/api/leaderboard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, score, applesEaten, sessionId }),
+      body: JSON.stringify({ name, score, applesEaten, kills: kills || 0, timePlayed: timePlayed || 0, sessionId }),
     }).catch(() => {}); // silently ignore if server unavailable
   }
 
@@ -3131,7 +3175,15 @@ class SnakeRogue {
         el.innerHTML = data.entries.map((e, i) => {
           const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
           const safeName = escapeHtml(e.name || 'Anonymous');
-          return `<div>${medal} ${safeName} — ${e.score} pts (${e.applesEaten}${APPLE_SPRITE_TAG})</div>`;
+          const timeSec  = e.timePlayed || 0;
+          const timeFmt  = `${Math.floor(timeSec / 60)}:${String(timeSec % 60).padStart(2, '0')}`;
+          return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">`
+            + `<span>${medal} ${safeName}</span>`
+            + `<span style="color:#7cf;">⭐${e.score}</span>`
+            + `<span>${APPLE_SPRITE_TAG}${e.applesEaten}</span>`
+            + `<span style="color:#f88;">💀${e.kills || 0}</span>`
+            + `<span style="color:#7ab;">⏱${timeFmt}</span>`
+            + `</div>`;
         }).join('');
       })
       .catch(() => {
@@ -3140,14 +3192,14 @@ class SnakeRogue {
       });
   }
 
-  _submitNightmareScore(score, applesEaten) {
+  _submitNightmareScore(score, applesEaten, kills, timePlayed) {
     if (score <= 0) return;
     const name      = this._playerName || 'Anonymous';
     const sessionId = this._submittedSessionId || null;
     fetch(`${API_SERVER}/api/nightmare-leaderboard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, score, applesEaten, sessionId }),
+      body: JSON.stringify({ name, score, applesEaten, kills: kills || 0, timePlayed: timePlayed || 0, sessionId }),
     }).catch(() => {}); // silently ignore if server unavailable
   }
 
@@ -3164,7 +3216,15 @@ class SnakeRogue {
         el.innerHTML = data.entries.map((e, i) => {
           const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
           const safeName = escapeHtml(e.name || 'Anonymous');
-          return `<div>${medal} ${safeName} — ${e.score} pts (${e.applesEaten}${APPLE_SPRITE_TAG})</div>`;
+          const timeSec  = e.timePlayed || 0;
+          const timeFmt  = `${Math.floor(timeSec / 60)}:${String(timeSec % 60).padStart(2, '0')}`;
+          return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">`
+            + `<span>${medal} ${safeName}</span>`
+            + `<span style="color:#7cf;">⭐${e.score}</span>`
+            + `<span>${APPLE_SPRITE_TAG}${e.applesEaten}</span>`
+            + `<span style="color:#f88;">💀${e.kills || 0}</span>`
+            + `<span style="color:#7ab;">⏱${timeFmt}</span>`
+            + `</div>`;
         }).join('');
       })
       .catch(() => {
@@ -4084,8 +4144,10 @@ class SnakeRogue {
         }
         listEl.innerHTML = data.entries.map(e => {
           const safeName = escapeHtml(e.name || 'Anonymous');
+          const timeSec  = e.timePlayed || 0;
+          const timeFmt  = `${Math.floor(timeSec / 60)}:${String(timeSec % 60).padStart(2, '0')}`;
           return `<div style="display:flex;align-items:center;justify-content:space-between;gap:4px;padding:2px 0;">
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeName} — ${e.score}</span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeName} — ⭐${e.score} 🍎${e.applesEaten} 💀${e.kills || 0} ⏱${timeFmt}</span>
             <button data-name="${safeName}" class="adm-del-btn" style="background:#1a0a0a;border:1px solid #644;color:#f64;font-family:'Courier New',monospace;font-size:9px;padding:2px 6px;cursor:pointer;border-radius:3px;flex-shrink:0;">✕</button>
           </div>`;
         }).join('');
@@ -4125,8 +4187,10 @@ class SnakeRogue {
         }
         listEl.innerHTML = data.entries.map(e => {
           const safeName = escapeHtml(e.name || 'Anonymous');
+          const timeSec  = e.timePlayed || 0;
+          const timeFmt  = `${Math.floor(timeSec / 60)}:${String(timeSec % 60).padStart(2, '0')}`;
           return `<div style="display:flex;align-items:center;justify-content:space-between;gap:4px;padding:2px 0;">
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeName} — ${e.score}</span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${safeName} — ⭐${e.score} 🍎${e.applesEaten} 💀${e.kills || 0} ⏱${timeFmt}</span>
             <button data-name="${safeName}" class="adm-nm-del-btn" style="background:#1a0a0a;border:1px solid #644;color:#f64;font-family:'Courier New',monospace;font-size:9px;padding:2px 6px;cursor:pointer;border-radius:3px;flex-shrink:0;">✕</button>
           </div>`;
         }).join('');
