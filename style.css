@@ -942,7 +942,7 @@ canvas {
 #site-down-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(5, 5, 15, 0.96);
+  background: #05050f;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1002,22 +1002,29 @@ canvas {
   animation: sleepBreathe 3.5s ease-in-out infinite;
 }
 
-.sleeping-snake {
-  font-size: 48px;
-  line-height: 1;
+.sleeping-snake-canvas {
+  image-rendering: pixelated;
   animation: sleepBreathe 3.5s ease-in-out infinite 1.8s;
   filter: drop-shadow(0 0 6px rgba(80, 200, 100, 0.3));
 }
 
 .zzz-float {
   position: absolute;
-  top: -18px;
-  right: -14px;
   color: #5ab;
   font-size: 11px;
   letter-spacing: 2px;
   animation: floatZzz 3s ease-in-out infinite;
   pointer-events: none;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.zzz-bat {
+  top: -4px;
+}
+
+.zzz-snake {
+  top: 4px;
 }
 
 .zzz-delayed {

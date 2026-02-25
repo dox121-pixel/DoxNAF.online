@@ -105,21 +105,6 @@
       </div>
     </div>
 
-    <!-- Admin password modal -->
-    <div id="admin-modal" style="display:none;">
-      <div id="admin-modal-box">
-        <div id="admin-modal-title">⚙ ADMIN ACCESS</div>
-        <input id="admin-pw-input" type="password" class="room-input"
-               placeholder="PASSWORD" autocomplete="off" spellcheck="false"
-               style="width:180px;letter-spacing:4px;" />
-        <div id="admin-pw-error" style="font-size:10px;color:#f55;min-height:14px;"></div>
-        <div style="display:flex;gap:10px;justify-content:center;">
-          <button class="btn btn-settings" id="admin-login-btn">ENTER</button>
-          <button class="btn btn-back" id="admin-cancel-btn">CANCEL</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Leaderboard removal notification -->
     <div id="removal-notice" style="display:none;">
       <div id="removal-notice-box">
@@ -139,38 +124,54 @@
       </div>
     </div>
 
-    <!-- Admin panel (shown during any gamemode when admin mode is active) -->
-    <div id="admin-panel" style="display:none;">
-      <div id="admin-panel-title">⚙ ADMIN DEBUG</div>
-      <div id="admin-panel-body">
-        <button class="admin-action-btn adm-site-toggle-btn" id="adm-site-toggle">🔴 Site Down</button>
-        <button class="admin-action-btn" id="adm-godmode">👻 God Mode</button>
-        <button class="admin-action-btn" id="adm-shield">🛡 +1 Shield</button>
-        <button class="admin-action-btn" id="adm-apple"><img src="sprites/APPLER.png" style="width:14px;height:14px;vertical-align:middle;"> +5 Apples</button>
-        <button class="admin-action-btn" id="adm-score">⭐ +500 Score</button>
-        <button class="admin-action-btn" id="adm-speed">⚡ Speed Up</button>
-        <button class="admin-action-btn" id="adm-slow">🕰 Slow Down</button>
-        <button class="admin-action-btn" id="adm-clear">💀 Clear Enemies</button>
-        <button class="admin-action-btn" id="adm-upgrade">🎁 Force Upgrade</button>
-        <button class="admin-action-btn" id="adm-nightmare-toggle">☠ Toggle Nightmare</button>
-        <div id="adm-sp-sessions-section" style="margin-top:8px;width:100%;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-            <div style="font-size:10px;color:#47a;letter-spacing:1px;">🎮 SP SESSIONS</div>
-            <button id="adm-sp-refresh" style="background:#0a0a1a;border:1px solid #246;color:#47a;font-family:'Courier New',monospace;font-size:9px;padding:1px 6px;cursor:pointer;border-radius:3px;">↻ Refresh</button>
-          </div>
-          <div id="adm-sp-sessions-list" style="font-size:10px;color:#7ab;"></div>
-        </div>
-        <div id="adm-leaderboard-section" style="margin-top:8px;width:100%;">
-          <div style="font-size:10px;color:#567;letter-spacing:1px;margin-bottom:4px;">🏆 LEADERBOARD</div>
-          <div id="adm-leaderboard-list" style="font-size:10px;color:#7ab;"></div>
-        </div>
-        <div id="adm-nm-leaderboard-section" style="margin-top:8px;width:100%;">
-          <div style="font-size:10px;color:#933;letter-spacing:1px;margin-bottom:4px;">☠ NIGHTMARE LEADERBOARD</div>
-          <div id="adm-nm-leaderboard-list" style="font-size:10px;color:#c77;"></div>
-        </div>
+  </div>
+
+  <!-- Admin password modal -->
+  <div id="admin-modal" style="display:none;">
+    <div id="admin-modal-box">
+      <div id="admin-modal-title">⚙ ADMIN ACCESS</div>
+      <input id="admin-pw-input" type="password" class="room-input"
+             placeholder="PASSWORD" autocomplete="off" spellcheck="false"
+             style="width:180px;letter-spacing:4px;" />
+      <div id="admin-pw-error" style="font-size:10px;color:#f55;min-height:14px;"></div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button class="btn btn-settings" id="admin-login-btn">ENTER</button>
+        <button class="btn btn-back" id="admin-cancel-btn">CANCEL</button>
       </div>
-      <button class="btn btn-back" id="admin-panel-close" style="font-size:10px;padding:4px 12px;">CLOSE</button>
     </div>
+  </div>
+
+  <!-- Admin panel (shown during any gamemode when admin mode is active) -->
+  <div id="admin-panel" style="display:none;">
+    <div id="admin-panel-title">⚙ ADMIN DEBUG</div>
+    <div id="admin-panel-body">
+      <button class="admin-action-btn adm-site-toggle-btn" id="adm-site-toggle">🔴 Site Down</button>
+      <button class="admin-action-btn" id="adm-godmode">👻 God Mode</button>
+      <button class="admin-action-btn" id="adm-shield">🛡 +1 Shield</button>
+      <button class="admin-action-btn" id="adm-apple"><img src="sprites/APPLER.png" style="width:14px;height:14px;vertical-align:middle;"> +5 Apples</button>
+      <button class="admin-action-btn" id="adm-score">⭐ +500 Score</button>
+      <button class="admin-action-btn" id="adm-speed">⚡ Speed Up</button>
+      <button class="admin-action-btn" id="adm-slow">🕰 Slow Down</button>
+      <button class="admin-action-btn" id="adm-clear">💀 Clear Enemies</button>
+      <button class="admin-action-btn" id="adm-upgrade">🎁 Force Upgrade</button>
+      <button class="admin-action-btn" id="adm-nightmare-toggle">☠ Toggle Nightmare</button>
+      <div id="adm-sp-sessions-section" style="margin-top:8px;width:100%;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div style="font-size:10px;color:#47a;letter-spacing:1px;">🎮 SP SESSIONS</div>
+          <button id="adm-sp-refresh" style="background:#0a0a1a;border:1px solid #246;color:#47a;font-family:'Courier New',monospace;font-size:9px;padding:1px 6px;cursor:pointer;border-radius:3px;">↻ Refresh</button>
+        </div>
+        <div id="adm-sp-sessions-list" style="font-size:10px;color:#7ab;"></div>
+      </div>
+      <div id="adm-leaderboard-section" style="margin-top:8px;width:100%;">
+        <div style="font-size:10px;color:#567;letter-spacing:1px;margin-bottom:4px;">🏆 LEADERBOARD</div>
+        <div id="adm-leaderboard-list" style="font-size:10px;color:#7ab;"></div>
+      </div>
+      <div id="adm-nm-leaderboard-section" style="margin-top:8px;width:100%;">
+        <div style="font-size:10px;color:#933;letter-spacing:1px;margin-bottom:4px;">☠ NIGHTMARE LEADERBOARD</div>
+        <div id="adm-nm-leaderboard-list" style="font-size:10px;color:#c77;"></div>
+      </div>
+    </div>
+    <button class="btn btn-back" id="admin-panel-close" style="font-size:10px;padding:4px 12px;">CLOSE</button>
   </div>
 
     <!-- Greeting modal (shown on first visit) -->
@@ -195,11 +196,11 @@
         <div id="site-down-pets">
           <div class="sleeping-pet">
             <img src="sprites/BAT.png" class="sleeping-bat" alt="sleeping bat" />
-            <div class="zzz-float">z z z</div>
+            <div class="zzz-float zzz-bat">z z z</div>
           </div>
           <div class="sleeping-pet">
-            <div class="sleeping-snake">🐍</div>
-            <div class="zzz-float zzz-delayed">z z z</div>
+            <canvas id="sleeping-snake-canvas" class="sleeping-snake-canvas" width="64" height="64"></canvas>
+            <div class="zzz-float zzz-snake zzz-delayed">z z z</div>
           </div>
         </div>
       </div>
