@@ -535,6 +535,41 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  // ── Leaderboard: check if name is already taken ──
+  if (urlPath === '/api/leaderboard/check-name') {
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': 'https://doxnaf.online',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    if (req.method === 'OPTIONS') { res.writeHead(204, corsHeaders); res.end(); return; }
+    if (req.method !== 'GET') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    const qs = (req.url || '').split('?')[1] || '';
+    const params = new URLSearchParams(qs);
+    const name = String(params.get('name') || '').slice(0, 30).trim();
+    if (!name || name.toLowerCase() === 'anonymous') {
+      res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+      res.end(JSON.stringify({ taken: false }));
+      return;
+    }
+    if (!dbPool) {
+      res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+      res.end(JSON.stringify({ taken: false }));
+      return;
+    }
+    dbPool.query(
+      `SELECT 1 FROM leaderboard WHERE LOWER(name) = LOWER($1) AND name != 'Anonymous' LIMIT 1`,
+      [name]
+    ).then(result => {
+      res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+      res.end(JSON.stringify({ taken: result.rows.length > 0 }));
+    }).catch(err => {
+      console.error('Check name error:', err.message);
+      res.writeHead(500); res.end('Internal Server Error');
+    });
+    return;
+  }
+
   // ── Leaderboard API ───────────────────────────
   if (urlPath === '/api/leaderboard') {
     const corsHeaders = {

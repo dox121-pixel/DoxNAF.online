@@ -694,8 +694,8 @@ canvas {
   top: 12px;
   right: 12px;
   background: transparent;
-  border: 1px solid #353;
-  color: #565;
+  border: 1px solid #246;
+  color: #4af;
   font-family: 'Courier New', monospace;
   font-size: 10px;
   letter-spacing: 1px;
@@ -707,8 +707,8 @@ canvas {
 }
 
 #feedback-open-btn:hover {
-  border-color: #7c7;
-  color: #7c7;
+  border-color: #7ef;
+  color: #7ef;
 }
 
 #feedback-modal {
@@ -732,6 +732,13 @@ canvas {
   gap: 10px;
   min-width: 260px;
   max-width: calc(100vw - 40px);
+}
+
+#feedback-input {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  text-align: left;
 }
 
 #feedback-modal-title {

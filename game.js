@@ -2740,6 +2740,7 @@ class SnakeRogue {
     `;
     const nameInput = document.getElementById('player-name-input');
     const nameWarn  = document.getElementById('name-warn');
+    let _nameCheckTimer = null;
     nameInput.addEventListener('input', () => {
       const val = nameInput.value.trim();
       if (nameContainsBannedWord(val)) {
@@ -2749,6 +2750,21 @@ class SnakeRogue {
         nameWarn.textContent = '';
         this._playerName = val;
         try { localStorage.setItem('playerName', this._playerName); } catch(_) {}
+        // Check name uniqueness (debounced, skip for Anonymous)
+        clearTimeout(_nameCheckTimer);
+        if (val && val.toLowerCase() !== 'anonymous') {
+          _nameCheckTimer = setTimeout(() => {
+            fetch(`${API_SERVER}/api/leaderboard/check-name?name=${encodeURIComponent(val)}`)
+              .then(r => r.ok ? r.json() : Promise.reject())
+              .then(data => {
+                const current = nameInput.value.trim();
+                if (current === val && data.taken) {
+                  nameWarn.textContent = 'Name already taken.';
+                }
+              })
+              .catch(() => {});
+          }, 400);
+        }
       }
     });
     // Prevent Enter on name field from starting the game
