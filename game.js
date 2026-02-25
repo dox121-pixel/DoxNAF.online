@@ -1241,9 +1241,12 @@ class SnakeRogue {
     this._authCurrentTab  = 'login';
     this._setupAuth();
 
-    // ── Singleplayer session (admin observability) ──
-    this._spWs        = null;
-    this._spSessionId = null;
+    // ── Singleplayer session (admin observability + anti-cheat score tracking) ──
+    this._spWs             = null;
+    this._spSessionId      = null;
+    this._submittedSessionId = null; // sessionId captured at game-over for score submission
+    this._lastTrackedScore  = 0;    // last score delta sent to server
+    this._lastTrackedApples = 0;    // last applesEaten delta sent to server
 
     // ── Admin spectate state ──
     this._spectateSessionId = null;
@@ -2114,6 +2117,19 @@ class SnakeRogue {
 
     this._updateHUD();
     this._captureReplayFrame(timestamp);
+
+    // ── Anti-cheat: report score delta to server each frame ──
+    if (this._spWs && this._spWs.readyState === WebSocket.OPEN && this._spSessionId) {
+      const sc = state.score        || 0;
+      const ap = state.applesEaten  || 0;
+      const scoreDelta  = sc - this._lastTrackedScore;
+      const applesDelta = ap - this._lastTrackedApples;
+      if (scoreDelta > 0 || applesDelta > 0) {
+        this._spWs.send(JSON.stringify({ type: 'sp_score_event', score: scoreDelta, apples: applesDelta }));
+        this._lastTrackedScore  = sc;
+        this._lastTrackedApples = ap;
+      }
+    }
   }
 
   _checkLoreDamage(timestamp) {
@@ -2208,6 +2224,8 @@ class SnakeRogue {
   _die(reason) {
     const state = this.state;
     spawnParticles(this.particles, state.snake[0].x, state.snake[0].y, '#f44', 20);
+    // Capture sessionId before disconnect so score submission can reference it
+    this._submittedSessionId = this._spSessionId;
     this._disconnectSpSession();
     if (state.nightmareMode) {
       this._playNightmareJumpscare();
@@ -3003,11 +3021,12 @@ class SnakeRogue {
 
   _submitScore(score, applesEaten) {
     if (score <= 0) return;
-    const name = this._playerName || 'Anonymous';
+    const name      = this._playerName || 'Anonymous';
+    const sessionId = this._submittedSessionId || null;
     fetch(`${API_SERVER}/api/leaderboard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, score, applesEaten }),
+      body: JSON.stringify({ name, score, applesEaten, sessionId }),
     }).catch(() => {}); // silently ignore if server unavailable
   }
 
@@ -3035,11 +3054,12 @@ class SnakeRogue {
 
   _submitNightmareScore(score, applesEaten) {
     if (score <= 0) return;
-    const name = this._playerName || 'Anonymous';
+    const name      = this._playerName || 'Anonymous';
+    const sessionId = this._submittedSessionId || null;
     fetch(`${API_SERVER}/api/nightmare-leaderboard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, score, applesEaten }),
+      body: JSON.stringify({ name, score, applesEaten, sessionId }),
     }).catch(() => {}); // silently ignore if server unavailable
   }
 
@@ -3472,7 +3492,9 @@ class SnakeRogue {
 
   _handleSpCommand(msg) {
     if (msg.type === 'sp_registered') {
-      this._spSessionId = msg.sessionId;
+      this._spSessionId       = msg.sessionId;
+      this._lastTrackedScore  = 0;
+      this._lastTrackedApples = 0;
       return;
     }
     if (msg.type === 'sp_request_state') {
