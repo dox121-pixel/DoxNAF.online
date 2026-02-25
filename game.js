@@ -3155,11 +3155,11 @@ class SnakeRogue {
               <span style="font-size:12px;color:#7ab;letter-spacing:1px;">FRAME RATE CAP</span>
               <span id="settings-fps-val" style="font-size:12px;color:#aef;letter-spacing:1px;">${fpsLabel}</span>
             </div>
-            <input id="settings-fps-slider" type="range" min="0" max="240" step="1"
-                   value="${fpsCap}"
+            <input id="settings-fps-slider" type="range" min="30" max="241" step="1"
+                   value="${fpsCap === 0 ? 241 : fpsCap}"
                    style="width:100%;accent-color:#89b;cursor:pointer;">
             <div style="display:flex;justify-content:space-between;font-size:10px;color:#456;">
-              <span>UNLIMITED</span><span>240 FPS</span>
+              <span>30 FPS</span><span>UNLIMITED</span>
             </div>
           </div>
 
@@ -3214,7 +3214,8 @@ class SnakeRogue {
     const fpsSlider = document.getElementById('settings-fps-slider');
     const fpsDisplay = document.getElementById('settings-fps-val');
     fpsSlider.addEventListener('input', () => {
-      const val = parseInt(fpsSlider.value, 10);
+      const raw = parseInt(fpsSlider.value, 10);
+      const val = raw === 241 ? 0 : raw;
       this._fpsCap = val;
       fpsDisplay.textContent = val === 0 ? '∞ UNLIMITED' : `${val} FPS`;
       try { localStorage.setItem('fpsCap', val); } catch(_) {}
