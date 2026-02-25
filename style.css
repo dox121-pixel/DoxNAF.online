@@ -938,6 +938,56 @@ canvas {
   color: #cde;
 }
 
+/* ── Legal viewer modal ───────────────────────── */
+#legal-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 5, 15, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 600;
+}
+
+#legal-modal-box {
+  background: #0a0a16;
+  border: 1px solid #2a6;
+  border-radius: 10px;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: min(560px, calc(100vw - 40px));
+  width: 100%;
+  max-height: calc(100vh - 80px);
+  box-shadow: 0 0 40px rgba(40, 200, 100, 0.12);
+}
+
+#legal-modal-title {
+  font-size: 14px;
+  color: #4f8;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+#legal-modal-content {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #7ab;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  width: 100%;
+  background: #06060f;
+  border: 1px solid #1a3;
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
 /* ── Site-down overlay ────────────────────────── */
 #site-down-overlay {
   position: fixed;

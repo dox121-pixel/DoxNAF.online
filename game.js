@@ -2824,7 +2824,7 @@ class SnakeRogue {
            <div style="font-size:10px;color:#456;margin-top:2px;">No account? You'll play as Anonymous</div>
          </div>`;
     el.innerHTML = `
-      <h1>VIPER.exe</h1>
+      <h1>VIPER.exe<sup style="font-size:0.45em;letter-spacing:1px;vertical-align:super;">™</sup></h1>
       <div class="info">
         A roguelike snake<br>
         Eat apples → choose upgrades → survive<br>
@@ -3018,6 +3018,12 @@ class SnakeRogue {
 
         </div>
         <button id="settings-close-btn" class="btn btn-back" style="margin-top:4px;font-size:12px;padding:6px 24px;">✕ CLOSE</button>
+        <div style="border-top:1px solid #223;width:100%;"></div>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+          <button id="settings-tos-btn" class="btn btn-back" style="margin-top:0;font-size:10px;padding:4px 12px;">📄 TERMS OF SERVICE</button>
+          <button id="settings-pp-btn" class="btn btn-back" style="margin-top:0;font-size:10px;padding:4px 12px;">🔒 PRIVACY POLICY</button>
+        </div>
+        <div style="font-size:9px;color:#334;letter-spacing:1px;text-align:center;">© 2026 VIPER.exe — All rights reserved.</div>
       </div>
     `;
 
@@ -3088,6 +3094,9 @@ class SnakeRogue {
       overlay.remove();
       if (onClose) onClose(); else this._renderOverlay();
     });
+
+    document.getElementById('settings-tos-btn').addEventListener('click', () => this._openLegalModal('tos'));
+    document.getElementById('settings-pp-btn').addEventListener('click', () => this._openLegalModal('pp'));
 
     // Close on backdrop click
     overlay.addEventListener('click', e => {
@@ -4481,6 +4490,10 @@ class SnakeRogue {
         try { localStorage.setItem('greetingShown', '1'); } catch(_) {}
       }, { once: true });
     }
+    const tosBtn = document.getElementById('greeting-tos-btn');
+    if (tosBtn) tosBtn.addEventListener('click', () => this._openLegalModal('tos'));
+    const ppBtn = document.getElementById('greeting-pp-btn');
+    if (ppBtn) ppBtn.addEventListener('click', () => this._openLegalModal('pp'));
     // Also dismiss on backdrop click
     modal.addEventListener('click', e => {
       if (e.target === modal) {
@@ -4488,6 +4501,27 @@ class SnakeRogue {
         try { localStorage.setItem('greetingShown', '1'); } catch(_) {}
       }
     });
+  }
+
+  // ── Legal viewer ──────────────────────────────
+  _openLegalModal(type) {
+    const modal = document.getElementById('legal-modal');
+    const titleEl = document.getElementById('legal-modal-title');
+    const contentEl = document.getElementById('legal-modal-content');
+    if (!modal || !titleEl || !contentEl) return;
+    const isToS = type === 'tos';
+    titleEl.textContent = isToS ? '📄 TERMS OF SERVICE' : '🔒 PRIVACY POLICY';
+    contentEl.textContent = 'Loading…';
+    modal.style.display = 'flex';
+    const url = isToS ? '/Legal/ToS' : '/Legal/Privacy%20Policy';
+    fetch(url)
+      .then(r => r.ok ? r.text() : Promise.reject(r.status))
+      .then(text => { contentEl.textContent = text; })
+      .catch(() => { contentEl.textContent = 'Unable to load document.'; });
+    const closeBtn = document.getElementById('legal-modal-close');
+    const close = () => { modal.style.display = 'none'; };
+    closeBtn.onclick = close;
+    modal.onclick = e => { if (e.target === modal) close(); };
   }
 
   // ── Site state ────────────────────────────────
