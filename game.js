@@ -165,7 +165,7 @@ const UPGRADES = [
     name: 'MAGNETISM',
     icon: '🧲',
     desc: 'Increases apple pickup radius. Stack for an even wider reach.',
-    apply(state) { state.appleEatDist = (state.appleEatDist || APPLE_EAT_DIST) + 0.15; }
+    apply(state) { state.appleEatDist = (state.appleEatDist || APPLE_EAT_DIST) + 0.4; }
   },
   {
     id: 'bullet_range',
@@ -263,20 +263,6 @@ const CHEST_ITEMS = [
     name: 'OMEGA PULSE', icon: '💫',
     desc: 'PULSE ×5 — massive blast on apple pickup.',
     apply(state) { state.pulse = (state.pulse || 0) + 5; }
-  },
-  {
-    id: 'shadow_walk', rarity: 'epic',
-    name: 'SHADOW WALK', icon: '👻',
-    desc: 'Phase walk + scatter all enemies instantly.',
-    apply(state) {
-      state.ghost = (state.ghost || 0) + 1;
-      const head = state.snake[0];
-      for (const e of state.enemies) {
-        const angle = Math.random() * Math.PI * 2;
-        e.x = head.x + Math.cos(angle) * (15 + Math.random() * 10);
-        e.y = head.y + Math.sin(angle) * (15 + Math.random() * 10);
-      }
-    }
   },
   // Legendary
   {
@@ -386,6 +372,29 @@ function pickChestRarity() {
   return 'common';
 }
 
+function isEnclosedBySnake(state, cell) {
+  const snakeSet = new Set(state.snake.map(s => `${Math.round(s.x)},${Math.round(s.y)}`));
+  const sx = Math.round(cell.x);
+  const sy = Math.round(cell.y);
+  if (snakeSet.has(`${sx},${sy}`)) return true;
+  const visited = new Set();
+  const queue = [[sx, sy]];
+  visited.add(`${sx},${sy}`);
+  const MAX_CELLS = 2000;
+  while (queue.length > 0) {
+    if (visited.size >= MAX_CELLS) return false;
+    const [cx, cy] = queue.shift();
+    for (const [nx, ny] of [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]]) {
+      const key = `${nx},${ny}`;
+      if (!visited.has(key) && !snakeSet.has(key)) {
+        visited.add(key);
+        queue.push([nx, ny]);
+      }
+    }
+  }
+  return true;
+}
+
 function chestCellOutsideFOV(state) {
   // Spawn just outside the player's visible area (1–4 cells beyond each FOV edge)
   const head = state.snake[0];
@@ -421,7 +430,8 @@ function chestCellOutsideFOV(state) {
     state.snake.some(s => { const dx = cell.x - s.x, dy = cell.y - s.y; return dx * dx + dy * dy < 1; }) ||
     state.apples.some(a => Math.abs(a.x - cell.x) < 0.5 && Math.abs(a.y - cell.y) < 0.5) ||
     state.enemies.some(e => Math.round(e.x) === cell.x && Math.round(e.y) === cell.y) ||
-    (state.chests || []).some(c => Math.abs(c.x - cell.x) < 0.5 && Math.abs(c.y - cell.y) < 0.5)
+    (state.chests || []).some(c => Math.abs(c.x - cell.x) < 0.5 && Math.abs(c.y - cell.y) < 0.5) ||
+    isEnclosedBySnake(state, cell)
   ) && attempts < 200);
   return cell;
 }
@@ -607,31 +617,6 @@ const ENEMY_TYPES = {
       e.y += (dy / len) * spd;
     }
   },
-  speeder: {
-    color: '#00e0c0',
-    glowColor: 'rgba(0,200,180,0.4)',
-    size: 0.75,
-    shape: 'circle',
-    speed: 0.0085,
-    score: 10,
-    maxHp: 2,
-    label: 'SPEEDER',
-    init(e) {
-      e.angle = Math.random() * Math.PI * 2;
-      e.zigTimer = 0;
-    },
-    update(e, state, dt) {
-      e.zigTimer = (e.zigTimer || 0) + dt;
-      if (e.zigTimer > 800 + randInt(600)) {
-        const head = state.snake[0];
-        e.angle = Math.atan2(head.y - e.y, head.x - e.x) + (Math.random() - 0.5) * 1.2;
-        e.zigTimer = 0;
-      }
-      const spd = e.speed * dt * (1 / (1 + (state.freeze || 0) * 0.25));
-      e.x += Math.cos(e.angle) * spd;
-      e.y += Math.sin(e.angle) * spd;
-    }
-  },
 };
 
 // ── Time-based enemy scaling ─────────────────
@@ -651,7 +636,6 @@ function getEnemyTypeKeys(elapsedMs, nightmareMode) {
   // Only bats (chasers) until 2:45; then one new enemy type unlocks every minute
   const keys = ['chaser', 'chaser', 'chaser'];
   if (s >= 165 || nightmareMode) keys.push('patrol');
-  if (s >= 225 || nightmareMode) keys.push('speeder');
   if (s >= 285 || nightmareMode) keys.push('phantom');
   if (s >= 345 || nightmareMode) keys.push('titan');
   return keys;
@@ -4521,9 +4505,12 @@ class SnakeRogue {
     if (!el) return;
     el.textContent = '⚠ SITE GOING OFFLINE AFTER THIS ROUND — PLAY ON!';
     el.style.display = 'block';
+    if (this._shutdownWarningTimeout) clearTimeout(this._shutdownWarningTimeout);
+    this._shutdownWarningTimeout = setTimeout(() => this._hideShutdownWarning(), 15000);
   }
 
   _hideShutdownWarning() {
+    if (this._shutdownWarningTimeout) { clearTimeout(this._shutdownWarningTimeout); this._shutdownWarningTimeout = null; }
     const el = document.getElementById('shutdown-warning');
     if (el) el.style.display = 'none';
   }
