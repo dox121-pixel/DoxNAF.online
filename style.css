@@ -748,6 +748,83 @@ canvas {
   text-transform: uppercase;
 }
 
+/* ── Auth modal ──────────────────────────────── */
+#auth-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 5, 15, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+}
+
+#auth-modal-box {
+  background: #0a0a16;
+  border: 1px solid #246;
+  border-radius: 8px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 280px;
+  max-width: calc(100vw - 40px);
+}
+
+#auth-modal-title {
+  font-size: 14px;
+  color: #7ef;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+#auth-tab-row {
+  display: flex;
+  border: 1px solid #246;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.auth-tab {
+  background: transparent;
+  border: none;
+  color: #567;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.auth-tab.active {
+  background: #0d1e35;
+  color: #7ef;
+}
+
+.auth-tab:hover:not(.active) {
+  background: #0a1520;
+  color: #4af;
+}
+
+/* ── Account section on main menu ────────────── */
+.account-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.account-logged-in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #7ef;
+  letter-spacing: 1px;
+}
+
 /* ── Spectate overlay ──────────────────────────── */
 #spectate-overlay {
   position: fixed;

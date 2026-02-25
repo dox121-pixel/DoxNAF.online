@@ -77,6 +77,34 @@
       </div>
     </div>
 
+    <!-- Account / Auth modal -->
+    <div id="auth-modal" style="display:none;">
+      <div id="auth-modal-box">
+        <div id="auth-modal-title">👤 ACCOUNT</div>
+        <div id="auth-tab-row">
+          <button class="auth-tab active" id="auth-tab-login">SIGN IN</button>
+          <button class="auth-tab" id="auth-tab-register">CREATE ACCOUNT</button>
+        </div>
+        <input id="auth-username-input" class="room-input" maxlength="20"
+               placeholder="USERNAME" autocomplete="username" spellcheck="false"
+               style="width:180px;font-size:16px;letter-spacing:2px;text-transform:none;" />
+        <input id="auth-password-input" type="password" class="room-input"
+               placeholder="PASSWORD" autocomplete="current-password" spellcheck="false"
+               style="width:180px;letter-spacing:4px;" />
+        <div id="auth-register-note" style="display:none;font-size:10px;color:#f80;text-align:center;max-width:220px;line-height:1.6;">
+          ⚠ Do not lose your password.<br>There is <strong>no</strong> password recovery!
+        </div>
+        <div id="auth-error" style="font-size:10px;color:#f55;min-height:14px;"></div>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <button class="btn btn-online" id="auth-submit-btn">SIGN IN</button>
+          <button class="btn btn-back" id="auth-cancel-btn">CANCEL</button>
+        </div>
+        <div style="font-size:10px;color:#456;margin-top:2px;text-align:center;line-height:1.6;">
+          All modes are playable without an account.<br>Without an account your name will be Anonymous.
+        </div>
+      </div>
+    </div>
+
     <!-- Admin password modal -->
     <div id="admin-modal" style="display:none;">
       <div id="admin-modal-box">

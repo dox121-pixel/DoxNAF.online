@@ -30,6 +30,9 @@ const dbPool = process.env.DATABASE_URL
 const ADMIN_SESSION_TTL_MS = 3600000; // 1 hour
 const adminSessions = new Map(); // token → expiry timestamp
 
+// ── User authentication ───────────────────────
+const USER_SESSION_TTL_MS = 30 * 24 * 3600 * 1000; // 30 days
+
 // ── Brute-force protection ────────────────────
 const loginAttempts = new Map(); // IP → { count, resetAt }
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -351,6 +354,20 @@ async function initDb() {
       [DEFAULT_ADMIN_HASH]
     );
   }
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS user_accounts (
+      username      VARCHAR(30)   PRIMARY KEY,
+      password_hash TEXT          NOT NULL,
+      created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+    )
+  `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      token         CHAR(64)      PRIMARY KEY,
+      username      VARCHAR(30)   NOT NULL REFERENCES user_accounts(username) ON DELETE CASCADE,
+      expires_at    TIMESTAMPTZ   NOT NULL
+    )
+  `);
 }
 
 async function deleteLeaderboardEntry(name) {
@@ -363,6 +380,69 @@ async function deleteLeaderboardEntry(name) {
      ON CONFLICT (name) DO UPDATE SET removed_at = NOW()`,
     [safeName]
   );
+}
+
+// ── User account helpers ──────────────────────
+function isValidUsername(name) {
+  if (!name || name.length < 3 || name.length > 20) return false;
+  if (name.toLowerCase() === 'anonymous') return false;
+  if (!/^[a-zA-Z0-9 _-]+$/.test(name)) return false;
+  if (containsBannedWord(name)) return false;
+  return true;
+}
+
+async function registerUser(username, password) {
+  if (!dbPool) throw new Error('no_db');
+  const hash = generatePasswordHash(password);
+  await dbPool.query(
+    `INSERT INTO user_accounts (username, password_hash) VALUES ($1, $2)`,
+    [username, hash]
+  );
+}
+
+async function loginUser(username, password) {
+  if (!dbPool) return null;
+  const res = await dbPool.query(
+    `SELECT username, password_hash FROM user_accounts WHERE LOWER(username) = LOWER($1) LIMIT 1`,
+    [username]
+  );
+  if (res.rows.length === 0) return null;
+  const row = res.rows[0];
+  if (!verifyPassword(password, row.password_hash)) return null;
+  return row.username; // return exact casing stored in DB
+}
+
+async function createUserSession(username) {
+  if (!dbPool) return null;
+  const token = generateToken();
+  const expiresAt = new Date(Date.now() + USER_SESSION_TTL_MS);
+  await dbPool.query(
+    `INSERT INTO user_sessions (token, username, expires_at) VALUES ($1, $2, $3)`,
+    [token, username, expiresAt]
+  );
+  return token;
+}
+
+async function verifyUserSession(token) {
+  if (!dbPool || !token) return null;
+  const safeToken = String(token).slice(0, 64);
+  const res = await dbPool.query(
+    `SELECT username, expires_at FROM user_sessions WHERE token = $1 LIMIT 1`,
+    [safeToken]
+  );
+  if (res.rows.length === 0) return null;
+  const row = res.rows[0];
+  if (Date.now() > new Date(row.expires_at).getTime()) {
+    await dbPool.query(`DELETE FROM user_sessions WHERE token = $1`, [safeToken]);
+    return null;
+  }
+  return row.username;
+}
+
+async function deleteUserSession(token) {
+  if (!dbPool || !token) return;
+  const safeToken = String(token).slice(0, 64);
+  await dbPool.query(`DELETE FROM user_sessions WHERE token = $1`, [safeToken]);
 }
 
 async function checkLeaderboardRemoval(name) {
@@ -948,6 +1028,162 @@ const httpServer = http.createServer((req, res) => {
         }).catch(err => {
           console.error('Admin logs fetch error:', err.message);
           res.writeHead(500); res.end('Internal Server Error');
+        });
+      } catch (_) {
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
+    return;
+  }
+
+  // ── User Account API ─────────────────────────
+  const authCors = {
+    'Access-Control-Allow-Origin': 'https://doxnaf.online',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+
+  if (urlPath === '/api/auth/register') {
+    if (req.method === 'OPTIONS') { res.writeHead(204, authCors); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+    const rateCheck = checkLoginRateLimit(ip);
+    if (!rateCheck.allowed) {
+      res.writeHead(429, { 'Content-Type': 'application/json', ...authCors, 'Retry-After': String(rateCheck.retryAfterSec) });
+      res.end(JSON.stringify({ ok: false, message: 'Too many attempts. Try again later.' }));
+      return;
+    }
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { username, password } = JSON.parse(body);
+        const uname = String(username || '').trim();
+        const pw    = String(password || '');
+        if (!isValidUsername(uname)) {
+          res.writeHead(400, { 'Content-Type': 'application/json', ...authCors });
+          res.end(JSON.stringify({ ok: false, message: 'Invalid username. Use 3–20 characters: letters, numbers, spaces, _ or -.' }));
+          return;
+        }
+        if (pw.length < 6 || pw.length > 100) {
+          res.writeHead(400, { 'Content-Type': 'application/json', ...authCors });
+          res.end(JSON.stringify({ ok: false, message: 'Password must be 6–100 characters.' }));
+          return;
+        }
+        if (!dbPool) {
+          res.writeHead(503, { 'Content-Type': 'application/json', ...authCors });
+          res.end(JSON.stringify({ ok: false, message: 'Service unavailable — try again later.' }));
+          return;
+        }
+        registerUser(uname, pw).then(() => {
+          clearLoginAttempts(ip);
+          return createUserSession(uname).then(token => {
+            res.writeHead(200, { 'Content-Type': 'application/json', ...authCors });
+            res.end(JSON.stringify({ ok: true, token, username: uname }));
+          });
+        }).catch(err => {
+          if (err.code === '23505') { // unique_violation
+            recordFailedLogin(ip);
+            res.writeHead(409, { 'Content-Type': 'application/json', ...authCors });
+            res.end(JSON.stringify({ ok: false, message: 'Username already taken.' }));
+          } else {
+            console.error('Register error:', err.message);
+            res.writeHead(500); res.end('Internal Server Error');
+          }
+        });
+      } catch (_) {
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
+    return;
+  }
+
+  if (urlPath === '/api/auth/login') {
+    if (req.method === 'OPTIONS') { res.writeHead(204, authCors); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+    const rateCheck = checkLoginRateLimit(ip);
+    if (!rateCheck.allowed) {
+      res.writeHead(429, { 'Content-Type': 'application/json', ...authCors, 'Retry-After': String(rateCheck.retryAfterSec) });
+      res.end(JSON.stringify({ ok: false, message: 'Too many attempts. Try again later.' }));
+      return;
+    }
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 1024) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { username, password } = JSON.parse(body);
+        const uname = String(username || '').trim();
+        const pw    = String(password || '');
+        if (!dbPool) {
+          res.writeHead(503, { 'Content-Type': 'application/json', ...authCors });
+          res.end(JSON.stringify({ ok: false, message: 'Service unavailable — try again later.' }));
+          return;
+        }
+        loginUser(uname, pw).then(canonical => {
+          if (!canonical) {
+            recordFailedLogin(ip);
+            res.writeHead(401, { 'Content-Type': 'application/json', ...authCors });
+            res.end(JSON.stringify({ ok: false, message: 'Incorrect username or password.' }));
+            return;
+          }
+          clearLoginAttempts(ip);
+          return createUserSession(canonical).then(token => {
+            res.writeHead(200, { 'Content-Type': 'application/json', ...authCors });
+            res.end(JSON.stringify({ ok: true, token, username: canonical }));
+          });
+        }).catch(err => {
+          console.error('Login error:', err.message);
+          res.writeHead(500); res.end('Internal Server Error');
+        });
+      } catch (_) {
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
+    return;
+  }
+
+  if (urlPath === '/api/auth/verify') {
+    if (req.method === 'OPTIONS') { res.writeHead(204, authCors); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 256) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { token } = JSON.parse(body);
+        verifyUserSession(token).then(username => {
+          if (!username) {
+            res.writeHead(401, { 'Content-Type': 'application/json', ...authCors });
+            res.end(JSON.stringify({ ok: false }));
+            return;
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json', ...authCors });
+          res.end(JSON.stringify({ ok: true, username }));
+        }).catch(err => {
+          console.error('Verify error:', err.message);
+          res.writeHead(500); res.end('Internal Server Error');
+        });
+      } catch (_) {
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
+    return;
+  }
+
+  if (urlPath === '/api/auth/logout') {
+    if (req.method === 'OPTIONS') { res.writeHead(204, authCors); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 256) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { token } = JSON.parse(body);
+        deleteUserSession(token).then(() => {
+          res.writeHead(200, { 'Content-Type': 'application/json', ...authCors });
+          res.end(JSON.stringify({ ok: true }));
+        }).catch(() => {
+          res.writeHead(200, { 'Content-Type': 'application/json', ...authCors });
+          res.end(JSON.stringify({ ok: true }));
         });
       } catch (_) {
         res.writeHead(400); res.end('Bad Request');
