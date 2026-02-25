@@ -420,6 +420,7 @@ canvas {
   top: 0;
   left: 0;
   right: 0;
+  bottom: auto;
   z-index: 50;
   background: rgba(5, 5, 15, 0.7);
   height: auto;
