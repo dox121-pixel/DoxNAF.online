@@ -1245,6 +1245,9 @@ class SnakeRogue {
     this._siteDown   = false;
     this._siteDownTimer = null;
     this._sleepSnakeRaf = null;
+    this._siteGoingDown = false;
+    this._siteDownSince = null;
+    this._sitePollingInterval = null;
     this._setupAdmin();
     this._setupFeedback();
 
@@ -1281,6 +1284,7 @@ class SnakeRogue {
     this._renderOverlay();
     this._checkRemovalNotice();
     this._checkSiteState();
+    this._sitePollingInterval = setInterval(() => this._checkSiteState(true), 30000);
   }
 
   _resizeCanvas(nightmareMode) {
@@ -1692,6 +1696,14 @@ class SnakeRogue {
     this._jumpscareTimeout = setTimeout(() => {
       this.state = null;
       this.phase = 'gameover';
+
+      // If site is going down, show maintenance screen instead
+      if (this._siteGoingDown) {
+        this._hideShutdownWarning();
+        this._showMaintenanceScreen(this._siteDownSince);
+        return;
+      }
+
       const el = document.getElementById('overlay');
       el.className = 'gameover';
       el.style.display = '';
@@ -2642,6 +2654,14 @@ class SnakeRogue {
     if (pauseMenu) pauseMenu.style.display = 'none';
 
     if (type === 'gameover') {
+      // If site is going down, show maintenance screen immediately after this round ends
+      if (this._siteGoingDown) {
+        this._hideShutdownWarning();
+        el.style.display = 'none';
+        this._showMaintenanceScreen(this._siteDownSince);
+        return;
+      }
+
       const s = this.state;
       const reasonText = reason === 'wall' ? 'hit a wall' : reason === 'self' ? 'bit your own tail' : 'caught by an enemy';
 
@@ -3330,11 +3350,32 @@ class SnakeRogue {
       case 'error':
         this._setOnlineError(msg.message || 'Server error');
         break;
+
+      case 'site_going_down':
+        if (!this._adminMode) {
+          this._siteDown = true;
+          this._siteDownSince = msg.downSince || null;
+          if (this.phase === 'online_playing' && !this._siteGoingDown) {
+            this._siteGoingDown = true;
+            this._showShutdownWarning();
+          } else if (this.phase !== 'online_playing') {
+            this._showMaintenanceScreen(this._siteDownSince);
+          }
+        }
+        break;
     }
   }
 
   _showOnlineGameOver(winner, scores) {
     this._hideMobileTeleportBtn();
+
+    // If site is going down, show maintenance screen immediately after this round ends
+    if (this._siteGoingDown) {
+      this._hideShutdownWarning();
+      this._showMaintenanceScreen(this._siteDownSince);
+      return;
+    }
+
     const el = document.getElementById('overlay');
     let heading, cls;
     if (winner === -1)                   { heading = 'DRAW';        cls = 'online-draw'; }
@@ -3471,6 +3512,18 @@ class SnakeRogue {
           tick:         this.tick,
         } : { phase: this.phase, viewCols: VIEW_COLS, viewRows: VIEW_ROWS };
         this._spWs.send(JSON.stringify({ type: 'sp_state_update', snapshot }));
+      }
+      return;
+    }
+    if (msg.type === 'site_going_down' && !this._adminMode) {
+      this._siteDown = true;
+      this._siteDownSince = msg.downSince || null;
+      const isPlaying = this.phase === 'playing' || this.phase === 'upgrade';
+      if (isPlaying && !this._siteGoingDown) {
+        this._siteGoingDown = true;
+        this._showShutdownWarning();
+      } else if (!isPlaying) {
+        this._showMaintenanceScreen(this._siteDownSince);
       }
       return;
     }
@@ -4326,19 +4379,26 @@ class SnakeRogue {
   }
 
   // ── Site state ────────────────────────────────
-  _checkSiteState() {
+  _checkSiteState(fromPoll = false) {
     fetch(`${API_SERVER}/api/site-state`)
       .then(r => r.ok ? r.json() : { down: false })
       .then(data => {
         this._siteDown = !!data.down;
         if (this._siteDown && !this._adminMode) {
-          this._showMaintenanceScreen(data.downSince);
-        } else {
+          const isPlaying = this.phase === 'playing' || this.phase === 'online_playing' || this.phase === 'upgrade';
+          if (isPlaying && !this._siteGoingDown) {
+            this._siteGoingDown = true;
+            this._siteDownSince = data.downSince || null;
+            this._showShutdownWarning();
+          } else if (!isPlaying) {
+            this._showMaintenanceScreen(data.downSince);
+          }
+        } else if (!fromPoll) {
           this._showGreetingIfNeeded();
         }
       })
       .catch(() => {
-        this._showGreetingIfNeeded();
+        if (!fromPoll) this._showGreetingIfNeeded();
       });
   }
 
@@ -4382,31 +4442,31 @@ class SnakeRogue {
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
 
-    // Coil geometry (matches the overlay's 64×64 canvas)
-    const cx = W / 2, cy = H * 0.62;
-    const coilR = W * 0.26;
-    const nSeg  = 14;
-    const headX = cx, headY = cy - coilR;
-    const hr    = W * 0.12;
-    const lineW = W * 0.115;
+    // Straight horizontal snake geometry
+    const cy     = H / 2;
+    const headX  = W - H / 2;          // head circle center X
+    const headR  = H * 0.38;           // head radius
+    const lineW  = H * 0.36;           // body thickness
+    const bodyX0 = 4;                  // body start X (tail end)
+    const bodyX1 = headX - headR + 2;  // body end X (meets head)
+    const nSeg   = 10;                 // number of body colour segments
 
-    const draw = (ts) => {
-      const t = ts || 0;
+    const draw = () => {
       ctx.clearRect(0, 0, W, H);
 
-      // Coiled body – segments drawn tail→head so head is on top
+      // Body – segments drawn tail→head so head is on top
       ctx.save();
       ctx.lineCap  = 'round';
       ctx.lineJoin = 'round';
       ctx.lineWidth = lineW;
       for (let i = nSeg - 1; i >= 0; i--) {
-        const a0 = (i       / nSeg) * Math.PI * 2 - Math.PI / 2;
-        const a1 = ((i + 1) / nSeg) * Math.PI * 2 - Math.PI / 2;
+        const x0 = bodyX0 + (i       / nSeg) * (bodyX1 - bodyX0);
+        const x1 = bodyX0 + ((i + 1) / nSeg) * (bodyX1 - bodyX0);
         const alpha = 0.3 + 0.7 * (1 - i / (nSeg - 1));
         ctx.strokeStyle = `rgba(40, 160, 80, ${alpha})`;
         ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(a0) * coilR, cy + Math.sin(a0) * coilR);
-        ctx.lineTo(cx + Math.cos(a1) * coilR, cy + Math.sin(a1) * coilR);
+        ctx.moveTo(x0, cy);
+        ctx.lineTo(x1, cy);
         ctx.stroke();
       }
       ctx.restore();
@@ -4417,19 +4477,19 @@ class SnakeRogue {
       ctx.shadowColor = '#4f8';
       ctx.fillStyle   = '#50e678';
       ctx.beginPath();
-      ctx.arc(headX, headY, hr, 0, Math.PI * 2);
+      ctx.arc(headX, cy, headR, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      // Closed eyes – short horizontal strokes, slightly curved downward
-      const eyeR    = hr * 0.28;
-      const eyeDist = hr * 0.52;
+      // Closed eyes – short horizontal strokes curved downward
+      const eyeR    = headR * 0.28;
+      const eyeDist = headR * 0.52;
       ctx.strokeStyle = '#0a0a14';
       ctx.lineWidth   = eyeR * 0.85;
       ctx.lineCap     = 'round';
       [-1, 1].forEach(side => {
         const ex = headX + side * eyeDist;
-        const ey = headY + eyeR * 0.15;
+        const ey = cy + eyeR * 0.15;
         ctx.beginPath();
         ctx.moveTo(ex - eyeR, ey - eyeR * 0.25);
         ctx.quadraticCurveTo(ex, ey + eyeR * 0.5, ex + eyeR, ey - eyeR * 0.25);
@@ -4445,12 +4505,27 @@ class SnakeRogue {
 
   _hideMaintenanceScreen() {
     this._siteDown = false;
+    this._siteGoingDown = false;
+    this._siteDownSince = null;
     if (this._siteDownTimer) { clearInterval(this._siteDownTimer); this._siteDownTimer = null; }
     if (this._sleepSnakeRaf) { cancelAnimationFrame(this._sleepSnakeRaf); this._sleepSnakeRaf = null; }
     const overlay = document.getElementById('site-down-overlay');
     if (overlay) overlay.style.display = 'none';
+    this._hideShutdownWarning();
     this._updateSiteToggleBtn();
     this._showGreetingIfNeeded();
+  }
+
+  _showShutdownWarning() {
+    const el = document.getElementById('shutdown-warning');
+    if (!el) return;
+    el.textContent = '⚠ SITE GOING OFFLINE AFTER THIS ROUND — PLAY ON!';
+    el.style.display = 'block';
+  }
+
+  _hideShutdownWarning() {
+    const el = document.getElementById('shutdown-warning');
+    if (el) el.style.display = 'none';
   }
 
   _updateSiteToggleBtn() {
