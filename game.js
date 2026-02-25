@@ -67,7 +67,7 @@ const ONLINE_TICK_MS = 120;
 
 // ── Smooth-snake physics ─────────────────────
 const SEG_SPACING            = 0.45;        // grid-cells between body segment points
-const SNAKE_RADIUS           = 0.28;        // grid-cells half-width (rendering + collision)
+const SNAKE_RADIUS           = 0.42;        // grid-cells half-width (rendering + collision)
 const SNAKE_SPRITE_SIZE_MULT  = 3.5;        // multiplier for snake sprite draw size relative to radius
 const SNAKE_SPRITE_ROT_OFFSET = Math.PI / 2; // sprites face up; offset aligns them with movement direction
 const INIT_SEGS        = 10;    // initial number of body segment points
@@ -793,9 +793,8 @@ function drawSnake(ctx, state) {
   for (let si = samples.length - 1; si >= 1; si--) {
     const { idx, cx, cy, angle: segAngle } = sampleData[si];
 
-    // Tail is the last sample; body segments cycle through the four circular variants
-    const isTail = (si === samples.length - 1);
-    const img = isTail ? SNAKE_TAIL_IMG : SNAKE_BODY_IMGS[idx % SNAKE_BODY_IMGS.length];
+    // Body segments cycle through Body1, Body2, Body3 (indices 1-3)
+    const img = SNAKE_BODY_IMGS[1 + (idx % 3)];
 
     if (img.complete && img.naturalWidth > 0) {
       ctx.save();
@@ -817,8 +816,7 @@ function drawSnake(ctx, state) {
   for (let si = samples.length - 1; si >= 1; si--) {
     const { cx, cy, angle: segAngle } = sampleData[si];
 
-    const isTail = (si === samples.length - 1);
-    const borderImg = isTail ? SNAKE_TAIL_BORDER_IMG : SNAKE_BODY_BORDER_IMG;
+    const borderImg = SNAKE_BODY_BORDER_IMG;
 
     if (borderImg.complete && borderImg.naturalWidth > 0) {
       ctx.save();
@@ -1235,7 +1233,7 @@ function drawOnlineSnake(ctx, body, playerIdx, prevBody, t, grid = GRID) {
   const isP1      = playerIdx === 0;
   const headColor = isP1 ? '#50e678'              : '#ff8040';
   const glowColor = isP1 ? '#4f8'                 : '#f84';
-  const snakeR    = 0.28; // same ratio as single-player SNAKE_RADIUS
+  const snakeR    = 0.42; // same ratio as single-player SNAKE_RADIUS
 
   ctx.save();
   ctx.lineCap  = 'round';
