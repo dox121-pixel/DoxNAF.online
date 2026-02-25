@@ -59,6 +59,18 @@ function clearLoginAttempts(ip) {
   loginAttempts.delete(ip);
 }
 
+// ── Admin audit logging ───────────────────────
+function logAdminEvent(eventType, ip, details) {
+  const entry = { timestamp: new Date().toISOString(), ip, ...details };
+  console.warn('[ADMIN LOG]', eventType, entry);
+  if (dbPool) {
+    dbPool.query(
+      `INSERT INTO admin_logs (event_type, ip, details) VALUES ($1, $2, $3)`,
+      [eventType, ip, JSON.stringify(details)]
+    ).catch(err => console.error('[ADMIN LOG] DB insert error:', err.message));
+  }
+}
+
 // ── Password hashing (scrypt) ─────────────────
 function hashPasswordLegacy(pw) {
   // SHA-256 — used only for migrating old stored hashes
@@ -184,6 +196,15 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS admin_settings (
       key   VARCHAR(50)  PRIMARY KEY,
       value TEXT         NOT NULL
+    )
+  `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS admin_logs (
+      id         SERIAL       PRIMARY KEY,
+      event_type VARCHAR(50)  NOT NULL,
+      ip         VARCHAR(100) NOT NULL,
+      details    JSONB        NOT NULL DEFAULT '{}',
+      created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     )
   `);
   await dbPool.query(`
@@ -532,10 +553,23 @@ const httpServer = http.createServer((req, res) => {
     const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
     const rateCheck = checkLoginRateLimit(ip);
     if (!rateCheck.allowed) {
+      logAdminEvent('login_rate_limited', ip, {
+        userAgent: req.headers['user-agent'] || 'unknown',
+        retryAfterSec: rateCheck.retryAfterSec,
+      });
       res.writeHead(429, { 'Content-Type': 'application/json', ...adminCors, 'Retry-After': String(rateCheck.retryAfterSec) });
       res.end(JSON.stringify({ ok: false, message: 'Too many attempts. Try again later.' }));
       return;
     }
+    const loginDetails = {
+      userAgent: req.headers['user-agent'] || 'unknown',
+      referer: req.headers['referer'] || 'none',
+      origin: req.headers['origin'] || 'none',
+      acceptLanguage: req.headers['accept-language'] || 'unknown',
+      xForwardedFor: req.headers['x-forwarded-for'] || 'none',
+      xRealIp: req.headers['x-real-ip'] || 'none',
+      host: req.headers['host'] || 'unknown',
+    };
     let body = '';
     req.on('data', chunk => { body += chunk; if (body.length > 512) req.destroy(); });
     req.on('end', () => {
@@ -544,26 +578,15 @@ const httpServer = http.createServer((req, res) => {
         const pw = String(password || '');
         getAdminPasswordHash().then(storedHash => {
           const hashToCheck = storedHash || DEFAULT_ADMIN_HASH;
-          // Detect and log attempts using the old legacy SHA-256 password
           if (isLegacyPasswordMatch(pw, hashToCheck)) {
-            console.warn('[ADMIN] OLD PASSWORD ATTEMPT DETECTED', {
-              timestamp: new Date().toISOString(),
-              ip,
-              userAgent: req.headers['user-agent'] || 'unknown',
-              referer: req.headers['referer'] || 'none',
-              origin: req.headers['origin'] || 'none',
-              acceptLanguage: req.headers['accept-language'] || 'unknown',
-              accept: req.headers['accept'] || 'unknown',
-              xForwardedFor: req.headers['x-forwarded-for'] || 'none',
-              xRealIp: req.headers['x-real-ip'] || 'none',
-              host: req.headers['host'] || 'unknown',
-            });
+            logAdminEvent('login_failed_legacy_password', ip, loginDetails);
             recordFailedLogin(ip);
             res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
             res.end(JSON.stringify({ ok: false }));
             return;
           }
           if (!verifyPassword(pw, hashToCheck)) {
+            logAdminEvent('login_failed', ip, loginDetails);
             recordFailedLogin(ip);
             res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
             res.end(JSON.stringify({ ok: false }));
@@ -572,30 +595,21 @@ const httpServer = http.createServer((req, res) => {
           clearLoginAttempts(ip);
           const token = generateToken();
           adminSessions.set(token, Date.now() + ADMIN_SESSION_TTL_MS);
+          logAdminEvent('login_success', ip, loginDetails);
           res.writeHead(200, { 'Content-Type': 'application/json', ...adminCors });
           res.end(JSON.stringify({ ok: true, token }));
         }).catch(err => {
           console.error('Admin login DB error:', err.message);
           // DB unavailable — fall back to in-memory default hash
           if (isLegacyPasswordMatch(pw, DEFAULT_ADMIN_HASH)) {
-            console.warn('[ADMIN] OLD PASSWORD ATTEMPT DETECTED (DB fallback)', {
-              timestamp: new Date().toISOString(),
-              ip,
-              userAgent: req.headers['user-agent'] || 'unknown',
-              referer: req.headers['referer'] || 'none',
-              origin: req.headers['origin'] || 'none',
-              acceptLanguage: req.headers['accept-language'] || 'unknown',
-              accept: req.headers['accept'] || 'unknown',
-              xForwardedFor: req.headers['x-forwarded-for'] || 'none',
-              xRealIp: req.headers['x-real-ip'] || 'none',
-              host: req.headers['host'] || 'unknown',
-            });
+            logAdminEvent('login_failed_legacy_password', ip, { ...loginDetails, dbFallback: true });
             recordFailedLogin(ip);
             res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
             res.end(JSON.stringify({ ok: false }));
             return;
           }
           if (!verifyPassword(pw, DEFAULT_ADMIN_HASH)) {
+            logAdminEvent('login_failed', ip, { ...loginDetails, dbFallback: true });
             recordFailedLogin(ip);
             res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
             res.end(JSON.stringify({ ok: false }));
@@ -604,6 +618,7 @@ const httpServer = http.createServer((req, res) => {
           clearLoginAttempts(ip);
           const token = generateToken();
           adminSessions.set(token, Date.now() + ADMIN_SESSION_TTL_MS);
+          logAdminEvent('login_success', ip, { ...loginDetails, dbFallback: true });
           res.writeHead(200, { 'Content-Type': 'application/json', ...adminCors });
           res.end(JSON.stringify({ ok: true, token }));
         });
@@ -787,6 +802,43 @@ const httpServer = http.createServer((req, res) => {
         // Return whatever snapshot we have (updated asynchronously by sp_state_update)
         res.writeHead(200, { 'Content-Type': 'application/json', ...adminCors });
         res.end(JSON.stringify({ ok: true, snapshot: sess.lastSnapshot }));
+      } catch (_) {
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
+    return;
+  }
+
+  // ── Admin: audit logs ────────────────────────
+  if (urlPath === '/api/admin/logs') {
+    if (req.method === 'OPTIONS') { res.writeHead(204, adminCors); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 256) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { token, limit = 100 } = JSON.parse(body);
+        if (!isValidAdminToken(token)) {
+          res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: false, message: 'Unauthorized' }));
+          return;
+        }
+        if (!dbPool) {
+          res.writeHead(503, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: false, message: 'Database unavailable' }));
+          return;
+        }
+        const safeLimit = Math.min(Math.max(1, parseInt(limit, 10) || 100), 500);
+        dbPool.query(
+          `SELECT id, event_type, ip, details, created_at FROM admin_logs ORDER BY created_at DESC LIMIT $1`,
+          [safeLimit]
+        ).then(result => {
+          res.writeHead(200, { 'Content-Type': 'application/json', ...adminCors });
+          res.end(JSON.stringify({ ok: true, logs: result.rows }));
+        }).catch(err => {
+          console.error('Admin logs fetch error:', err.message);
+          res.writeHead(500); res.end('Internal Server Error');
+        });
       } catch (_) {
         res.writeHead(400); res.end('Bad Request');
       }
