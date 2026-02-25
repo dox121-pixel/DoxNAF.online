@@ -654,6 +654,11 @@ const httpServer = http.createServer((req, res) => {
         const goingDown = !!down;
         if (goingDown && !siteState.down) {
           siteState = { down: true, downSince: new Date().toISOString() };
+          // Broadcast to all connected WebSocket clients so playing users get warned
+          const broadcastMsg = JSON.stringify({ type: 'site_going_down', downSince: siteState.downSince });
+          for (const client of wss.clients) {
+            if (client.readyState === WebSocket.OPEN) client.send(broadcastMsg);
+          }
         } else if (!goingDown) {
           siteState = { down: false, downSince: null };
         }

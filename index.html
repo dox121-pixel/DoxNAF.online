@@ -195,17 +195,16 @@
         <div id="site-down-timer">00:00:00</div>
         <div id="site-down-pets">
           <div class="sleeping-pet">
-            <img src="sprites/BAT.png" class="sleeping-bat" alt="sleeping bat" />
-            <div class="zzz-float zzz-bat">z z z</div>
-          </div>
-          <div class="sleeping-pet">
-            <canvas id="sleeping-snake-canvas" class="sleeping-snake-canvas" width="64" height="64"></canvas>
+            <canvas id="sleeping-snake-canvas" class="sleeping-snake-canvas" width="120" height="28"></canvas>
             <div class="zzz-float zzz-snake zzz-delayed">z z z</div>
           </div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- In-game shutdown warning (shown to players actively playing when site goes down) -->
+  <div id="shutdown-warning" style="display:none;"></div>
 
   <script src="game.js"></script>
   <!-- Admin open button: shown on main menu; remains visible during gameplay when admin is authenticated -->
