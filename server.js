@@ -30,12 +30,74 @@ const dbPool = process.env.DATABASE_URL
 const ADMIN_SESSION_TTL_MS = 3600000; // 1 hour
 const adminSessions = new Map(); // token → expiry timestamp
 
-function hashPassword(pw) {
+// ── Brute-force protection ────────────────────
+const loginAttempts = new Map(); // IP → { count, resetAt }
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS   = 15 * 60 * 1000; // 15 minutes
+
+function checkLoginRateLimit(ip) {
+  const now   = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now > entry.resetAt) return { allowed: true };
+  if (entry.count >= MAX_LOGIN_ATTEMPTS) {
+    return { allowed: false, retryAfterSec: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+  return { allowed: true };
+}
+
+function recordFailedLogin(ip) {
+  const now   = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_LOCKOUT_MS });
+  } else {
+    entry.count++;
+  }
+}
+
+function clearLoginAttempts(ip) {
+  loginAttempts.delete(ip);
+}
+
+// ── Password hashing (scrypt) ─────────────────
+function hashPasswordLegacy(pw) {
+  // SHA-256 — used only for migrating old stored hashes
   return crypto.createHash('sha256').update(String(pw)).digest('hex');
 }
 
-// Pre-computed default password hash (used when DB is unavailable)
-const DEFAULT_ADMIN_HASH = hashPassword('GMMKVIPER');
+function generatePasswordHash(pw) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(String(pw), salt, 64).toString('hex');
+  return `scrypt:${salt}:${hash}`;
+}
+
+function verifyPassword(pw, storedHash) {
+  if (!storedHash) return false;
+  if (storedHash.startsWith('scrypt:')) {
+    const parts = storedHash.split(':');
+    if (parts.length !== 3) return false;
+    const [, salt, expected] = parts;
+    try {
+      const computed = crypto.scryptSync(String(pw), salt, 64).toString('hex');
+      return crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(expected, 'hex'));
+    } catch (_) { return false; }
+  }
+  // Legacy SHA-256 — accept and trigger upgrade on success
+  try {
+    const computed = hashPasswordLegacy(pw);
+    if (computed.length !== storedHash.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(storedHash));
+  } catch (_) { return false; }
+}
+
+// Default admin password — override via ADMIN_PASSWORD env var in production
+const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'GMMKVIPER';
+if (!process.env.ADMIN_PASSWORD) {
+  console.warn('[ADMIN] ADMIN_PASSWORD env var not set — using built-in default. Set ADMIN_PASSWORD for production!');
+}
+
+// Pre-computed hash for the no-DB fallback (new scrypt format, regenerated each start)
+const DEFAULT_ADMIN_HASH = generatePasswordHash(DEFAULT_ADMIN_PASSWORD);
 
 function generateToken() {
   return crypto.randomBytes(32).toString('hex');
@@ -55,6 +117,16 @@ async function getAdminPasswordHash() {
     `SELECT value FROM admin_settings WHERE key = 'password_hash' LIMIT 1`
   );
   return res.rows.length ? res.rows[0].value : null;
+}
+
+async function upgradePasswordHash(newHash) {
+  if (!dbPool) return;
+  await dbPool.query(
+    `INSERT INTO admin_settings (key, value)
+     VALUES ('password_hash', $1)
+     ON CONFLICT (key) DO UPDATE SET value = $1`,
+    [newHash]
+  );
 }
 
 async function initDb() {
@@ -448,24 +520,33 @@ const httpServer = http.createServer((req, res) => {
   if (urlPath === '/api/admin/login') {
     if (req.method === 'OPTIONS') { res.writeHead(204, adminCors); res.end(); return; }
     if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+    const rateCheck = checkLoginRateLimit(ip);
+    if (!rateCheck.allowed) {
+      res.writeHead(429, { 'Content-Type': 'application/json', ...adminCors, 'Retry-After': String(rateCheck.retryAfterSec) });
+      res.end(JSON.stringify({ ok: false, message: 'Too many attempts. Try again later.' }));
+      return;
+    }
     let body = '';
     req.on('data', chunk => { body += chunk; if (body.length > 512) req.destroy(); });
     req.on('end', () => {
       try {
         const { password } = JSON.parse(body);
+        const pw = String(password || '');
         getAdminPasswordHash().then(storedHash => {
-          if (!storedHash) {
-            // DB not available; compare directly against in-memory default
-            if (hashPassword(String(password || '')) !== DEFAULT_ADMIN_HASH) {
-              res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
-              res.end(JSON.stringify({ ok: false }));
-              return;
-            }
-          } else if (hashPassword(String(password || '')) !== storedHash) {
+          const hashToCheck = storedHash || DEFAULT_ADMIN_HASH;
+          if (!verifyPassword(pw, hashToCheck)) {
+            recordFailedLogin(ip);
             res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
             res.end(JSON.stringify({ ok: false }));
             return;
           }
+          // Upgrade legacy SHA-256 hash to scrypt on successful login
+          if (storedHash && !storedHash.startsWith('scrypt:')) {
+            upgradePasswordHash(generatePasswordHash(pw))
+              .catch(err => console.error('Hash upgrade error:', err.message));
+          }
+          clearLoginAttempts(ip);
           const token = generateToken();
           adminSessions.set(token, Date.now() + ADMIN_SESSION_TTL_MS);
           res.writeHead(200, { 'Content-Type': 'application/json', ...adminCors });
@@ -473,11 +554,13 @@ const httpServer = http.createServer((req, res) => {
         }).catch(err => {
           console.error('Admin login DB error:', err.message);
           // DB unavailable — fall back to in-memory default hash
-          if (hashPassword(String(password || '')) !== DEFAULT_ADMIN_HASH) {
+          if (!verifyPassword(pw, DEFAULT_ADMIN_HASH)) {
+            recordFailedLogin(ip);
             res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
             res.end(JSON.stringify({ ok: false }));
             return;
           }
+          clearLoginAttempts(ip);
           const token = generateToken();
           adminSessions.set(token, Date.now() + ADMIN_SESSION_TTL_MS);
           res.writeHead(200, { 'Content-Type': 'application/json', ...adminCors });
