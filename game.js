@@ -1304,6 +1304,7 @@ class SnakeRogue {
     this._submittedSessionId = null; // sessionId captured at game-over for score submission
     this._lastTrackedScore  = 0;    // last score delta sent to server
     this._lastTrackedApples = 0;    // last applesEaten delta sent to server
+    this._lastTrackedKills  = 0;    // last enemyKills delta sent to server
 
     // ── Admin spectate state ──
     this._spectateSessionId = null;
@@ -2220,12 +2221,15 @@ class SnakeRogue {
     if (this._spWs && this._spWs.readyState === WebSocket.OPEN && this._spSessionId) {
       const sc = state.score        || 0;
       const ap = state.applesEaten  || 0;
+      const kl = state.enemyKills   || 0;
       const scoreDelta  = sc - this._lastTrackedScore;
       const applesDelta = ap - this._lastTrackedApples;
-      if (scoreDelta > 0 || applesDelta > 0) {
-        this._spWs.send(JSON.stringify({ type: 'sp_score_event', score: scoreDelta, apples: applesDelta }));
+      const killsDelta  = kl - this._lastTrackedKills;
+      if (scoreDelta > 0 || applesDelta > 0 || killsDelta > 0) {
+        this._spWs.send(JSON.stringify({ type: 'sp_score_event', score: scoreDelta, apples: applesDelta, kills: killsDelta }));
         this._lastTrackedScore  = sc;
         this._lastTrackedApples = ap;
+        this._lastTrackedKills  = kl;
       }
     }
   }
@@ -3649,6 +3653,7 @@ class SnakeRogue {
       this._spSessionId       = msg.sessionId;
       this._lastTrackedScore  = 0;
       this._lastTrackedApples = 0;
+      this._lastTrackedKills  = 0;
       return;
     }
     if (msg.type === 'sp_request_state') {
