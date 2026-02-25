@@ -447,7 +447,7 @@ function drawChests(ctx, state, tick, grid = GRID) {
     const r = grid * 0.85 * pulse;
 
     ctx.save();
-    ctx.shadowBlur = 24;
+    ctx.shadowBlur = _fxEnabled ? 24 : 0;
     ctx.shadowColor = rData.glowColor;
 
     // Chest body (bottom rect)
@@ -460,7 +460,7 @@ function drawChests(ctx, state, tick, grid = GRID) {
     ctx.fillRect(cx - r, cy - r * 0.25, r * 2, r * 0.1);
     // Clasp
     ctx.fillStyle = '#ffdd66';
-    ctx.shadowBlur = 6;
+    ctx.shadowBlur = _fxEnabled ? 6 : 0;
     ctx.shadowColor = '#fff8aa';
     ctx.fillRect(cx - r * 0.22, cy - r * 0.65, r * 0.44, r * 0.65);
 
@@ -757,7 +757,7 @@ function drawSnake(ctx, state) {
   const hx = snake[0].x * GRID + GRID / 2;
   const hy = snake[0].y * GRID + GRID / 2;
   const hr = SNAKE_RADIUS * GRID * 1.25;
-  ctx.shadowBlur  = 14;
+  ctx.shadowBlur  = _fxEnabled ? 14 : 0;
   ctx.shadowColor = glowColor;
   ctx.fillStyle   = headColor;
   ctx.beginPath();
@@ -789,7 +789,7 @@ function drawSnake(ctx, state) {
   const gh = hr * 0.28;          // barrel height
   // Barrel
   ctx.fillStyle = '#8a8aaa';
-  ctx.shadowBlur = 5;
+  ctx.shadowBlur = _fxEnabled ? 5 : 0;
   ctx.shadowColor = '#555';
   ctx.fillRect(gx, -gh / 2, gl, gh);
   // Grip
@@ -819,7 +819,7 @@ function drawApples(ctx, state, tick, grid = GRID) {
     if (sprite.complete && sprite.naturalWidth > 0) {
       // Draw sprite centred on the apple position
       ctx.save();
-      ctx.shadowBlur = 14;
+      ctx.shadowBlur = _fxEnabled ? 14 : 0;
       ctx.shadowColor = apple.dropped ? '#a60' : '#c30';
       ctx.drawImage(sprite, cx - size / 2, cy - size / 2, size, size);
       ctx.shadowBlur = 0;
@@ -832,7 +832,7 @@ function drawApples(ctx, state, tick, grid = GRID) {
       const stemColor  = apple.dropped ? '#6a3a00' : '#5a3a10';
       const leafColor  = apple.dropped ? '#806020' : '#3a8020';
 
-      ctx.shadowBlur = 14;
+      ctx.shadowBlur = _fxEnabled ? 14 : 0;
       ctx.shadowColor = glowColor;
       ctx.fillStyle = appleColor;
       ctx.beginPath();
@@ -873,14 +873,14 @@ function drawTeleportPerks(ctx, teleportPerks, tick, grid = GRID) {
 
     if (TELEPORT_PERK_IMG.complete && TELEPORT_PERK_IMG.naturalWidth > 0) {
       ctx.save();
-      ctx.shadowBlur = 18;
+      ctx.shadowBlur = _fxEnabled ? 18 : 0;
       ctx.shadowColor = '#0af';
       ctx.drawImage(TELEPORT_PERK_IMG, cx - size / 2, cy - size / 2, size, size);
       ctx.shadowBlur = 0;
       ctx.restore();
     } else {
       // Fallback: canvas drawing while sprite loads
-      ctx.shadowBlur = 18;
+      ctx.shadowBlur = _fxEnabled ? 18 : 0;
       ctx.shadowColor = '#0af';
       ctx.fillStyle = '#0cf';
       ctx.beginPath();
@@ -904,7 +904,7 @@ function drawEnemies(ctx, state, tick) {
     const cy = e.y * GRID + GRID / 2 + bounce;
     const r = GRID * type.size * 0.45;
 
-    ctx.shadowBlur = 16;
+    ctx.shadowBlur = _fxEnabled ? 16 : 0;
     ctx.shadowColor = type.glowColor;
     ctx.fillStyle = type.color;
 
@@ -915,7 +915,7 @@ function drawEnemies(ctx, state, tick) {
         ctx.save();
         ctx.translate(cx, cy);
         const bSize = GRID * 1.2 * 0.45 * 6.5;
-        ctx.shadowBlur = 16;
+        ctx.shadowBlur = _fxEnabled ? 16 : 0;
         ctx.shadowColor = type.glowColor;
         ctx.drawImage(batFrame, -bSize / 2, -bSize / 2, bSize, bSize);
         ctx.restore();
@@ -1025,7 +1025,7 @@ function drawBullets(ctx, bullets, grid = GRID) {
     const alpha = b.life / b.maxLife;
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = _fxEnabled ? 8 : 0;
     ctx.shadowColor = '#ff0';
     ctx.fillStyle = '#ffe040';
     ctx.beginPath();
@@ -1036,6 +1036,7 @@ function drawBullets(ctx, bullets, grid = GRID) {
 }
 
 let _particleQualityMult = 1.0; // controlled by graphics settings
+let _fxEnabled = true;          // master special-effects toggle
 
 function spawnParticles(particles, x, y, color, count, grid = GRID) {
   const n = Math.round(count * _particleQualityMult);
@@ -1146,7 +1147,7 @@ function drawOnlineSnake(ctx, body, playerIdx, prevBody, t, grid = GRID) {
   const hx = pts[0].x * grid + grid / 2;
   const hy = pts[0].y * grid + grid / 2;
   const hr = snakeR * grid * 1.25;
-  ctx.shadowBlur  = 14;
+  ctx.shadowBlur  = _fxEnabled ? 14 : 0;
   ctx.shadowColor = glowColor;
   ctx.fillStyle   = headColor;
   ctx.beginPath();
@@ -1234,7 +1235,9 @@ class SnakeRogue {
     catch(_) { this._fpsCap = 0; }
     try { this._particleQuality = localStorage.getItem('particleQuality') || 'full'; }
     catch(_) { this._particleQuality = 'full'; }
-    this._applyParticleQuality();
+    try { this._fxEnabled = localStorage.getItem('fxEnabled') !== 'false'; }
+    catch(_) { this._fxEnabled = true; }
+    this._applyFxSettings();
 
     // ── Admin state ──────────────────────────
     this._adminMode  = false;
@@ -1308,6 +1311,13 @@ class SnakeRogue {
   _applyParticleQuality() {
     const q = this._particleQuality || 'full';
     _particleQualityMult = q === 'off' ? 0 : q === 'reduced' ? 0.4 : 1.0;
+  }
+
+  _applyFxSettings() {
+    _fxEnabled = this._fxEnabled !== false;
+    // When all effects are disabled, also kill particles
+    if (!_fxEnabled) _particleQualityMult = 0;
+    else this._applyParticleQuality();
   }
 
   _setupInput() {
@@ -2390,7 +2400,7 @@ class SnakeRogue {
     drawEnemies(ctx, state, this.tick);
 
     // Pulse rings
-    if (state.pulseEffects) {
+    if (_fxEnabled && state.pulseEffects) {
       for (const pe of state.pulseEffects) {
         ctx.save();
         ctx.strokeStyle = `rgba(220, 100, 255, ${pe.life})`;
@@ -2404,6 +2414,10 @@ class SnakeRogue {
         pe.r += (pe.maxR - pe.r) * 0.25 + 0.2;
         pe.life -= 0.06;
       }
+      state.pulseEffects = state.pulseEffects.filter(pe => pe.life > 0);
+    } else if (state.pulseEffects) {
+      // Still advance pulse state even when effects disabled, so stale entries don't pile up
+      for (const pe of state.pulseEffects) { pe.r += (pe.maxR - pe.r) * 0.25 + 0.2; pe.life -= 0.06; }
       state.pulseEffects = state.pulseEffects.filter(pe => pe.life > 0);
     }
 
@@ -2434,7 +2448,7 @@ class SnakeRogue {
         ctx.save();
         ctx.globalAlpha = alpha;
         ctx.textAlign = 'center';
-        ctx.shadowBlur = 16;
+        ctx.shadowBlur = _fxEnabled ? 16 : 0;
         ctx.shadowColor = color;
         ctx.font = 'bold 22px Courier New';
         ctx.fillStyle = color;
@@ -2488,7 +2502,7 @@ class SnakeRogue {
       ctx.translate(ex, ey);
       ctx.rotate(angle);
       ctx.fillStyle = 'rgba(255,50,50,0.9)';
-      ctx.shadowBlur = 10;
+      ctx.shadowBlur = _fxEnabled ? 10 : 0;
       ctx.shadowColor = '#ff0000';
       ctx.beginPath();
       ctx.moveTo(12, 0);
@@ -2809,24 +2823,20 @@ class SnakeRogue {
 
     const ctrlLabel = this._controlMode === 'wasd' ? '⌨ WASD' : '🖱 MOUSE';
     const scaleVal = (this._guiScale || 1.0).toFixed(2);
-    const fpsOptions = [
-      { label: '∞ UNLIMITED', value: 0 },
-      { label: '60 FPS', value: 60 },
-      { label: '30 FPS', value: 30 },
-    ];
+    const fpsCap = this._fpsCap || 0;
+    const fpsLabel = fpsCap === 0 ? '∞ UNLIMITED' : `${fpsCap} FPS`;
     const particleOptions = [
       { label: '✦ FULL', value: 'full' },
       { label: '◈ REDUCED', value: 'reduced' },
       { label: '○ OFF', value: 'off' },
     ];
-    const fpsButtons = fpsOptions.map(o => {
-      const active = (this._fpsCap || 0) === o.value;
-      return `<button class="gfx-opt-btn${active ? ' active' : ''}" data-fps="${o.value}" style="flex:1;padding:5px 2px;font-size:10px;font-family:'Courier New',monospace;letter-spacing:1px;background:${active ? '#1a1a3a' : '#0a0a18'};border:1px solid ${active ? '#89b' : '#334'};color:${active ? '#cde' : '#567'};cursor:pointer;border-radius:3px;transition:all 0.1s;">${o.label}</button>`;
-    }).join('');
     const particleButtons = particleOptions.map(o => {
       const active = (this._particleQuality || 'full') === o.value;
       return `<button class="gfx-opt-btn${active ? ' active' : ''}" data-particle="${o.value}" style="flex:1;padding:5px 2px;font-size:10px;font-family:'Courier New',monospace;letter-spacing:1px;background:${active ? '#1a1a3a' : '#0a0a18'};border:1px solid ${active ? '#89b' : '#334'};color:${active ? '#cde' : '#567'};cursor:pointer;border-radius:3px;transition:all 0.1s;">${o.label}</button>`;
     }).join('');
+    const fxEnabled = this._fxEnabled !== false;
+    const fxLabel = fxEnabled ? '✦ ON' : '○ OFF';
+    const fxBtnStyle = (active) => `flex:1;padding:5px 2px;font-size:10px;font-family:'Courier New',monospace;letter-spacing:1px;background:${active ? '#1a1a3a' : '#0a0a18'};border:1px solid ${active ? '#89b' : '#334'};color:${active ? '#cde' : '#567'};cursor:pointer;border-radius:3px;transition:all 0.1s;`;
 
     overlay.innerHTML = `
       <div style="background:#0e0e1a;border:1px solid #446;border-radius:10px;padding:28px 32px 28px 32px;
@@ -2869,10 +2879,27 @@ class SnakeRogue {
           <div style="border-top:1px solid #223;margin:2px 0;"></div>
           <div style="font-size:11px;color:#567;letter-spacing:2px;text-transform:uppercase;">🖥 GRAPHICS</div>
 
-          <!-- FPS Cap -->
-          <div style="display:flex;flex-direction:column;gap:5px;">
-            <span style="font-size:12px;color:#7ab;letter-spacing:1px;">FRAME RATE CAP</span>
-            <div id="fps-btns" style="display:flex;gap:6px;">${fpsButtons}</div>
+          <!-- FPS Cap Slider -->
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:#7ab;letter-spacing:1px;">FRAME RATE CAP</span>
+              <span id="settings-fps-val" style="font-size:12px;color:#aef;letter-spacing:1px;">${fpsLabel}</span>
+            </div>
+            <input id="settings-fps-slider" type="range" min="0" max="240" step="1"
+                   value="${fpsCap}"
+                   style="width:100%;accent-color:#89b;cursor:pointer;">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:#456;">
+              <span>UNLIMITED</span><span>240 FPS</span>
+            </div>
+          </div>
+
+          <!-- Special Effects -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <span style="font-size:12px;color:#7ab;letter-spacing:1px;">SPECIAL EFFECTS</span>
+            <div id="fx-btns" style="display:flex;gap:6px;">
+              <button data-fx="true"  style="${fxBtnStyle(fxEnabled)}">✦ ON</button>
+              <button data-fx="false" style="${fxBtnStyle(!fxEnabled)}">○ OFF</button>
+            </div>
           </div>
 
           <!-- Particle Quality -->
@@ -2907,15 +2934,26 @@ class SnakeRogue {
       this._applyGuiScaleToUI();
     });
 
-    // FPS cap buttons
-    document.getElementById('fps-btns').addEventListener('click', e => {
-      const btn = e.target.closest('[data-fps]');
-      if (!btn) return;
-      const val = parseInt(btn.dataset.fps, 10);
+    // FPS cap slider
+    const fpsSlider = document.getElementById('settings-fps-slider');
+    const fpsDisplay = document.getElementById('settings-fps-val');
+    fpsSlider.addEventListener('input', () => {
+      const val = parseInt(fpsSlider.value, 10);
       this._fpsCap = val;
+      fpsDisplay.textContent = val === 0 ? '∞ UNLIMITED' : `${val} FPS`;
       try { localStorage.setItem('fpsCap', val); } catch(_) {}
-      document.querySelectorAll('#fps-btns [data-fps]').forEach(b => {
-        const active = parseInt(b.dataset.fps, 10) === val;
+    });
+
+    // Special effects toggle
+    document.getElementById('fx-btns').addEventListener('click', e => {
+      const btn = e.target.closest('[data-fx]');
+      if (!btn) return;
+      const val = btn.dataset.fx === 'true';
+      this._fxEnabled = val;
+      this._applyFxSettings();
+      try { localStorage.setItem('fxEnabled', val); } catch(_) {}
+      document.querySelectorAll('#fx-btns [data-fx]').forEach(b => {
+        const active = (b.dataset.fx === 'true') === val;
         b.style.background = active ? '#1a1a3a' : '#0a0a18';
         b.style.borderColor = active ? '#89b' : '#334';
         b.style.color = active ? '#cde' : '#567';
@@ -2928,7 +2966,7 @@ class SnakeRogue {
       if (!btn) return;
       const val = btn.dataset.particle;
       this._particleQuality = val;
-      this._applyParticleQuality();
+      this._applyFxSettings();
       try { localStorage.setItem('particleQuality', val); } catch(_) {}
       document.querySelectorAll('#particle-btns [data-particle]').forEach(b => {
         const active = b.dataset.particle === val;
