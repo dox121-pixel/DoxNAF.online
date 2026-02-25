@@ -167,6 +167,13 @@ const UPGRADES = [
     desc: 'Increases apple pickup radius. Stack for an even wider reach.',
     apply(state) { state.appleEatDist = (state.appleEatDist || APPLE_EAT_DIST) + 0.15; }
   },
+  {
+    id: 'bullet_range',
+    name: 'LONG RANGE',
+    icon: '🎯',
+    desc: 'Bullets travel farther. Stack to reach across the map.',
+    apply(state) { state.bulletRange = (state.bulletRange || 1) + 0.4; }
+  },
 ];
 
 // ── Name content filter (mirrors server-side list) ──
@@ -1234,6 +1241,12 @@ class SnakeRogue {
     this._spectateSessionId = null;
     this._spectateInterval  = null;
 
+    // ── Death replay buffer ──────────────────
+    this._replayBuffer       = [];  // rolling 5-second snapshot buffer
+    this._deathReplay        = null; // snapshot array for active death replay
+    this._deathReplayStart   = 0;   // performance.now() when replay playback began
+    this._deathReplayReason  = '';  // death reason carried across replay
+
     window.addEventListener('resize', () => {
       const isNightmare = this.state && this.state.nightmareMode;
       if (!isNightmare) this._resizeCanvas(false);
@@ -1305,6 +1318,12 @@ class SnakeRogue {
       if (this.phase === 'start' && e.key === 'Enter') this._startGame();
       if (this.phase === 'gameover' && e.key === 'Enter') this._startGame();
       if (this.phase === 'gameover' && e.key === 'r') this._startGame();
+      // Allow skipping the death replay
+      if (this.phase === 'death_replay' && (e.key === 'Enter' || e.key === 'r' || e.key === ' ')) {
+        this._deathReplay = null;
+        this.phase = 'gameover';
+        this._showOverlay('gameover', this._deathReplayReason);
+      }
       // ESC: toggle pause menu in solo mode only (not online, not nightmare)
       if (e.key === 'Escape' && !this.online && (this.phase === 'playing' || this._paused) && !(this.state && this.state.nightmareMode)) {
         if (this._paused) this._resumeGame(); else this._openPauseMenu();
@@ -1332,6 +1351,12 @@ class SnakeRogue {
       if (e.button === 0) {
         this._mouseIsDown = true;
         if (this.phase === 'start' || this.phase === 'gameover') { return; }
+        if (this.phase === 'death_replay') {
+          this._deathReplay = null;
+          this.phase = 'gameover';
+          this._showOverlay('gameover', this._deathReplayReason);
+          return;
+        }
         this._tryShoot();
       }
     });
@@ -1493,6 +1518,7 @@ class SnakeRogue {
     state.lastShot = now;
 
     const shots = 1 + (state.multishot || 0);
+    const bulletLife = BULLET_LIFE_MS * (state.bulletRange || 1);
     for (let i = 0; i < shots; i++) {
       const spread = shots > 1 ? (i - (shots - 1) / 2) * BULLET_SPREAD_ANGLE : 0;
       const a = angle + spread;
@@ -1500,8 +1526,8 @@ class SnakeRogue {
         x, y,
         vx: Math.cos(a) * BULLET_SPEED,
         vy: Math.sin(a) * BULLET_SPEED,
-        life: BULLET_LIFE_MS,
-        maxLife: BULLET_LIFE_MS,
+        life: bulletLife,
+        maxLife: bulletLife,
       });
     }
   }
@@ -1545,6 +1571,9 @@ class SnakeRogue {
     this._paused = false;
     this._pausedAt = 0;
     this._totalPausedMs = 0;
+    // Clear death replay data
+    this._replayBuffer = [];
+    this._deathReplay  = null;
     document.getElementById('app').classList.remove('nightmare-mode');
     this._resizeCanvas(false);
 
@@ -2010,6 +2039,7 @@ class SnakeRogue {
     }
 
     this._updateHUD();
+    this._captureReplayFrame(timestamp);
   }
 
   _checkLoreDamage(timestamp) {
@@ -2019,6 +2049,27 @@ class SnakeRogue {
     if (isNightmareUnlocked()) return false;
     this._triggerLoreEvent(timestamp);
     return true;
+  }
+
+  _captureReplayFrame(timestamp) {
+    const state = this.state;
+    if (!state) return;
+    const REPLAY_WINDOW = 5000; // ms
+    this._replayBuffer.push({
+      timestamp,
+      snake:     state.snake.map(s => ({ x: s.x, y: s.y })),
+      snakeAngle: state.snakeAngle,
+      apples:    state.apples.map(a => ({ fx: a.fx, fy: a.fy, dropped: a.dropped || false })),
+      bullets:   state.bullets.map(b => ({ x: b.x, y: b.y, life: b.life, maxLife: b.maxLife })),
+      enemies:   state.enemies.map(e => ({ x: e.x, y: e.y, type: e.type, id: e.id, hp: e.hp || 1, maxHp: e.maxHp || 1 })),
+      chests:    (state.chests || []).map(c => ({ x: c.x, y: c.y, rarity: c.rarity })),
+      particles: this.particles.map(p => ({ ...p })),
+      tick:      this.tick,
+    });
+    // Trim frames older than 5 seconds
+    while (this._replayBuffer.length > 0 && timestamp - this._replayBuffer[0].timestamp > REPLAY_WINDOW) {
+      this._replayBuffer.shift();
+    }
   }
 
   _triggerLoreEvent(timestamp) {
@@ -2088,8 +2139,19 @@ class SnakeRogue {
       this._playNightmareJumpscare();
       return;
     }
-    this.phase = 'gameover';
-    this._showOverlay('gameover', reason);
+    // Capture one final frame (with death particles)
+    this._captureReplayFrame(performance.now());
+    // Start death replay if we have recorded frames
+    if (this._replayBuffer.length > 0) {
+      this._deathReplay       = this._replayBuffer.slice();
+      this._replayBuffer      = [];
+      this._deathReplayStart  = performance.now();
+      this._deathReplayReason = reason;
+      this.phase = 'death_replay';
+    } else {
+      this.phase = 'gameover';
+      this._showOverlay('gameover', reason);
+    }
   }
 
   _chooseUpgrade(upgrade) {
@@ -2158,6 +2220,7 @@ class SnakeRogue {
       if (s.bulletExplosive) parts.push('💣');
       if (s.multishot) parts.push(`✳️×${s.multishot}`);
       if (s.bulletDamage && s.bulletDamage > 2) parts.push(`🔥×${s.bulletDamage - 2}`);
+      if (s.upgradeCount && s.upgradeCount['bullet_range']) parts.push(`🎯×${s.upgradeCount['bullet_range']}`);
     }
     document.getElementById('hud-upgrades').innerHTML = parts.join('  ');
   }
@@ -2210,6 +2273,12 @@ class SnakeRogue {
       ctx.font = 'bold 36px Courier New';
       ctx.fillText('YOU DIED', W / 2, H / 2 + 40);
       ctx.textBaseline = 'alphabetic';
+      return;
+    }
+
+    // ── Death replay phase ─────────────────────
+    if (this.phase === 'death_replay') {
+      this._renderDeathReplay(ctx, timestamp);
       return;
     }
 
@@ -2381,6 +2450,80 @@ class SnakeRogue {
     requestAnimationFrame(this._loop);
   }
 
+  _renderDeathReplay(ctx, timestamp) {
+    const frames = this._deathReplay;
+    if (!frames || frames.length === 0) {
+      this._deathReplay = null;
+      this.phase = 'gameover';
+      this._showOverlay('gameover', this._deathReplayReason);
+      return;
+    }
+
+    const elapsed   = timestamp - this._deathReplayStart;
+    const firstTs   = frames[0].timestamp;
+    const lastTs    = frames[frames.length - 1].timestamp;
+    const targetTs  = firstTs + elapsed;
+
+    // Find the nearest frame to display
+    let frame = frames[frames.length - 1];
+    for (let i = 0; i < frames.length; i++) {
+      if (frames[i].timestamp >= targetTs) {
+        frame = frames[i];
+        break;
+      }
+    }
+
+    // Once we've played through all frames, transition to gameover
+    if (elapsed > lastTs - firstTs + 400) {
+      this._deathReplay = null;
+      this.phase = 'gameover';
+      this._showOverlay('gameover', this._deathReplayReason);
+      return;
+    }
+
+    // Background
+    ctx.fillStyle = '#08080f';
+    ctx.fillRect(0, 0, W, H);
+
+    const camX    = frame.snake[0].x;
+    const camY    = frame.snake[0].y;
+    const camOffX = W / 2 - camX * GRID;
+    const camOffY = H / 2 - camY * GRID;
+    ctx.save();
+    ctx.translate(camOffX, camOffY);
+
+    drawGrid(ctx, camX, camY);
+
+    // Build a pseudo-state object compatible with the draw functions
+    const ps = {
+      snake:      frame.snake,
+      snakeAngle: frame.snakeAngle,
+      apples:     frame.apples.map(a => ({ x: Math.round(a.fx), y: Math.round(a.fy), fx: a.fx, fy: a.fy, dropped: a.dropped })),
+      bullets:    frame.bullets,
+      enemies:    frame.enemies,
+      chests:     frame.chests,
+    };
+
+    drawApples(ctx, ps, frame.tick);
+    drawChests(ctx, ps, frame.tick);
+    drawBullets(ctx, ps.bullets);
+    drawSnake(ctx, ps);
+    drawEnemies(ctx, ps, frame.tick);
+    drawParticles(ctx, frame.particles);
+
+    ctx.restore();
+
+    // "DEATH REPLAY" watermark
+    const alpha = 0.4 + 0.3 * Math.sin(timestamp * 0.006);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle   = '#ff4444';
+    ctx.font        = 'bold 13px Courier New';
+    ctx.textAlign   = 'right';
+    ctx.fillText('⏮ DEATH REPLAY', W - 14, 22);
+    ctx.restore();
+  }
+
   // ── UI methods ──────────────────────────────
   _hideOverlay() {
     document.getElementById('overlay').style.display = 'none';
@@ -2431,6 +2574,8 @@ class SnakeRogue {
       document.getElementById('restart-btn').addEventListener('click', () => this._startGame());
       document.getElementById('menu-btn').addEventListener('click', () => {
         this.state = null;
+        this._replayBuffer = [];
+        this._deathReplay  = null;
         this.phase = 'start';
         this._renderOverlay();
       });
