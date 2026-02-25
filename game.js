@@ -1774,7 +1774,7 @@ class SnakeRogue {
         </div>
         <div style="margin-top:12px;">
           <div style="font-size:11px;color:#c33;letter-spacing:1px;">☠ NIGHTMARE LEADERBOARD</div>
-          <div id="nm-leaderboard-list" style="font-size:11px;color:#888;margin-top:4px;">Loading…</div>
+          <div id="nm-leaderboard-list" class="lb-container" style="margin-top:6px;">Loading…</div>
         </div>
       `;
       document.getElementById('nm-restart-btn').addEventListener('click', () => this._startNightmareMode());
@@ -2800,7 +2800,7 @@ class SnakeRogue {
         <div class="controls">Mouse to steer · Mobile: joystick · LMB to shoot</div>
         <div style="margin-top:12px;">
           <div style="font-size:11px;color:#555;letter-spacing:1px;">🏆 LEADERBOARD</div>
-          <div id="leaderboard-list" style="font-size:11px;color:#888;margin-top:4px;">Loading…</div>
+          <div id="leaderboard-list" class="lb-container" style="margin-top:6px;">Loading…</div>
         </div>
       `;
       document.getElementById('restart-btn').addEventListener('click', () => this._startGame());
@@ -2874,12 +2874,12 @@ class SnakeRogue {
       ${nightmareUnlocked ? '<button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>' : ''}
       <div id="leaderboard-section" style="margin-top:16px;">
         <div style="font-size:11px;color:#555;letter-spacing:1px;">🏆 LEADERBOARD</div>
-        <div id="leaderboard-list" style="font-size:11px;color:#888;margin-top:4px;">Loading…</div>
+        <div id="leaderboard-list" class="lb-container" style="margin-top:6px;">Loading…</div>
       </div>
       ${nightmareUnlocked ? `
       <div id="nm-leaderboard-section" style="margin-top:12px;">
         <div style="font-size:11px;color:#933;letter-spacing:1px;">☠ NIGHTMARE LEADERBOARD</div>
-        <div id="nm-leaderboard-list" style="font-size:11px;color:#888;margin-top:4px;">Loading…</div>
+        <div id="nm-leaderboard-list" class="lb-container" style="margin-top:6px;">Loading…</div>
       </div>` : ''}
     `;
     const loginBtn = document.getElementById('account-login-btn');
@@ -3170,19 +3170,23 @@ class SnakeRogue {
           el.textContent = 'No scores yet — be the first!';
           return;
         }
-        el.innerHTML = data.entries.map((e, i) => {
+        const rows = data.entries.map((e, i) => {
           const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
           const safeName = escapeHtml(e.name || 'Anonymous');
           const timeSec  = e.timePlayed || 0;
           const timeFmt  = `${Math.floor(timeSec / 60)}:${String(timeSec % 60).padStart(2, '0')}`;
-          return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">`
-            + `<span>${medal} ${safeName}</span>`
-            + `<span style="color:#7cf;">⭐${e.score}</span>`
-            + `<span>${APPLE_SPRITE_TAG}${e.applesEaten}</span>`
-            + `<span style="color:#f88;">💀${e.kills || 0}</span>`
-            + `<span style="color:#7ab;">⏱${timeFmt}</span>`
-            + `</div>`;
+          return `<tr>`
+            + `<td class="lb-rank">${medal}</td>`
+            + `<td class="lb-name">${safeName}</td>`
+            + `<td class="lb-score">⭐ ${e.score}</td>`
+            + `<td class="lb-apples">${APPLE_SPRITE_TAG} ${e.applesEaten}</td>`
+            + `<td class="lb-kills">💀 ${e.kills || 0}</td>`
+            + `<td class="lb-time">⏱ ${timeFmt}</td>`
+            + `</tr>`;
         }).join('');
+        el.innerHTML = `<table class="lb-table"><thead><tr>`
+          + `<th></th><th>Name</th><th>Score</th><th>Apples</th><th>Kills</th><th>Time</th>`
+          + `</tr></thead><tbody>${rows}</tbody></table>`;
       })
       .catch(() => {
         const el = document.getElementById(targetId);
@@ -3211,19 +3215,23 @@ class SnakeRogue {
           el.textContent = 'No scores yet — be the first!';
           return;
         }
-        el.innerHTML = data.entries.map((e, i) => {
+        const rows = data.entries.map((e, i) => {
           const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
           const safeName = escapeHtml(e.name || 'Anonymous');
           const timeSec  = e.timePlayed || 0;
           const timeFmt  = `${Math.floor(timeSec / 60)}:${String(timeSec % 60).padStart(2, '0')}`;
-          return `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">`
-            + `<span>${medal} ${safeName}</span>`
-            + `<span style="color:#7cf;">⭐${e.score}</span>`
-            + `<span>${APPLE_SPRITE_TAG}${e.applesEaten}</span>`
-            + `<span style="color:#f88;">💀${e.kills || 0}</span>`
-            + `<span style="color:#7ab;">⏱${timeFmt}</span>`
-            + `</div>`;
+          return `<tr>`
+            + `<td class="lb-rank">${medal}</td>`
+            + `<td class="lb-name">${safeName}</td>`
+            + `<td class="lb-score">⭐ ${e.score}</td>`
+            + `<td class="lb-apples">${APPLE_SPRITE_TAG} ${e.applesEaten}</td>`
+            + `<td class="lb-kills">💀 ${e.kills || 0}</td>`
+            + `<td class="lb-time">⏱ ${timeFmt}</td>`
+            + `</tr>`;
         }).join('');
+        el.innerHTML = `<table class="lb-table lb-table-nightmare"><thead><tr>`
+          + `<th></th><th>Name</th><th>Score</th><th>Apples</th><th>Kills</th><th>Time</th>`
+          + `</tr></thead><tbody>${rows}</tbody></table>`;
       })
       .catch(() => {
         const el = document.getElementById(targetId);
