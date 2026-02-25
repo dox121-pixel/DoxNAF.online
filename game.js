@@ -1244,6 +1244,7 @@ class SnakeRogue {
     this._adminToken = null;
     this._adminPanelOpen = false;
     this._setupAdmin();
+    this._setupFeedback();
 
     // ── Singleplayer session (admin observability) ──
     this._spWs        = null;
@@ -2616,6 +2617,9 @@ class SnakeRogue {
     // Keep admin open button visible during gameplay when admin mode is active
     const adminOpenBtn = document.getElementById('admin-open-btn');
     if (adminOpenBtn) adminOpenBtn.style.display = this._adminMode ? '' : 'none';
+    // Hide feedback button during gameplay
+    const feedbackBtn = document.getElementById('feedback-open-btn');
+    if (feedbackBtn) feedbackBtn.style.display = 'none';
   }
 
   _showOverlay(type, reason) {
@@ -2758,6 +2762,8 @@ class SnakeRogue {
     if (nightmareUnlocked) this._loadNightmareLeaderboard('nm-leaderboard-list');
     // Show admin open button on main menu (bottom-right, outside the overlay)
     this._showAdminOpenBtn();
+    // Show feedback button on main menu (top-right)
+    this._showFeedbackBtn();
     // Check if the player's leaderboard rank was removed
     this._checkRemovalNotice();
   }
@@ -3599,6 +3605,57 @@ class SnakeRogue {
     if (btn) btn.style.display = '';
   }
 
+  _showFeedbackBtn() {
+    const btn = document.getElementById('feedback-open-btn');
+    if (btn) btn.style.display = '';
+  }
+
+  _openFeedbackModal() {
+    const modal = document.getElementById('feedback-modal');
+    if (!modal) return;
+    const input = document.getElementById('feedback-input');
+    if (input) input.value = '';
+    const errEl = document.getElementById('feedback-error');
+    if (errEl) errEl.textContent = '';
+    modal.style.display = 'flex';
+    if (input) setTimeout(() => input.focus(), 50);
+  }
+
+  _closeFeedbackModal() {
+    const modal = document.getElementById('feedback-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  _submitFeedback() {
+    const input  = document.getElementById('feedback-input');
+    const errEl  = document.getElementById('feedback-error');
+    const submitBtn = document.getElementById('feedback-submit-btn');
+    const message = input ? input.value.trim() : '';
+    if (!message) {
+      if (errEl) errEl.textContent = 'Please enter a message.';
+      return;
+    }
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = '…'; }
+    fetch(`${API_SERVER}/api/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    })
+      .then(r => r.json().then(data => ({ status: r.status, data })))
+      .then(({ data }) => {
+        if (data.ok) {
+          this._closeFeedbackModal();
+        } else {
+          if (errEl) errEl.textContent = 'Failed to send. Try again.';
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'SEND'; }
+        }
+      })
+      .catch(() => {
+        if (errEl) errEl.textContent = 'Server error. Try again.';
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'SEND'; }
+      });
+  }
+
   _openAdminModal() {
     const modal = document.getElementById('admin-modal');
     if (!modal) return;
@@ -3608,6 +3665,30 @@ class SnakeRogue {
     if (errEl) errEl.textContent = '';
     modal.style.display = 'flex';
     if (pwInput) setTimeout(() => pwInput.focus(), 50);
+  }
+
+  _setupFeedback() {
+    const feedbackOpenBtn = document.getElementById('feedback-open-btn');
+    if (feedbackOpenBtn) feedbackOpenBtn.addEventListener('click', () => this._openFeedbackModal());
+
+    const cancelBtn = document.getElementById('feedback-cancel-btn');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => this._closeFeedbackModal());
+
+    const submitBtn = document.getElementById('feedback-submit-btn');
+    if (submitBtn) submitBtn.addEventListener('click', () => this._submitFeedback());
+
+    const feedbackInput = document.getElementById('feedback-input');
+    if (feedbackInput) {
+      feedbackInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this._submitFeedback(); }
+        if (e.key === 'Escape') this._closeFeedbackModal();
+      });
+    }
+
+    const modal = document.getElementById('feedback-modal');
+    if (modal) {
+      modal.addEventListener('click', e => { if (e.target === modal) this._closeFeedbackModal(); });
+    }
   }
 
   _closeAdminModal() {

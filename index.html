@@ -62,6 +62,21 @@
       </div>
     </div>
 
+    <!-- Feedback modal -->
+    <div id="feedback-modal" style="display:none;">
+      <div id="feedback-modal-box">
+        <div id="feedback-modal-title">💬 FEEDBACK</div>
+        <textarea id="feedback-input" class="room-input"
+                  placeholder="Tell us what you think…" autocomplete="off" spellcheck="true"
+                  style="width:220px;height:80px;resize:vertical;letter-spacing:0;line-height:1.4;padding:6px 8px;"></textarea>
+        <div id="feedback-error" style="font-size:10px;color:#f55;min-height:14px;"></div>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <button class="btn btn-settings" id="feedback-submit-btn">SEND</button>
+          <button class="btn btn-back" id="feedback-cancel-btn">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Admin password modal -->
     <div id="admin-modal" style="display:none;">
       <div id="admin-modal-box">
@@ -132,5 +147,7 @@
   <script src="game.js"></script>
   <!-- Admin open button: shown on main menu; remains visible during gameplay when admin is authenticated -->
   <button id="admin-open-btn" style="display:none;">⚙ ADMIN</button>
+  <!-- Feedback button: shown on main menu -->
+  <button id="feedback-open-btn" style="display:none;">💬 FEEDBACK</button>
 </body>
 </html>
