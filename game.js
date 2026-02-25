@@ -57,8 +57,10 @@ const ONLINE_GRID    = 15;
 const ONLINE_TICK_MS = 120;
 
 // ── Smooth-snake physics ─────────────────────
-const SEG_SPACING      = 0.45;  // grid-cells between body segment points
-const SNAKE_RADIUS     = 0.28;  // grid-cells half-width (rendering + collision)
+const SEG_SPACING            = 0.45;        // grid-cells between body segment points
+const SNAKE_RADIUS           = 0.28;        // grid-cells half-width (rendering + collision)
+const SNAKE_SPRITE_SIZE_MULT  = 3.5;        // multiplier for snake sprite draw size relative to radius
+const SNAKE_SPRITE_ROT_OFFSET = Math.PI / 2; // sprites face up; offset aligns them with movement direction
 const INIT_SEGS        = 10;    // initial number of body segment points
 const MAX_TURN_SPD     = 4.5;   // radians per second max turn rate
 const APPLE_EAT_DIST   = 0.70;  // grid-cells pickup radius
@@ -751,7 +753,7 @@ function drawSnake(ctx, state) {
   if (snake.length < 2) return;
 
   const ang = state.snakeAngle || 0;
-  const sprSize = SNAKE_RADIUS * 2 * GRID * 1.6; // sprite draw size per segment
+  const sprSize = SNAKE_RADIUS * 2 * GRID * SNAKE_SPRITE_SIZE_MULT; // sprite draw size per segment
 
   ctx.save();
 
@@ -783,7 +785,7 @@ function drawSnake(ctx, state) {
     if (img.complete && img.naturalWidth > 0) {
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.rotate(segAngle);
+      ctx.rotate(segAngle + SNAKE_SPRITE_ROT_OFFSET);
       ctx.drawImage(img, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
       ctx.restore();
     } else {
@@ -805,7 +807,7 @@ function drawSnake(ctx, state) {
       ctx.shadowBlur  = _fxEnabled ? 14 : 0;
       ctx.shadowColor = (state.shields > 0) ? '#4af' : '#4f8';
       ctx.translate(hx, hy);
-      ctx.rotate(ang);
+      ctx.rotate(ang + SNAKE_SPRITE_ROT_OFFSET);
       ctx.drawImage(SNAKE_HEAD_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
       ctx.shadowBlur = 0;
       ctx.restore();
@@ -2543,7 +2545,7 @@ class SnakeRogue {
         } else {
           src = 'sprites/HEARTEMPTY.png';
         }
-        html += `<img src="${src}" style="width:18px;height:18px;vertical-align:middle;image-rendering:pixelated;">`;
+        html += `<img src="${src}" style="width:28px;height:28px;vertical-align:middle;image-rendering:pixelated;">`;
       }
       livesRow.innerHTML = html;
       livesRow.style.display = 'flex';
