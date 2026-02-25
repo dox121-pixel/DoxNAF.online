@@ -758,7 +758,24 @@ const httpServer = http.createServer((req, res) => {
       req.on('end', () => {
         try {
           const d = JSON.parse(body);
-          addLeaderboardEntry(d.name, d.score, d.applesEaten).then(() => {
+          // Anti-cheat: if a session ID was provided, use the server-tracked score
+          let score       = d.score;
+          let applesEaten = d.applesEaten;
+          if (d.sessionId) {
+            const safeId = String(d.sessionId).replace(/[^0-9a-f]/gi, '').slice(0, 16);
+            const sess = spSessions.get(safeId);
+            if (!sess) {
+              res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders });
+              res.end(JSON.stringify({ ok: false, error: 'Invalid or expired session' }));
+              return;
+            }
+            score       = sess.score;
+            applesEaten = sess.applesEaten;
+            // Consume the session so it cannot be reused
+            clearTimeout(sess.cleanupTimer);
+            spSessions.delete(safeId);
+          }
+          addLeaderboardEntry(d.name, score, applesEaten).then(() => {
             res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
             res.end(JSON.stringify({ ok: true }));
           }).catch(err => {
@@ -803,7 +820,24 @@ const httpServer = http.createServer((req, res) => {
       req.on('end', () => {
         try {
           const d = JSON.parse(body);
-          addNightmareLeaderboardEntry(d.name, d.score, d.applesEaten).then(() => {
+          // Anti-cheat: if a session ID was provided, use the server-tracked score
+          let score       = d.score;
+          let applesEaten = d.applesEaten;
+          if (d.sessionId) {
+            const safeId = String(d.sessionId).replace(/[^0-9a-f]/gi, '').slice(0, 16);
+            const sess = spSessions.get(safeId);
+            if (!sess) {
+              res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders });
+              res.end(JSON.stringify({ ok: false, error: 'Invalid or expired session' }));
+              return;
+            }
+            score       = sess.score;
+            applesEaten = sess.applesEaten;
+            // Consume the session so it cannot be reused
+            clearTimeout(sess.cleanupTimer);
+            spSessions.delete(safeId);
+          }
+          addNightmareLeaderboardEntry(d.name, score, applesEaten).then(() => {
             res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
             res.end(JSON.stringify({ ok: true }));
           }).catch(err => {
@@ -996,7 +1030,8 @@ const httpServer = http.createServer((req, res) => {
               playerName: sess.playerName,
               elapsedSec: Math.floor((now - sess.startTime) / 1000),
             });
-          } else {
+          } else if (!sess.pendingScore) {
+            // Only prune sessions that aren't waiting for a score submission
             spSessions.delete(sessionId);
           }
         }
@@ -1339,7 +1374,9 @@ const wss = new WebSocket.Server({ server: httpServer });
 const rooms = new Map(); // code → room
 
 // ── Singleplayer session tracking ─────────────
-const spSessions = new Map(); // sessionId → { ws, playerName, startTime, lastSnapshot }
+const spSessions = new Map(); // sessionId → { ws, playerName, startTime, lastSnapshot, score, applesEaten, pendingScore, cleanupTimer }
+// How long (ms) to keep a closed session available for score submission
+const SP_SCORE_SUBMISSION_TTL_MS = 120000;
 const SP_VALID_COMMANDS = new Set(['sp_spawn_enemy', 'sp_spawn_apple', 'sp_spawn_chest', 'sp_toggle_nightmare']);
 
 // ── Quick-play matchmaking ─────────────────────
@@ -1836,9 +1873,34 @@ wss.on('connection', ws => {
         if (playerRoom || ws._spSessionId) return; // already in use
         const spName = String(msg.name || 'Anonymous').slice(0, 30);
         const sessionId = crypto.randomBytes(8).toString('hex');
-        spSessions.set(sessionId, { ws, playerName: spName, startTime: Date.now(), lastSnapshot: null });
+        spSessions.set(sessionId, {
+          ws,
+          playerName:   spName,
+          startTime:    Date.now(),
+          lastSnapshot: null,
+          score:        0,
+          applesEaten:  0,
+          pendingScore: false,
+          cleanupTimer: null,
+        });
         ws._spSessionId = sessionId;
         ws.send(JSON.stringify({ type: 'sp_registered', sessionId }));
+        break;
+      }
+
+      case 'sp_score_event': {
+        // Client reports a score increment — accumulate server-side for anti-cheat
+        if (!ws._spSessionId) return;
+        const sess = spSessions.get(ws._spSessionId);
+        if (!sess) return;
+        const scoreDelta  = Math.max(0, Math.floor(Number(msg.score)  || 0));
+        const applesDelta = Math.max(0, Math.floor(Number(msg.apples) || 0));
+        // Rate-limit: total session score may not exceed 2000 pts/s elapsed + 10 000 buffer
+        const maxAllowed = 2000 * Math.ceil((Date.now() - sess.startTime) / 1000) + 10000;
+        if (sess.score + scoreDelta <= maxAllowed) {
+          sess.score       += scoreDelta;
+          sess.applesEaten += applesDelta;
+        }
         break;
       }
 
@@ -1855,9 +1917,15 @@ wss.on('connection', ws => {
   });
 
   ws.on('close', () => {
-    // Clean up singleplayer session if registered
+    // Keep singleplayer session alive briefly so the score POST can still use it
     if (ws._spSessionId) {
-      spSessions.delete(ws._spSessionId);
+      const sess = spSessions.get(ws._spSessionId);
+      if (sess) {
+        sess.pendingScore = true;
+        sess.cleanupTimer = setTimeout(() => {
+          spSessions.delete(ws._spSessionId);
+        }, SP_SCORE_SUBMISSION_TTL_MS);
+      }
       ws._spSessionId = null;
     }
     if (!playerRoom) return;
