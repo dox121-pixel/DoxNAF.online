@@ -90,14 +90,16 @@ function verifyPassword(pw, storedHash) {
   } catch (_) { return false; }
 }
 
-// Default admin password — override via ADMIN_PASSWORD env var in production
-const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'GMMKVIPER';
+// Admin password MUST be supplied via the ADMIN_PASSWORD environment variable.
 if (!process.env.ADMIN_PASSWORD) {
-  console.warn('[ADMIN] ADMIN_PASSWORD env var not set — using built-in default. Set ADMIN_PASSWORD for production!');
+  console.error('[ADMIN] ADMIN_PASSWORD environment variable is not set. Admin login will be disabled until it is provided.');
 }
 
-// Pre-computed hash for the no-DB fallback (new scrypt format, regenerated each start)
-const DEFAULT_ADMIN_HASH = generatePasswordHash(DEFAULT_ADMIN_PASSWORD);
+// Pre-computed hash for the no-DB fallback (scrypt, regenerated each start).
+// If ADMIN_PASSWORD is unset this is null and all login attempts will be rejected.
+const DEFAULT_ADMIN_HASH = process.env.ADMIN_PASSWORD
+  ? generatePasswordHash(process.env.ADMIN_PASSWORD)
+  : null;
 
 function generateToken() {
   return crypto.randomBytes(32).toString('hex');
@@ -229,13 +231,15 @@ async function initDb() {
       ON nightmare_leaderboard (name)
       WHERE name != 'Anonymous'
   `);
-  // Store the admin password hash if not already set
-  await dbPool.query(
-    `INSERT INTO admin_settings (key, value)
-     VALUES ('password_hash', $1)
-     ON CONFLICT (key) DO NOTHING`,
-    [DEFAULT_ADMIN_HASH]
-  );
+  // Store the admin password hash if not already set (only when env var is provided)
+  if (DEFAULT_ADMIN_HASH) {
+    await dbPool.query(
+      `INSERT INTO admin_settings (key, value)
+       VALUES ('password_hash', $1)
+       ON CONFLICT (key) DO NOTHING`,
+      [DEFAULT_ADMIN_HASH]
+    );
+  }
 }
 
 async function deleteLeaderboardEntry(name) {
