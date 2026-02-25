@@ -402,11 +402,23 @@ async function initDb() {
   }
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS user_accounts (
-      username      VARCHAR(30)   PRIMARY KEY,
-      password_hash TEXT          NOT NULL,
-      created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+      username         VARCHAR(30)   PRIMARY KEY,
+      password_hash    TEXT          NOT NULL,
+      created_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+      registration_ip  VARCHAR(100)  DEFAULT NULL
     )
   `);
+  // Migrate: add registration_ip column to user_accounts if missing
+  await dbPool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user_accounts' AND column_name = 'registration_ip'
+      ) THEN
+        ALTER TABLE user_accounts ADD COLUMN registration_ip VARCHAR(100) DEFAULT NULL;
+      END IF;
+    END $$
+  `).catch(() => {});
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS user_sessions (
       token         CHAR(64)      PRIMARY KEY,
@@ -459,12 +471,12 @@ function isValidUsername(name) {
   return true;
 }
 
-async function registerUser(username, password) {
+async function registerUser(username, password, registrationIp) {
   if (!dbPool) throw new Error('no_db');
   const hash = generatePasswordHash(password);
   await dbPool.query(
-    `INSERT INTO user_accounts (username, password_hash) VALUES ($1, $2)`,
-    [username, hash]
+    `INSERT INTO user_accounts (username, password_hash, registration_ip) VALUES ($1, $2, $3)`,
+    [username, hash, registrationIp || null]
   );
 }
 
@@ -808,9 +820,11 @@ const httpServer = http.createServer((req, res) => {
       req.on('end', () => {
         try {
           const d = JSON.parse(body);
-          // Anti-cheat: if a session ID was provided, use the server-tracked score
+          // Anti-cheat: if a session ID was provided, use the server-tracked score/kills and cap timePlayed
           let score       = d.score;
           let applesEaten = d.applesEaten;
+          let kills       = d.kills;
+          let timePlayed  = d.timePlayed;
           if (d.sessionId) {
             const safeId = String(d.sessionId).replace(/[^0-9a-f]/gi, '').slice(0, 16);
             const sess = spSessions.get(safeId);
@@ -821,11 +835,13 @@ const httpServer = http.createServer((req, res) => {
             }
             score       = sess.score;
             applesEaten = sess.applesEaten;
+            kills       = sess.kills;
+            timePlayed  = Math.min(d.timePlayed || 0, Math.floor((Date.now() - sess.startTime) / 1000));
             // Consume the session so it cannot be reused
             clearTimeout(sess.cleanupTimer);
             spSessions.delete(safeId);
           }
-          addLeaderboardEntry(d.name, score, applesEaten, d.kills, d.timePlayed).then(() => {
+          addLeaderboardEntry(d.name, score, applesEaten, kills, timePlayed).then(() => {
             res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
             res.end(JSON.stringify({ ok: true }));
           }).catch(err => {
@@ -870,9 +886,11 @@ const httpServer = http.createServer((req, res) => {
       req.on('end', () => {
         try {
           const d = JSON.parse(body);
-          // Anti-cheat: if a session ID was provided, use the server-tracked score
+          // Anti-cheat: if a session ID was provided, use the server-tracked score/kills and cap timePlayed
           let score       = d.score;
           let applesEaten = d.applesEaten;
+          let kills       = d.kills;
+          let timePlayed  = d.timePlayed;
           if (d.sessionId) {
             const safeId = String(d.sessionId).replace(/[^0-9a-f]/gi, '').slice(0, 16);
             const sess = spSessions.get(safeId);
@@ -883,11 +901,13 @@ const httpServer = http.createServer((req, res) => {
             }
             score       = sess.score;
             applesEaten = sess.applesEaten;
+            kills       = sess.kills;
+            timePlayed  = Math.min(d.timePlayed || 0, Math.floor((Date.now() - sess.startTime) / 1000));
             // Consume the session so it cannot be reused
             clearTimeout(sess.cleanupTimer);
             spSessions.delete(safeId);
           }
-          addNightmareLeaderboardEntry(d.name, score, applesEaten, d.kills, d.timePlayed).then(() => {
+          addNightmareLeaderboardEntry(d.name, score, applesEaten, kills, timePlayed).then(() => {
             res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
             res.end(JSON.stringify({ ok: true }));
           }).catch(err => {
@@ -1240,7 +1260,8 @@ const httpServer = http.createServer((req, res) => {
           res.end(JSON.stringify({ ok: false, message: 'Service unavailable — try again later.' }));
           return;
         }
-        registerUser(uname, pw).then(() => {
+        registerUser(uname, pw, ip).then(() => {
+          console.log(`[REGISTER] New account created: username="${uname}" ip="${ip}"`);
           clearLoginAttempts(ip);
           return createUserSession(uname).then(token => {
             res.writeHead(200, { 'Content-Type': 'application/json', ...authCors });
@@ -1930,6 +1951,7 @@ wss.on('connection', ws => {
           lastSnapshot: null,
           score:        0,
           applesEaten:  0,
+          kills:        0,
           pendingScore: false,
           cleanupTimer: null,
         });
@@ -1945,12 +1967,14 @@ wss.on('connection', ws => {
         if (!sess) return;
         const scoreDelta  = Math.max(0, Math.floor(Number(msg.score)  || 0));
         const applesDelta = Math.max(0, Math.floor(Number(msg.apples) || 0));
+        const killsDelta  = Math.max(0, Math.floor(Number(msg.kills)  || 0));
         // Rate-limit: total session score may not exceed 2000 pts/s elapsed + 10 000 buffer
         const maxAllowed = 2000 * Math.ceil((Date.now() - sess.startTime) / 1000) + 10000;
         if (sess.score + scoreDelta <= maxAllowed) {
           sess.score       += scoreDelta;
           sess.applesEaten += applesDelta;
         }
+        sess.kills += killsDelta;
         break;
       }
 
