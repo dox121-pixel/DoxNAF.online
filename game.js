@@ -1280,7 +1280,6 @@ class SnakeRogue {
     this._applyFxSettings();
 
     // ── Admin state ──────────────────────────
-    this._adminMode  = false;
     this._adminToken = null;
     this._adminPanelOpen = false;
     this._siteDown   = false;
@@ -1638,7 +1637,7 @@ class SnakeRogue {
   }
 
   _startGame() {
-    if (this._siteDown && !this._adminMode) { this._showMaintenanceScreen(this._siteDownSince); return; }
+    if (this._siteDown && !this._adminToken) { this._showMaintenanceScreen(this._siteDownSince); return; }
     this.particles = [];
     this.tick = 0;
     this.lastMoveTime = 0;
@@ -2743,7 +2742,7 @@ class SnakeRogue {
     document.getElementById('overlay').style.display = 'none';
     // Keep admin open button visible during gameplay when admin mode is active
     const adminOpenBtn = document.getElementById('admin-open-btn');
-    if (adminOpenBtn) adminOpenBtn.style.display = this._adminMode ? '' : 'none';
+    if (adminOpenBtn) adminOpenBtn.style.display = this._adminToken ? '' : 'none';
     // Hide feedback button during gameplay
     const feedbackBtn = document.getElementById('feedback-open-btn');
     if (feedbackBtn) feedbackBtn.style.display = 'none';
@@ -3295,7 +3294,7 @@ class SnakeRogue {
 
   // ── Online mode ──────────────────────────────
   _startOnlineMode() {
-    if (this._siteDown && !this._adminMode) { this._showMaintenanceScreen(this._siteDownSince); return; }
+    if (this._siteDown && !this._adminToken) { this._showMaintenanceScreen(this._siteDownSince); return; }
     // Online mode uses its own fixed canvas dimensions; remove full-screen layout
     this.canvas.width  = ONLINE_COLS * ONLINE_GRID;
     this.canvas.height = ONLINE_ROWS * ONLINE_GRID;
@@ -3516,7 +3515,7 @@ class SnakeRogue {
         break;
 
       case 'site_going_down':
-        if (!this._adminMode) {
+        if (!this._adminToken) {
           this._siteDown = true;
           this._siteDownSince = msg.downSince || null;
           if (this.phase === 'online_playing' && !this._siteGoingDown) {
@@ -3682,7 +3681,7 @@ class SnakeRogue {
       }
       return;
     }
-    if (msg.type === 'site_going_down' && !this._adminMode) {
+    if (msg.type === 'site_going_down' && !this._adminToken) {
       this._siteDown = true;
       this._siteDownSince = msg.downSince || null;
       const isPlaying = this.phase === 'playing' || this.phase === 'upgrade';
@@ -3728,7 +3727,7 @@ class SnakeRogue {
     const openBtn = document.getElementById('admin-open-btn');
     if (openBtn) {
       openBtn.addEventListener('click', () => {
-        if (this._adminMode) {
+        if (this._adminToken) {
           this._openAdminPanel();
         } else {
           this._openAdminModal();
@@ -4102,7 +4101,6 @@ class SnakeRogue {
       .then(r => r.json().then(data => ({ status: r.status, data })))
       .then(({ status, data }) => {
         if (data.ok && data.token) {
-          this._adminMode  = true;
           this._adminToken = data.token;
           this._closeAdminModal();
           this._openAdminPanel();
@@ -4129,7 +4127,6 @@ class SnakeRogue {
       .then(r => r.json().then(data => ({ ok: r.ok, data })))
       .then(({ ok, data }) => {
         if (!ok || !data.ok) {
-          this._adminMode  = false;
           this._adminToken = null;
           this._openAdminModal();
           return;
@@ -4148,7 +4145,6 @@ class SnakeRogue {
         this._loadSpSessions();
       })
       .catch(() => {
-        this._adminMode  = false;
         this._adminToken = null;
       });
   }
@@ -4157,7 +4153,7 @@ class SnakeRogue {
     const panel = document.getElementById('admin-panel');
     if (panel) { panel.style.display = 'none'; this._adminPanelOpen = false; }
     // Show open button again whenever admin mode is active
-    if (this._adminMode) {
+    if (this._adminToken) {
       const openBtn = document.getElementById('admin-open-btn');
       if (openBtn) openBtn.style.display = '';
     }
@@ -4626,7 +4622,7 @@ class SnakeRogue {
       .then(r => r.ok ? r.json() : { down: false })
       .then(data => {
         this._siteDown = !!data.down;
-        if (this._siteDown && !this._adminMode) {
+        if (this._siteDown && !this._adminToken) {
           const isPlaying = this.phase === 'playing' || this.phase === 'online_playing' || this.phase === 'upgrade';
           if (isPlaying && !this._siteGoingDown) {
             this._siteGoingDown = true;
