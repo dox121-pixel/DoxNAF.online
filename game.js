@@ -35,10 +35,19 @@ HEART_EMPTY_IMG.src = 'sprites/HEARTEMPTY.png';
 // ── Snake sprites ─────────────────────────────
 const SNAKE_HEAD_IMG = new Image();
 SNAKE_HEAD_IMG.src = 'sprites/SNAKEHEAD.png';
-const SNAKE_BODY_IMG = new Image();
-SNAKE_BODY_IMG.src = 'sprites/SNAKEBODY.png';
+const SNAKE_BODY_IMGS = [new Image(), new Image(), new Image(), new Image()];
+SNAKE_BODY_IMGS[0].src = 'sprites/SNAKEBODY.png';
+SNAKE_BODY_IMGS[1].src = 'sprites/SNAKEBODY1.png';
+SNAKE_BODY_IMGS[2].src = 'sprites/SNAKEBODY2.png';
+SNAKE_BODY_IMGS[3].src = 'sprites/SNAKEBODY3.png';
 const SNAKE_TAIL_IMG = new Image();
 SNAKE_TAIL_IMG.src = 'sprites/SNAKETAIL.png';
+const SNAKE_HEAD_BORDER_IMG = new Image();
+SNAKE_HEAD_BORDER_IMG.src = 'sprites/SNAKEHEADBORDER.png';
+const SNAKE_BODY_BORDER_IMG = new Image();
+SNAKE_BODY_BORDER_IMG.src = 'sprites/SNAKEBODYBORDER.png';
+const SNAKE_TAIL_BORDER_IMG = new Image();
+SNAKE_TAIL_BORDER_IMG.src = 'sprites/SNAKETAILBORDER.png';
 
 // ── Inline red apple img tag for HTML contexts ─
 const APPLE_SPRITE_TAG = '<img src="sprites/APPLER.png" style="width:14px;height:14px;vertical-align:middle;display:inline-block;">';
@@ -768,19 +777,25 @@ function drawSnake(ctx, state) {
     samples.push(snake.length - 1);
   }
 
-  // Draw body and tail segments (skip head at si=0; head drawn separately on top)
-  for (let si = samples.length - 1; si >= 1; si--) {
-    const idx = samples[si];
+  // ── Pass 1: draw all fill sprites (tail → neck) so circular bodies overlap cleanly
+  // Pre-compute per-sample cx/cy/angle to reuse in Pass 2 without redundant calculation
+  const sampleData = samples.map((idx) => {
     const seg = snake[idx];
-    const cx = seg.x * GRID + GRID / 2;
-    const cy = seg.y * GRID + GRID / 2;
+    const prevSeg = snake[Math.max(0, idx - 1)];
+    return {
+      idx,
+      cx: seg.x * GRID + GRID / 2,
+      cy: seg.y * GRID + GRID / 2,
+      angle: Math.atan2(prevSeg.y - seg.y, prevSeg.x - seg.x),
+    };
+  });
 
-    // Rotation: point toward the segment ahead
-    const prevSeg = snake[idx - 1];
-    const segAngle = Math.atan2(prevSeg.y - seg.y, prevSeg.x - seg.x);
+  for (let si = samples.length - 1; si >= 1; si--) {
+    const { idx, cx, cy, angle: segAngle } = sampleData[si];
 
-    // Tail is the last sample; everything else is body
-    const img = (si === samples.length - 1) ? SNAKE_TAIL_IMG : SNAKE_BODY_IMG;
+    // Tail is the last sample; body segments cycle through the four circular variants
+    const isTail = (si === samples.length - 1);
+    const img = isTail ? SNAKE_TAIL_IMG : SNAKE_BODY_IMGS[idx % SNAKE_BODY_IMGS.length];
 
     if (img.complete && img.naturalWidth > 0) {
       ctx.save();
@@ -798,7 +813,23 @@ function drawSnake(ctx, state) {
     }
   }
 
-  // Draw head sprite on top
+  // ── Pass 2: draw all border sprites on top (tail → neck) so no border clips under a fill
+  for (let si = samples.length - 1; si >= 1; si--) {
+    const { cx, cy, angle: segAngle } = sampleData[si];
+
+    const isTail = (si === samples.length - 1);
+    const borderImg = isTail ? SNAKE_TAIL_BORDER_IMG : SNAKE_BODY_BORDER_IMG;
+
+    if (borderImg.complete && borderImg.naturalWidth > 0) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(segAngle + SNAKE_SPRITE_ROT_OFFSET);
+      ctx.drawImage(borderImg, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+      ctx.restore();
+    }
+  }
+
+  // ── Draw head fill sprite on top
   {
     const hx = snake[0].x * GRID + GRID / 2;
     const hy = snake[0].y * GRID + GRID / 2;
@@ -823,6 +854,19 @@ function drawSnake(ctx, state) {
       ctx.arc(hx, hy, hr, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
+    }
+  }
+
+  // ── Draw head border on top of head fill
+  {
+    const hx = snake[0].x * GRID + GRID / 2;
+    const hy = snake[0].y * GRID + GRID / 2;
+    if (SNAKE_HEAD_BORDER_IMG.complete && SNAKE_HEAD_BORDER_IMG.naturalWidth > 0) {
+      ctx.save();
+      ctx.translate(hx, hy);
+      ctx.rotate(ang + SNAKE_SPRITE_ROT_OFFSET);
+      ctx.drawImage(SNAKE_HEAD_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+      ctx.restore();
     }
   }
 
