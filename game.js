@@ -1242,6 +1242,8 @@ class SnakeRogue {
     this._adminMode  = false;
     this._adminToken = null;
     this._adminPanelOpen = false;
+    this._siteDown   = false;
+    this._siteDownTimer = null;
     this._setupAdmin();
     this._setupFeedback();
 
@@ -1277,6 +1279,7 @@ class SnakeRogue {
 
     this._renderOverlay();
     this._checkRemovalNotice();
+    this._checkSiteState();
   }
 
   _resizeCanvas(nightmareMode) {
@@ -3534,6 +3537,10 @@ class SnakeRogue {
 
     this._makePanelDraggable();
 
+    // Site state toggle button
+    const siteToggleBtn = document.getElementById('adm-site-toggle');
+    if (siteToggleBtn) siteToggleBtn.addEventListener('click', () => this._adminToggleSiteState());
+
     // Admin action buttons
     const actions = {
       'adm-godmode': () => this._adminAction('godmode'),
@@ -3889,6 +3896,8 @@ class SnakeRogue {
     // Hide open button while panel is visible
     const openBtn = document.getElementById('admin-open-btn');
     if (openBtn) openBtn.style.display = 'none';
+    // Update site toggle button to reflect current state
+    this._updateSiteToggleBtn();
     // Load leaderboard entries with delete buttons
     this._loadAdminLeaderboard();
     this._loadAdminNightmareLeaderboard();
@@ -4289,6 +4298,129 @@ class SnakeRogue {
     this.pendingUpgrades = choices;
     this.phase = 'upgrade';
     this._showUpgradePanel();
+  }
+
+  // ── Greeting screen ───────────────────────────
+  _showGreetingIfNeeded() {
+    let shown;
+    try { shown = localStorage.getItem('greetingShown'); } catch(_) {}
+    if (shown) return;
+    const modal = document.getElementById('greeting-modal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const enterBtn = document.getElementById('greeting-enter-btn');
+    if (enterBtn) {
+      enterBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+        try { localStorage.setItem('greetingShown', '1'); } catch(_) {}
+      }, { once: true });
+    }
+    // Also dismiss on backdrop click
+    modal.addEventListener('click', e => {
+      if (e.target === modal) {
+        modal.style.display = 'none';
+        try { localStorage.setItem('greetingShown', '1'); } catch(_) {}
+      }
+    });
+  }
+
+  // ── Site state ────────────────────────────────
+  _checkSiteState() {
+    fetch(`${API_SERVER}/api/site-state`)
+      .then(r => r.ok ? r.json() : { down: false })
+      .then(data => {
+        this._siteDown = !!data.down;
+        if (this._siteDown && !this._adminMode) {
+          this._showMaintenanceScreen(data.downSince);
+        } else {
+          this._showGreetingIfNeeded();
+        }
+      })
+      .catch(() => {
+        this._showGreetingIfNeeded();
+      });
+  }
+
+  _showMaintenanceScreen(downSince) {
+    this._siteDown = true;
+    const overlay = document.getElementById('site-down-overlay');
+    if (!overlay) return;
+    overlay.style.display = 'flex';
+
+    // Clear any existing timer
+    if (this._siteDownTimer) { clearInterval(this._siteDownTimer); this._siteDownTimer = null; }
+
+    const sinceMs = downSince ? new Date(downSince).getTime() : Date.now();
+    const timerEl = document.getElementById('site-down-timer');
+
+    const updateTimer = () => {
+      if (!timerEl) return;
+      const elapsed = Math.floor((Date.now() - sinceMs) / 1000);
+      const h = Math.floor(elapsed / 3600);
+      const m = Math.floor((elapsed % 3600) / 60);
+      const s = elapsed % 60;
+      timerEl.textContent =
+        String(h).padStart(2, '0') + ':' +
+        String(m).padStart(2, '0') + ':' +
+        String(s).padStart(2, '0');
+    };
+    updateTimer();
+    this._siteDownTimer = setInterval(updateTimer, 1000);
+
+    // Update admin panel button label if panel is open
+    this._updateSiteToggleBtn();
+  }
+
+  _hideMaintenanceScreen() {
+    this._siteDown = false;
+    if (this._siteDownTimer) { clearInterval(this._siteDownTimer); this._siteDownTimer = null; }
+    const overlay = document.getElementById('site-down-overlay');
+    if (overlay) overlay.style.display = 'none';
+    this._updateSiteToggleBtn();
+    this._showGreetingIfNeeded();
+  }
+
+  _updateSiteToggleBtn() {
+    const btn = document.getElementById('adm-site-toggle');
+    if (!btn) return;
+    if (this._siteDown) {
+      btn.innerHTML = '🟢 Site Up';
+      btn.style.borderColor = '#3a6';
+      btn.style.color = '#4f8';
+    } else {
+      btn.innerHTML = '🔴 Site Down';
+      btn.style.borderColor = '';
+      btn.style.color = '';
+    }
+  }
+
+  _adminToggleSiteState() {
+    if (!this._adminToken) return;
+    const btn = document.getElementById('adm-site-toggle');
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    const newDown = !this._siteDown;
+    fetch(`${API_SERVER}/api/admin/site-state`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: this._adminToken, down: newDown }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (btn) btn.disabled = false;
+        if (data.ok) {
+          if (data.down) {
+            this._showMaintenanceScreen(data.downSince);
+          } else {
+            this._hideMaintenanceScreen();
+          }
+        } else {
+          this._updateSiteToggleBtn();
+        }
+      })
+      .catch(() => {
+        if (btn) btn.disabled = false;
+        this._updateSiteToggleBtn();
+      });
   }
 }
 

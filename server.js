@@ -30,6 +30,10 @@ const dbPool = process.env.DATABASE_URL
 const ADMIN_SESSION_TTL_MS = 3600000; // 1 hour
 const adminSessions = new Map(); // token → expiry timestamp
 
+// ── Site state ────────────────────────────────
+// Persisted to admin_settings table under key 'site_state'
+let siteState = { down: false, downSince: null };
+
 // ── User authentication ───────────────────────
 const USER_SESSION_TTL_MS = 30 * 24 * 3600 * 1000; // 30 days
 
@@ -368,6 +372,28 @@ async function initDb() {
       expires_at    TIMESTAMPTZ   NOT NULL
     )
   `);
+  // Load persisted site state
+  const siteStateRow = await dbPool.query(
+    `SELECT value FROM admin_settings WHERE key = 'site_state' LIMIT 1`
+  ).catch(() => ({ rows: [] }));
+  if (siteStateRow.rows.length) {
+    try {
+      const stored = JSON.parse(siteStateRow.rows[0].value);
+      if (stored && typeof stored.down === 'boolean') {
+        siteState = { down: stored.down, downSince: stored.downSince || null };
+      }
+    } catch (_) {}
+  }
+}
+
+async function saveSiteState() {
+  if (!dbPool) return;
+  await dbPool.query(
+    `INSERT INTO admin_settings (key, value)
+     VALUES ('site_state', $1)
+     ON CONFLICT (key) DO UPDATE SET value = $1`,
+    [JSON.stringify(siteState)]
+  ).catch(err => console.error('[SITE STATE] DB save error:', err.message));
 }
 
 async function deleteLeaderboardEntry(name) {
@@ -591,6 +617,55 @@ const httpServer = http.createServer((req, res) => {
   const rawPath = (req.url || '/').split('?')[0];
   let urlPath;
   try { urlPath = decodeURIComponent(rawPath); } catch { res.writeHead(400); res.end('Bad Request'); return; }
+
+  // ── Site state (public) ───────────────────────
+  if (urlPath === '/api/site-state') {
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': 'https://doxnaf.online',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    if (req.method === 'OPTIONS') { res.writeHead(204, corsHeaders); res.end(); return; }
+    if (req.method !== 'GET') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+    res.end(JSON.stringify({ down: siteState.down, downSince: siteState.downSince }));
+    return;
+  }
+
+  // ── Admin: set site state ─────────────────────
+  if (urlPath === '/api/admin/site-state') {
+    const adminCorsH = {
+      'Access-Control-Allow-Origin': 'https://doxnaf.online',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    if (req.method === 'OPTIONS') { res.writeHead(204, adminCorsH); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 256) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const { token, down } = JSON.parse(body);
+        if (!isValidAdminToken(token)) {
+          res.writeHead(401, { 'Content-Type': 'application/json', ...adminCorsH });
+          res.end(JSON.stringify({ ok: false, message: 'Unauthorized' }));
+          return;
+        }
+        const goingDown = !!down;
+        if (goingDown && !siteState.down) {
+          siteState = { down: true, downSince: new Date().toISOString() };
+        } else if (!goingDown) {
+          siteState = { down: false, downSince: null };
+        }
+        saveSiteState();
+        res.writeHead(200, { 'Content-Type': 'application/json', ...adminCorsH });
+        res.end(JSON.stringify({ ok: true, down: siteState.down, downSince: siteState.downSince }));
+      } catch (_) {
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
+    return;
+  }
 
   // ── Leaderboard removal check ─────────────────
   if (urlPath === '/api/leaderboard/check-removal') {

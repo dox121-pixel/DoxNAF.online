@@ -143,6 +143,7 @@
     <div id="admin-panel" style="display:none;">
       <div id="admin-panel-title">⚙ ADMIN DEBUG</div>
       <div id="admin-panel-body">
+        <button class="admin-action-btn adm-site-toggle-btn" id="adm-site-toggle">🔴 Site Down</button>
         <button class="admin-action-btn" id="adm-godmode">👻 God Mode</button>
         <button class="admin-action-btn" id="adm-shield">🛡 +1 Shield</button>
         <button class="admin-action-btn" id="adm-apple"><img src="sprites/APPLER.png" style="width:14px;height:14px;vertical-align:middle;"> +5 Apples</button>
@@ -169,6 +170,39 @@
         </div>
       </div>
       <button class="btn btn-back" id="admin-panel-close" style="font-size:10px;padding:4px 12px;">CLOSE</button>
+    </div>
+  </div>
+
+    <!-- Greeting modal (shown on first visit) -->
+    <div id="greeting-modal" style="display:none;">
+      <div id="greeting-modal-box">
+        <div id="greeting-title">👋 WELCOME!</div>
+        <div id="greeting-body">
+          <p>You're checking out the <strong>public indev build</strong> of <strong>VIPER.exe</strong>!</p>
+          <p>The game is still in early development — expect rough edges and the occasional bug.</p>
+          <p>We'd love to hear what you think! Hit the <strong>💬 FEEDBACK</strong> button after playing to share your thoughts. Every bit helps!</p>
+        </div>
+        <button class="btn btn-online" id="greeting-enter-btn">▶ ENTER THE GAME</button>
+      </div>
+    </div>
+
+    <!-- Site-down overlay (shown when admin puts site in maintenance mode) -->
+    <div id="site-down-overlay" style="display:none;">
+      <div id="site-down-box">
+        <div id="site-down-title">🔧 SITE DOWN</div>
+        <div id="site-down-subtitle">Down for maintenance — we'll be back soon!</div>
+        <div id="site-down-timer">00:00:00</div>
+        <div id="site-down-pets">
+          <div class="sleeping-pet">
+            <img src="sprites/BAT.png" class="sleeping-bat" alt="sleeping bat" />
+            <div class="zzz-float">z z z</div>
+          </div>
+          <div class="sleeping-pet">
+            <div class="sleeping-snake">🐍</div>
+            <div class="zzz-float zzz-delayed">z z z</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
