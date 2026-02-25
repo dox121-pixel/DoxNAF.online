@@ -327,6 +327,20 @@ async function initDb() {
       ON nightmare_leaderboard (name)
       WHERE name != 'Anonymous'
   `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS feedback (
+      id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+      message     TEXT         NOT NULL,
+      created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    )
+  `);
+  await dbPool.query(`
+    CREATE TABLE IF NOT EXISTS feedback_user_info (
+      id          UUID         PRIMARY KEY REFERENCES feedback(id) ON DELETE CASCADE,
+      details     JSONB        NOT NULL DEFAULT '{}',
+      created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    )
+  `);
   // Always update the admin password hash to match the current ADMIN_PASSWORD env var.
   // Using DO UPDATE ensures a stale hash (e.g. from an old password) is replaced on startup.
   if (DEFAULT_ADMIN_HASH) {
@@ -898,6 +912,51 @@ const httpServer = http.createServer((req, res) => {
           res.end(JSON.stringify({ ok: true, logs: result.rows }));
         }).catch(err => {
           console.error('Admin logs fetch error:', err.message);
+          res.writeHead(500); res.end('Internal Server Error');
+        });
+      } catch (_) {
+        res.writeHead(400); res.end('Bad Request');
+      }
+    });
+    return;
+  }
+
+  // ── Feedback API ──────────────────────────────
+  if (urlPath === '/api/feedback') {
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': 'https://doxnaf.online',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+    if (req.method === 'OPTIONS') { res.writeHead(204, corsHeaders); res.end(); return; }
+    if (req.method !== 'POST') { res.writeHead(405); res.end('Method Not Allowed'); return; }
+    const fingerprint = collectRequestFingerprint(req, {});
+    let body = '';
+    req.on('data', chunk => { body += chunk; if (body.length > 4096) req.destroy(); });
+    req.on('end', () => {
+      try {
+        const d = JSON.parse(body);
+        const message = String(d.message || '').slice(0, 2000).trim();
+        if (!message) { res.writeHead(400); res.end('Bad Request'); return; }
+        if (!dbPool) {
+          res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+          res.end(JSON.stringify({ ok: true }));
+          return;
+        }
+        dbPool.query(
+          `INSERT INTO feedback (message) VALUES ($1) RETURNING id`,
+          [message]
+        ).then(result => {
+          const feedbackId = result.rows[0].id;
+          return dbPool.query(
+            `INSERT INTO feedback_user_info (id, details) VALUES ($1, $2)`,
+            [feedbackId, JSON.stringify(fingerprint)]
+          ).then(() => {
+            res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ ok: true }));
+          });
+        }).catch(err => {
+          console.error('Feedback POST error:', err.message);
           res.writeHead(500); res.end('Internal Server Error');
         });
       } catch (_) {
