@@ -18,6 +18,12 @@ BAT_IMG.src = 'sprites/BAT.png';
 const BAT_FLAP_IMG = new Image();
 BAT_FLAP_IMG.src = 'sprites/BATFLAP.png';
 
+// ── Ghost (phantom enemy) sprites ────────────
+const GHOST_OPEN_IMG = new Image();
+GHOST_OPEN_IMG.src = 'sprites/GHOSTOPEN.png';
+const GHOST_CLOSE_IMG = new Image();
+GHOST_CLOSE_IMG.src = 'sprites/GHOSTCLOSE.png';
+
 // ── Inline red apple img tag for HTML contexts ─
 const APPLE_SPRITE_TAG = '<img src="sprites/APPLER.png" style="width:14px;height:14px;vertical-align:middle;display:inline-block;">';
 
@@ -581,7 +587,7 @@ const ENEMY_TYPES = {
   phantom: {
     color: 'rgba(180,200,255,0.85)',
     glowColor: 'rgba(160,180,255,0.6)',
-    size: 0.9,
+    size: 1.5,
     shape: 'ghost',
     speed: 0.0073,
     score: 20,
@@ -952,6 +958,33 @@ function drawEnemies(ctx, state, tick) {
       ctx.closePath();
       ctx.fill();
     } else if (type.shape === 'ghost') {
+      const ghostFrame = Math.floor(tick / 20) % 2 === 0 ? GHOST_OPEN_IMG : GHOST_CLOSE_IMG;
+      const ghostImgReady = ghostFrame.complete && ghostFrame.naturalWidth > 0;
+      if (ghostImgReady) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        const gSize = GRID * 1.2 * 0.45 * 5.5; // slightly smaller than bat (bat uses 6.5)
+        ctx.globalAlpha = 0.70 + 0.12 * Math.sin(tick * 0.07 + e.id * 5);
+        ctx.shadowBlur = _fxEnabled ? 16 : 0;
+        ctx.shadowColor = type.glowColor;
+        ctx.drawImage(ghostFrame, -gSize / 2, -gSize / 2, gSize, gSize);
+        ctx.globalAlpha = 1;
+        ctx.restore();
+        // Health bar
+        const maxHp2 = e.maxHp || 1;
+        if (e.hp < maxHp2) {
+          const barW = r * 2.4, barH = 3;
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#400';
+          ctx.fillRect(cx - barW / 2, cy - r - 7, barW, barH);
+          const hpFrac2 = Math.max(0, e.hp / maxHp2);
+          ctx.fillStyle = hpFrac2 > 0.5 ? '#4f4' : hpFrac2 > 0.25 ? '#ff4' : '#f44';
+          ctx.fillRect(cx - barW / 2, cy - r - 7, barW * hpFrac2, barH);
+        }
+        ctx.shadowBlur = 0;
+        continue;
+      }
+      // Fallback to shape if sprite not loaded
       ctx.globalAlpha = 0.70 + 0.12 * Math.sin(tick * 0.07 + e.id * 5);
       const wt = tick * 0.04;
       ctx.beginPath();
@@ -3618,6 +3651,14 @@ class SnakeRogue {
       if (btn) btn.addEventListener('click', handler);
     }
 
+    // Set time button
+    const setTimeBtn = document.getElementById('adm-set-time');
+    if (setTimeBtn) setTimeBtn.addEventListener('click', () => this._adminSetTime());
+
+    // Allow Enter key in set time input
+    const timeInput = document.getElementById('adm-time-input');
+    if (timeInput) timeInput.addEventListener('keydown', e => { if (e.key === 'Enter') this._adminSetTime(); });
+
     // Delegate click handler for leaderboard delete buttons (added once)
     const lbList = document.getElementById('adm-leaderboard-list');
     if (lbList) {
@@ -4316,6 +4357,25 @@ class SnakeRogue {
     const orig = btn.textContent;
     btn.textContent = text;
     setTimeout(() => { btn.textContent = orig; }, 1200);
+  }
+
+  _adminSetTime() {
+    const input = document.getElementById('adm-time-input');
+    if (!input) return;
+    const val = input.value.trim();
+    let totalSecs = 0;
+    if (val.includes(':')) {
+      const parts = val.split(':');
+      totalSecs = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    } else {
+      totalSecs = parseInt(val, 10);
+    }
+    if (isNaN(totalSecs) || totalSecs < 0) return;
+    const desiredMs = totalSecs * 1000;
+    const now = performance.now();
+    this.gameStartTime = now - desiredMs - (this._totalPausedMs || 0);
+    this._updateHUD();
+    this._flashAdminBtn('adm-set-time', '⏱ Time Set!');
   }
 
   _makePanelDraggable() {
