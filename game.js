@@ -4118,18 +4118,37 @@ class SnakeRogue {
   }
 
   _openAdminPanel() {
-    const panel = document.getElementById('admin-panel');
-    if (panel) { panel.style.display = 'flex'; this._adminPanelOpen = true; }
-    // Hide open button while panel is visible
-    const openBtn = document.getElementById('admin-open-btn');
-    if (openBtn) openBtn.style.display = 'none';
-    // Update site toggle button to reflect current state
-    this._updateSiteToggleBtn();
-    // Load leaderboard entries with delete buttons
-    this._loadAdminLeaderboard();
-    this._loadAdminNightmareLeaderboard();
-    // Load active singleplayer sessions
-    this._loadSpSessions();
+    if (!this._adminToken) { this._openAdminModal(); return; }
+    fetch(`${API_SERVER}/api/admin/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: this._adminToken }),
+    })
+      .then(r => r.json().then(data => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok || !data.ok) {
+          this._adminMode  = false;
+          this._adminToken = null;
+          this._openAdminModal();
+          return;
+        }
+        const panel = document.getElementById('admin-panel');
+        if (panel) { panel.style.display = 'flex'; this._adminPanelOpen = true; }
+        // Hide open button while panel is visible
+        const openBtn = document.getElementById('admin-open-btn');
+        if (openBtn) openBtn.style.display = 'none';
+        // Update site toggle button to reflect current state
+        this._updateSiteToggleBtn();
+        // Load leaderboard entries with delete buttons
+        this._loadAdminLeaderboard();
+        this._loadAdminNightmareLeaderboard();
+        // Load active singleplayer sessions
+        this._loadSpSessions();
+      })
+      .catch(() => {
+        this._adminMode  = false;
+        this._adminToken = null;
+      });
   }
 
   _closeAdminPanel() {
