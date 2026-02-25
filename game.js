@@ -648,12 +648,12 @@ function getTargetEnemyCount(elapsedMs, nightmareMode) {
 
 function getEnemyTypeKeys(elapsedMs, nightmareMode) {
   const s = elapsedMs / 1000;
-  // Start mostly chasers; other types unlock over time
+  // Only bats (chasers) until 2:45; then one new enemy type unlocks every minute
   const keys = ['chaser', 'chaser', 'chaser'];
-  if (s >= 60  || nightmareMode) keys.push('patrol');
-  if (s >= 90  || nightmareMode) keys.push('speeder');
-  if (s >= 120 || nightmareMode) keys.push('phantom');
-  if (s >= 180 || nightmareMode) keys.push('titan');
+  if (s >= 165 || nightmareMode) keys.push('patrol');
+  if (s >= 225 || nightmareMode) keys.push('speeder');
+  if (s >= 285 || nightmareMode) keys.push('phantom');
+  if (s >= 345 || nightmareMode) keys.push('titan');
   return keys;
 }
 
@@ -1792,9 +1792,21 @@ class SnakeRogue {
       const apple = state.apples[i];
       const ax = apple.fx !== undefined ? apple.fx : apple.x;
       const ay = apple.fy !== undefined ? apple.fy : apple.y;
-      const dx = ax - nx, dy = ay - ny;
       const eatDist = state.appleEatDist || APPLE_EAT_DIST;
-      if (dx * dx + dy * dy < eatDist * eatDist) {
+      const eatDist2 = eatDist * eatDist;
+      // Check head first, then body segments
+      let eaten = false;
+      const hdx = ax - nx, hdy = ay - ny;
+      if (hdx * hdx + hdy * hdy < eatDist2) {
+        eaten = true;
+      } else {
+        for (let si = 1; si < state.snake.length; si++) {
+          const seg = state.snake[si];
+          const bdx = ax - seg.x, bdy = ay - seg.y;
+          if (bdx * bdx + bdy * bdy < eatDist2) { eaten = true; break; }
+        }
+      }
+      if (eaten) {
         state.apples.splice(i, 1);
         state.score += 1;
         state.applesEaten++;
@@ -2176,12 +2188,12 @@ class SnakeRogue {
     // Scale apples needed for next upgrade
     const totalPerks = Object.values(state.upgradeCount).reduce((a, b) => a + b, 0);
     if (totalPerks <= 10) {
-      state.applesForNextUpgrade = 1 + Math.floor(totalPerks / 3);
+      state.applesForNextUpgrade = 1 + Math.floor(totalPerks / 4);
     } else {
-      // After 10 perks: significantly steeper cost
-      const base = 1 + Math.floor(10 / 3); // = 4 at 10 perks
+      // After 10 perks: steeper cost, but slightly reduced from before
+      const base = 1 + Math.floor(10 / 4); // = 3 at 10 perks
       const extra = totalPerks - 10;
-      state.applesForNextUpgrade = base + extra * 2 + Math.floor(extra * extra / 4);
+      state.applesForNextUpgrade = base + extra * 2 + Math.floor(extra * extra / 6);
     }
     this._hideUpgradePanel();
     this.phase = 'playing';
