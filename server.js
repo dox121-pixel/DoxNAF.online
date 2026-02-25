@@ -235,12 +235,13 @@ async function initDb() {
       ON nightmare_leaderboard (name)
       WHERE name != 'Anonymous'
   `);
-  // Store the admin password hash if not already set (only when env var is provided)
+  // Always update the admin password hash to match the current ADMIN_PASSWORD env var.
+  // Using DO UPDATE ensures a stale hash (e.g. from an old password) is replaced on startup.
   if (DEFAULT_ADMIN_HASH) {
     await dbPool.query(
       `INSERT INTO admin_settings (key, value)
        VALUES ('password_hash', $1)
-       ON CONFLICT (key) DO NOTHING`,
+       ON CONFLICT (key) DO UPDATE SET value = $1`,
       [DEFAULT_ADMIN_HASH]
     );
   }
