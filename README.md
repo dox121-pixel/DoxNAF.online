@@ -27,11 +27,10 @@ All enemies scale in speed over time. Nightmare mode spawns roughly 3× more ene
 
 | Enemy | Appearance | HP | Score | Unlocks | Behaviour |
 |-------|------------|----|-------|---------|-----------|
-| **Chaser** | 🟣 Purple circle | 3 | 5 | Start | Locks on and directly chases the snake head at all times |
-| **Patroller** | 🔵 Blue square | 4 | 8 | 60 s | Roams freely; every ~4 s it snaps to face the player and charges; changes direction randomly every 3–6 s otherwise |
-| **Speeder** | 🩵 Teal circle (small) | 2 | 10 | 90 s | Very fast; re-aims toward the player with a random angular offset every ~0.8 s, producing erratic zigzag movement |
-| **Phantom** | 👻 Pale-blue ghost | 5 | 20 | 120 s | Phases through the snake body — cannot be blocked by body segments; still kills on head contact |
-| **Titan** | 🔴 Dark-pink hexagon (large) | 15 | 30 | 180 s | Slow but enormous; chases the snake head directly; requires many bullets to destroy |
+| **Chaser** | 🦇 Animated bat | 3 | 5 | Start | Locks on and directly chases the snake head at all times |
+| **Patroller** | 🔵 Blue square | 4 | 8 | 2:45 | Roams freely, changing direction randomly every 3–6 s; charges directly at the snake when the player strays within close range |
+| **Phantom** | 👻 Pale-blue ghost | 5 | 20 | 4:45 | Phases through the snake body — cannot be blocked by body segments; still kills on head contact |
+| **Titan** | 🔴 Dark-pink hexagon (large) | 15 | 30 | 5:45 | Slow but enormous; chases the snake head directly; requires many bullets to destroy |
 
 > **Note:** Enemies cannot spawn inside or on top of the snake body, even if the player is using Phase Walk.
 
@@ -82,17 +81,41 @@ Earned by eating apples. Choose from 3 options (4 with ORACLE perk).
 | 🧲 MAGNETISM | Wider apple pickup radius (stacks) |
 | 🎯 LONG RANGE | Bullets travel farther (+40% per stack) |
 
+## Score System
+
+Killing enemies earns points displayed on the game-over screen. Scores are submitted to a global leaderboard after each run.
+
+| Enemy | Score |
+|-------|-------|
+| Chaser | 5 |
+| Patroller | 8 |
+| Phantom | 20 |
+| Titan | 30 |
+
+## User Accounts
+
+Create an account with a username and password to appear on the leaderboard under your name. All game modes are playable without an account — anonymous players will appear as **Anonymous**.
+
+> ⚠ There is **no** password recovery. Do not lose your password.
+
+## Leaderboard
+
+After each Solo or Nightmare run your score is automatically submitted to separate leaderboards (top 10 shown on the game-over screen and main menu). Scores include your name, star score, apples eaten, enemies killed, and time survived.
+
 ## Features
 
 - **Phase through walls** – arena edges wrap; no wall deaths
 - **Smooth snake movement** – analog mouse/joystick steering with fluid body physics
-- **Enemy AI** – Chasers, Patrollers, Speeders, Phantoms, and Titans; escalating difficulty
-- **Phantom ghost enemy** – phases through the snake body, spawns at the 2-minute mark
+- **Enemy AI** – Chasers, Patrollers, Phantoms, and Titans; escalating difficulty
+- **Phantom ghost enemy** – phases through the snake body, spawns at the 4:45 mark
 - **No free apple respawn** – apples only appear from killed enemies, rewarding aggression
+- **Score system** – earn points for each enemy killed; score is tracked and submitted after every run
 - **Rare chest system** – 5 rarity tiers (Common → Legendary) with 10 unique powerful items
 - **Pistol system** – aim and shoot bullets; fully controllable on mobile via a dedicated gun joystick
 - **16 upgrades** – 5 one-time perks and 11 stackable upgrades
 - **Online multiplayer** – real-time WebSocket 1v1 with teleport perks and room codes
+- **User accounts** – optional login/register to appear on the leaderboard under your own name
+- **Leaderboard** – top-10 global scores for both Solo and Nightmare modes
 - **Death replay** – on death, watch the last 5 seconds of your run via a replay button on the game-over screen
 
 ## Running Locally
