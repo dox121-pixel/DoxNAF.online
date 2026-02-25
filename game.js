@@ -1318,11 +1318,10 @@ class SnakeRogue {
       if (this.phase === 'start' && e.key === 'Enter') this._startGame();
       if (this.phase === 'gameover' && e.key === 'Enter') this._startGame();
       if (this.phase === 'gameover' && e.key === 'r') this._startGame();
-      // Allow skipping the death replay
+      // Allow skipping the death replay back to the death screen
       if (this.phase === 'death_replay' && (e.key === 'Enter' || e.key === 'r' || e.key === ' ')) {
-        this._deathReplay = null;
         this.phase = 'gameover';
-        this._showOverlay('gameover', this._deathReplayReason);
+        document.getElementById('overlay').style.display = '';
       }
       // ESC: toggle pause menu in solo mode only (not online, not nightmare)
       if (e.key === 'Escape' && !this.online && (this.phase === 'playing' || this._paused) && !(this.state && this.state.nightmareMode)) {
@@ -1352,9 +1351,8 @@ class SnakeRogue {
         this._mouseIsDown = true;
         if (this.phase === 'start' || this.phase === 'gameover') { return; }
         if (this.phase === 'death_replay') {
-          this._deathReplay = null;
           this.phase = 'gameover';
-          this._showOverlay('gameover', this._deathReplayReason);
+          document.getElementById('overlay').style.display = '';
           return;
         }
         this._tryShoot();
@@ -2139,19 +2137,14 @@ class SnakeRogue {
       this._playNightmareJumpscare();
       return;
     }
-    // Capture one final frame (with death particles)
+    // Capture one final frame (with death particles) and save for replay button
     this._captureReplayFrame(performance.now());
-    // Start death replay if we have recorded frames
     if (this._replayBuffer.length > 0) {
-      this._deathReplay       = this._replayBuffer.slice();
-      this._replayBuffer      = [];
-      this._deathReplayStart  = performance.now();
-      this._deathReplayReason = reason;
-      this.phase = 'death_replay';
-    } else {
-      this.phase = 'gameover';
-      this._showOverlay('gameover', reason);
+      this._deathReplay  = this._replayBuffer.slice();
+      this._replayBuffer = [];
     }
+    this.phase = 'gameover';
+    this._showOverlay('gameover', reason);
   }
 
   _chooseUpgrade(upgrade) {
@@ -2450,12 +2443,18 @@ class SnakeRogue {
     requestAnimationFrame(this._loop);
   }
 
+  _startDeathReplay() {
+    if (!this._deathReplay || this._deathReplay.length === 0) return;
+    this._deathReplayStart = performance.now();
+    this.phase = 'death_replay';
+    document.getElementById('overlay').style.display = 'none';
+  }
+
   _renderDeathReplay(ctx, timestamp) {
     const frames = this._deathReplay;
     if (!frames || frames.length === 0) {
-      this._deathReplay = null;
       this.phase = 'gameover';
-      this._showOverlay('gameover', this._deathReplayReason);
+      document.getElementById('overlay').style.display = '';
       return;
     }
 
@@ -2473,11 +2472,10 @@ class SnakeRogue {
       }
     }
 
-    // Once we've played through all frames, transition to gameover
+    // Once we've played through all frames, transition back to gameover overlay
     if (elapsed > lastTs - firstTs + 400) {
-      this._deathReplay = null;
       this.phase = 'gameover';
-      this._showOverlay('gameover', this._deathReplayReason);
+      document.getElementById('overlay').style.display = '';
       return;
     }
 
@@ -2563,6 +2561,7 @@ class SnakeRogue {
         ${upgradeNames ? `<div id="upgrades-list">${upgradeNames}</div>` : ''}
         <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
           <button class="btn" id="restart-btn">PLAY AGAIN [Enter]</button>
+          ${this._deathReplay ? '<button class="btn btn-lore" id="replay-btn">⏮ WATCH REPLAY</button>' : ''}
           <button class="btn btn-back" id="menu-btn">← MENU</button>
         </div>
         <div class="controls">Mouse to steer · Mobile: joystick · LMB to shoot</div>
@@ -2572,6 +2571,8 @@ class SnakeRogue {
         </div>
       `;
       document.getElementById('restart-btn').addEventListener('click', () => this._startGame());
+      const replayBtn = document.getElementById('replay-btn');
+      if (replayBtn) replayBtn.addEventListener('click', () => this._startDeathReplay());
       document.getElementById('menu-btn').addEventListener('click', () => {
         this.state = null;
         this._replayBuffer = [];
