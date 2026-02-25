@@ -1244,6 +1244,7 @@ class SnakeRogue {
     this._adminPanelOpen = false;
     this._siteDown   = false;
     this._siteDownTimer = null;
+    this._sleepSnakeRaf = null;
     this._setupAdmin();
     this._setupFeedback();
 
@@ -4367,13 +4368,85 @@ class SnakeRogue {
     updateTimer();
     this._siteDownTimer = setInterval(updateTimer, 1000);
 
+    // Draw the sleeping snake canvas
+    this._startSleepingSnakeAnimation();
+
     // Update admin panel button label if panel is open
     this._updateSiteToggleBtn();
+  }
+
+  _startSleepingSnakeAnimation() {
+    const canvas = document.getElementById('sleeping-snake-canvas');
+    if (!canvas) return;
+    if (this._sleepSnakeRaf) { cancelAnimationFrame(this._sleepSnakeRaf); this._sleepSnakeRaf = null; }
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+
+    // Coil geometry (matches the overlay's 64×64 canvas)
+    const cx = W / 2, cy = H * 0.62;
+    const coilR = W * 0.26;
+    const nSeg  = 14;
+    const headX = cx, headY = cy - coilR;
+    const hr    = W * 0.12;
+    const lineW = W * 0.115;
+
+    const draw = (ts) => {
+      const t = ts || 0;
+      ctx.clearRect(0, 0, W, H);
+
+      // Coiled body – segments drawn tail→head so head is on top
+      ctx.save();
+      ctx.lineCap  = 'round';
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = lineW;
+      for (let i = nSeg - 1; i >= 0; i--) {
+        const a0 = (i       / nSeg) * Math.PI * 2 - Math.PI / 2;
+        const a1 = ((i + 1) / nSeg) * Math.PI * 2 - Math.PI / 2;
+        const alpha = 0.3 + 0.7 * (1 - i / (nSeg - 1));
+        ctx.strokeStyle = `rgba(40, 160, 80, ${alpha})`;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a0) * coilR, cy + Math.sin(a0) * coilR);
+        ctx.lineTo(cx + Math.cos(a1) * coilR, cy + Math.sin(a1) * coilR);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Head glow + fill
+      ctx.save();
+      ctx.shadowBlur  = _fxEnabled ? 12 : 0;
+      ctx.shadowColor = '#4f8';
+      ctx.fillStyle   = '#50e678';
+      ctx.beginPath();
+      ctx.arc(headX, headY, hr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Closed eyes – short horizontal strokes, slightly curved downward
+      const eyeR    = hr * 0.28;
+      const eyeDist = hr * 0.52;
+      ctx.strokeStyle = '#0a0a14';
+      ctx.lineWidth   = eyeR * 0.85;
+      ctx.lineCap     = 'round';
+      [-1, 1].forEach(side => {
+        const ex = headX + side * eyeDist;
+        const ey = headY + eyeR * 0.15;
+        ctx.beginPath();
+        ctx.moveTo(ex - eyeR, ey - eyeR * 0.25);
+        ctx.quadraticCurveTo(ex, ey + eyeR * 0.5, ex + eyeR, ey - eyeR * 0.25);
+        ctx.stroke();
+      });
+      ctx.restore();
+
+      this._sleepSnakeRaf = requestAnimationFrame(draw);
+    };
+
+    this._sleepSnakeRaf = requestAnimationFrame(draw);
   }
 
   _hideMaintenanceScreen() {
     this._siteDown = false;
     if (this._siteDownTimer) { clearInterval(this._siteDownTimer); this._siteDownTimer = null; }
+    if (this._sleepSnakeRaf) { cancelAnimationFrame(this._sleepSnakeRaf); this._sleepSnakeRaf = null; }
     const overlay = document.getElementById('site-down-overlay');
     if (overlay) overlay.style.display = 'none';
     this._updateSiteToggleBtn();
