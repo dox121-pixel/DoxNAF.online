@@ -270,6 +270,27 @@ async function initDb() {
       ON leaderboard (name)
       WHERE name != 'Anonymous'
   `);
+  // Migrate: add kills and time_played columns to leaderboard if missing
+  await dbPool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'leaderboard' AND column_name = 'kills'
+      ) THEN
+        ALTER TABLE leaderboard ADD COLUMN kills INTEGER NOT NULL DEFAULT 0;
+      END IF;
+    END $$
+  `).catch(() => {});
+  await dbPool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'leaderboard' AND column_name = 'time_played'
+      ) THEN
+        ALTER TABLE leaderboard ADD COLUMN time_played INTEGER NOT NULL DEFAULT 0;
+      END IF;
+    END $$
+  `).catch(() => {});
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS admin_settings (
       key   VARCHAR(50)  PRIMARY KEY,
@@ -334,6 +355,27 @@ async function initDb() {
       ON nightmare_leaderboard (name)
       WHERE name != 'Anonymous'
   `);
+  // Migrate: add kills and time_played columns to nightmare_leaderboard if missing
+  await dbPool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'nightmare_leaderboard' AND column_name = 'kills'
+      ) THEN
+        ALTER TABLE nightmare_leaderboard ADD COLUMN kills INTEGER NOT NULL DEFAULT 0;
+      END IF;
+    END $$
+  `).catch(() => {});
+  await dbPool.query(`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'nightmare_leaderboard' AND column_name = 'time_played'
+      ) THEN
+        ALTER TABLE nightmare_leaderboard ADD COLUMN time_played INTEGER NOT NULL DEFAULT 0;
+      END IF;
+    END $$
+  `).catch(() => {});
   await dbPool.query(`
     CREATE TABLE IF NOT EXISTS feedback (
       id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -485,7 +527,7 @@ async function checkLeaderboardRemoval(name) {
 async function getLeaderboardFromDb() {
   if (!dbPool) return [];
   const res = await dbPool.query(
-    `SELECT name, score, apples_eaten AS "applesEaten", date
+    `SELECT name, score, apples_eaten AS "applesEaten", kills, time_played AS "timePlayed", date
        FROM leaderboard
       ORDER BY score DESC
       LIMIT $1`,
@@ -494,29 +536,33 @@ async function getLeaderboardFromDb() {
   return res.rows;
 }
 
-async function addLeaderboardEntry(name, score, applesEaten) {
+async function addLeaderboardEntry(name, score, applesEaten, kills, timePlayed) {
   // Sanitize input
   let safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').trim() || 'Anonymous';
   // Replace banned names silently with Anonymous
   if (containsBannedWord(safeName)) safeName = 'Anonymous';
   const safeScore  = Math.max(0, Math.min(1e7, Math.floor(Number(score) || 0)));
   const safeApples = Math.max(0, Math.min(1e6, Math.floor(Number(applesEaten) || 0)));
+  const safeKills  = Math.max(0, Math.min(1e6, Math.floor(Number(kills) || 0)));
+  const safeTime   = Math.max(0, Math.min(86400, Math.floor(Number(timePlayed) || 0)));
 
   if (!dbPool) return;
   if (safeName === 'Anonymous') {
     await dbPool.query(
-      `INSERT INTO leaderboard (name, score, apples_eaten, date) VALUES ($1, $2, $3, NOW())`,
-      [safeName, safeScore, safeApples]
+      `INSERT INTO leaderboard (name, score, apples_eaten, kills, time_played, date) VALUES ($1, $2, $3, $4, $5, NOW())`,
+      [safeName, safeScore, safeApples, safeKills, safeTime]
     );
   } else {
     await dbPool.query(
-      `INSERT INTO leaderboard (name, score, apples_eaten, date)
-       VALUES ($1, $2, $3, NOW())
+      `INSERT INTO leaderboard (name, score, apples_eaten, kills, time_played, date)
+       VALUES ($1, $2, $3, $4, $5, NOW())
        ON CONFLICT (name) WHERE name != 'Anonymous' DO UPDATE
          SET score        = CASE WHEN EXCLUDED.score > leaderboard.score THEN EXCLUDED.score        ELSE leaderboard.score        END,
              apples_eaten = CASE WHEN EXCLUDED.score > leaderboard.score THEN EXCLUDED.apples_eaten ELSE leaderboard.apples_eaten END,
+             kills        = CASE WHEN EXCLUDED.score > leaderboard.score THEN EXCLUDED.kills        ELSE leaderboard.kills        END,
+             time_played  = CASE WHEN EXCLUDED.score > leaderboard.score THEN EXCLUDED.time_played  ELSE leaderboard.time_played  END,
              date         = CASE WHEN EXCLUDED.score > leaderboard.score THEN NOW()                 ELSE leaderboard.date         END`,
-      [safeName, safeScore, safeApples]
+      [safeName, safeScore, safeApples, safeKills, safeTime]
     );
   }
 }
@@ -524,7 +570,7 @@ async function addLeaderboardEntry(name, score, applesEaten) {
 async function getNightmareLeaderboardFromDb() {
   if (!dbPool) return [];
   const res = await dbPool.query(
-    `SELECT name, score, apples_eaten AS "applesEaten", date
+    `SELECT name, score, apples_eaten AS "applesEaten", kills, time_played AS "timePlayed", date
        FROM nightmare_leaderboard
       ORDER BY score DESC
       LIMIT $1`,
@@ -533,27 +579,31 @@ async function getNightmareLeaderboardFromDb() {
   return res.rows;
 }
 
-async function addNightmareLeaderboardEntry(name, score, applesEaten) {
+async function addNightmareLeaderboardEntry(name, score, applesEaten, kills, timePlayed) {
   let safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').trim() || 'Anonymous';
   if (containsBannedWord(safeName)) safeName = 'Anonymous';
   const safeScore  = Math.max(0, Math.min(1e7, Math.floor(Number(score) || 0)));
   const safeApples = Math.max(0, Math.min(1e6, Math.floor(Number(applesEaten) || 0)));
+  const safeKills  = Math.max(0, Math.min(1e6, Math.floor(Number(kills) || 0)));
+  const safeTime   = Math.max(0, Math.min(86400, Math.floor(Number(timePlayed) || 0)));
 
   if (!dbPool) return;
   if (safeName === 'Anonymous') {
     await dbPool.query(
-      `INSERT INTO nightmare_leaderboard (name, score, apples_eaten, date) VALUES ($1, $2, $3, NOW())`,
-      [safeName, safeScore, safeApples]
+      `INSERT INTO nightmare_leaderboard (name, score, apples_eaten, kills, time_played, date) VALUES ($1, $2, $3, $4, $5, NOW())`,
+      [safeName, safeScore, safeApples, safeKills, safeTime]
     );
   } else {
     await dbPool.query(
-      `INSERT INTO nightmare_leaderboard (name, score, apples_eaten, date)
-       VALUES ($1, $2, $3, NOW())
+      `INSERT INTO nightmare_leaderboard (name, score, apples_eaten, kills, time_played, date)
+       VALUES ($1, $2, $3, $4, $5, NOW())
        ON CONFLICT (name) WHERE name != 'Anonymous' DO UPDATE
          SET score        = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN EXCLUDED.score        ELSE nightmare_leaderboard.score        END,
              apples_eaten = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN EXCLUDED.apples_eaten ELSE nightmare_leaderboard.apples_eaten END,
+             kills        = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN EXCLUDED.kills        ELSE nightmare_leaderboard.kills        END,
+             time_played  = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN EXCLUDED.time_played  ELSE nightmare_leaderboard.time_played  END,
              date         = CASE WHEN EXCLUDED.score > nightmare_leaderboard.score THEN NOW()                 ELSE nightmare_leaderboard.date         END`,
-      [safeName, safeScore, safeApples]
+      [safeName, safeScore, safeApples, safeKills, safeTime]
     );
   }
 }
@@ -775,7 +825,7 @@ const httpServer = http.createServer((req, res) => {
             clearTimeout(sess.cleanupTimer);
             spSessions.delete(safeId);
           }
-          addLeaderboardEntry(d.name, score, applesEaten).then(() => {
+          addLeaderboardEntry(d.name, score, applesEaten, d.kills, d.timePlayed).then(() => {
             res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
             res.end(JSON.stringify({ ok: true }));
           }).catch(err => {
@@ -837,7 +887,7 @@ const httpServer = http.createServer((req, res) => {
             clearTimeout(sess.cleanupTimer);
             spSessions.delete(safeId);
           }
-          addNightmareLeaderboardEntry(d.name, score, applesEaten).then(() => {
+          addNightmareLeaderboardEntry(d.name, score, applesEaten, d.kills, d.timePlayed).then(() => {
             res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
             res.end(JSON.stringify({ ok: true }));
           }).catch(err => {
