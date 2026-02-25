@@ -80,6 +80,7 @@ Earned by eating apples. Choose from 3 options (4 with ORACLE perk).
 | 🔫 RAPID FIRE | Shoot faster (stacks) |
 | ✳️ MULTISHOT | Extra bullet per shot (stacks) |
 | 🧲 MAGNETISM | Wider apple pickup radius (stacks) |
+| 🎯 LONG RANGE | Bullets travel farther (+40% per stack) |
 
 ## Features
 
@@ -90,8 +91,9 @@ Earned by eating apples. Choose from 3 options (4 with ORACLE perk).
 - **No free apple respawn** – apples only appear from killed enemies, rewarding aggression
 - **Rare chest system** – 5 rarity tiers (Common → Legendary) with 10 unique powerful items
 - **Pistol system** – aim and shoot bullets; fully controllable on mobile via a dedicated gun joystick
-- **15 upgrades** – 5 one-time perks and 10 stackable upgrades
+- **16 upgrades** – 5 one-time perks and 11 stackable upgrades
 - **Online multiplayer** – real-time WebSocket 1v1 with teleport perks and room codes
+- **Death replay** – on death, watch the last 5 seconds of your run via a replay button on the game-over screen
 
 ## Running Locally
 
