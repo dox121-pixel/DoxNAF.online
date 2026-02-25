@@ -1287,6 +1287,7 @@ class SnakeRogue {
     this._sleepSnakeRaf = null;
     this._siteGoingDown = false;
     this._siteDownSince = null;
+    this._siteDownJumpscareTimer = null;
     this._sitePollingInterval = null;
     this._setupAdmin();
     this._setupFeedback();
@@ -1637,7 +1638,11 @@ class SnakeRogue {
   }
 
   _startGame() {
-    if (this._siteDown && !this._adminToken) { this._showMaintenanceScreen(this._siteDownSince); return; }
+    if (this._siteDownJumpscareTimer) { clearTimeout(this._siteDownJumpscareTimer); this._siteDownJumpscareTimer = null; }
+    if (this._siteDown && !this._adminToken) {
+      // Allow the game to start but schedule a creepy jumpscare after 30 seconds
+      this._siteDownJumpscareTimer = setTimeout(() => this._playSiteDownJumpscare(), 30000);
+    }
     this.particles = [];
     this.tick = 0;
     this.lastMoveTime = 0;
@@ -1786,6 +1791,71 @@ class SnakeRogue {
       this._submitNightmareScore(nmScore, nmApples, nmKills, nmTimeSec);
       this._loadNightmareLeaderboard('nm-leaderboard-list');
     }, 2500);
+  }
+
+  _playSiteDownJumpscare() {
+    this._siteDownJumpscareTimer = null;
+    if (this._jumpscareTimeout) { clearTimeout(this._jumpscareTimeout); this._jumpscareTimeout = null; }
+    this.phase = 'site_down_jumpscare';
+    this.siteDownJumpscareStart = performance.now();
+    this._playScreechCreepy();
+    this._jumpscareTimeout = setTimeout(() => {
+      location.reload();
+    }, 3500);
+  }
+
+  _playScreechCreepy() {
+    try {
+      if (!this._audioCtx) {
+        this._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const audioCtx = this._audioCtx;
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const osc3 = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const now  = audioCtx.currentTime;
+
+      osc1.type = 'sawtooth';
+      osc2.type = 'square';
+      osc3.type = 'sine';
+
+      osc1.frequency.setValueAtTime(60,   now);
+      osc1.frequency.exponentialRampToValueAtTime(4000, now + 0.1);
+      osc1.frequency.exponentialRampToValueAtTime(40,   now + 0.5);
+      osc1.frequency.exponentialRampToValueAtTime(3500, now + 0.8);
+      osc1.frequency.exponentialRampToValueAtTime(50,   now + 1.4);
+      osc1.frequency.exponentialRampToValueAtTime(4200, now + 1.7);
+      osc1.frequency.exponentialRampToValueAtTime(30,   now + 2.5);
+
+      osc2.frequency.setValueAtTime(65,   now);
+      osc2.frequency.exponentialRampToValueAtTime(3900, now + 0.15);
+      osc2.frequency.exponentialRampToValueAtTime(45,   now + 0.55);
+      osc2.frequency.exponentialRampToValueAtTime(3600, now + 0.9);
+      osc2.frequency.exponentialRampToValueAtTime(55,   now + 1.5);
+      osc2.frequency.exponentialRampToValueAtTime(4100, now + 1.8);
+      osc2.frequency.exponentialRampToValueAtTime(35,   now + 2.5);
+
+      osc3.frequency.setValueAtTime(20, now);
+      osc3.frequency.setValueAtTime(30, now + 0.5);
+      osc3.frequency.setValueAtTime(20, now + 1.0);
+      osc3.frequency.setValueAtTime(40, now + 1.5);
+      osc3.frequency.setValueAtTime(20, now + 2.0);
+
+      gain.gain.setValueAtTime(0.0, now);
+      gain.gain.linearRampToValueAtTime(0.6, now + 0.05);
+      gain.gain.setValueAtTime(0.6, now + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 3.5);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      osc3.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc1.start(now); osc1.stop(now + 3.5);
+      osc2.start(now); osc2.stop(now + 3.5);
+      osc3.start(now); osc3.stop(now + 3.5);
+    } catch (_e) { /* audio unavailable */ }
   }
 
   _update(timestamp) {
@@ -1995,7 +2065,7 @@ class SnakeRogue {
     state.enemySpawnTimer += dt;
     const targetCount = getTargetEnemyCount(elapsedMs, state.nightmareMode);
     const spawnInterval = state.nightmareMode ? 800 : (elapsedMs >= 90000 ? 400 : (elapsedMs < 30000 ? 800 : 500));
-    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 10000) {
+    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 10000 && !this._siteDown) {
       state.enemySpawnTimer = 0;
       spawnEnemy(state, elapsedMs);
     }
@@ -2464,6 +2534,52 @@ class SnakeRogue {
       ctx.fillText('☠', W / 2, H / 2 - 50);
       ctx.font = 'bold 36px Courier New';
       ctx.fillText('YOU DIED', W / 2, H / 2 + 40);
+      ctx.textBaseline = 'alphabetic';
+      return;
+    }
+
+    // ── Site-down jumpscare phase ──────────────
+    if (this.phase === 'site_down_jumpscare') {
+      const elapsed = timestamp - this.siteDownJumpscareStart;
+      // Fast alternating flicker between pure black and deep red
+      const frame = Math.floor(elapsed / 100) % 2;
+      ctx.fillStyle = frame === 0 ? '#000000' : '#110000';
+      ctx.fillRect(0, 0, W, H);
+
+      // Random static noise overlay
+      const noiseAlpha = 0.08 + 0.12 * Math.random();
+      ctx.fillStyle = `rgba(255,0,0,${noiseAlpha})`;
+      for (let i = 0; i < 60; i++) {
+        const nx = Math.random() * W;
+        const ny = Math.random() * H;
+        const nw = 2 + Math.random() * 6;
+        const nh = 1 + Math.random() * 3;
+        ctx.fillRect(nx, ny, nw, nh);
+      }
+
+      // Pulsing red glow
+      const pulse = 0.5 + 0.5 * Math.sin(elapsed * 0.015);
+      ctx.fillStyle = `rgba(180,0,0,${0.08 + pulse * 0.12})`;
+      ctx.fillRect(0, 0, W, H);
+
+      // Main text
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const textFlicker = Math.floor(elapsed / 80) % 3;
+      ctx.fillStyle = textFlicker === 0 ? '#ff0000' : textFlicker === 1 ? '#ff4444' : '#cc0000';
+      ctx.font = `bold ${Math.floor(52 + Math.sin(elapsed * 0.02) * 6)}px Courier New`;
+      ctx.fillText('YOU SHOULD NOT BE HERE', W / 2, H / 2 - 44);
+
+      // Distorted subtitle
+      const subFlicker = Math.floor(elapsed / 120) % 2;
+      ctx.fillStyle = subFlicker === 0 ? '#880000' : '#ff2222';
+      ctx.font = 'bold 22px Courier New';
+      ctx.fillText('SITE IS DOWN', W / 2, H / 2 + 10);
+      ctx.font = 'bold 16px Courier New';
+      ctx.fillStyle = frame === 0 ? '#550000' : '#ff0000';
+      ctx.fillText('╔═══[ ERROR ]═══╗', W / 2, H / 2 + 42);
+      ctx.fillText('RELOADING...', W / 2, H / 2 + 66);
+
       ctx.textBaseline = 'alphabetic';
       return;
     }
@@ -3294,7 +3410,11 @@ class SnakeRogue {
 
   // ── Online mode ──────────────────────────────
   _startOnlineMode() {
-    if (this._siteDown && !this._adminToken) { this._showMaintenanceScreen(this._siteDownSince); return; }
+    if (this._siteDownJumpscareTimer) { clearTimeout(this._siteDownJumpscareTimer); this._siteDownJumpscareTimer = null; }
+    if (this._siteDown && !this._adminToken) {
+      // Allow the game to start but schedule a creepy jumpscare after 30 seconds
+      this._siteDownJumpscareTimer = setTimeout(() => this._playSiteDownJumpscare(), 30000);
+    }
     // Online mode uses its own fixed canvas dimensions; remove full-screen layout
     this.canvas.width  = ONLINE_COLS * ONLINE_GRID;
     this.canvas.height = ONLINE_ROWS * ONLINE_GRID;
@@ -4748,6 +4868,7 @@ class SnakeRogue {
     this._siteGoingDown = false;
     this._siteDownSince = null;
     if (this._siteDownTimer) { clearInterval(this._siteDownTimer); this._siteDownTimer = null; }
+    if (this._siteDownJumpscareTimer) { clearTimeout(this._siteDownJumpscareTimer); this._siteDownJumpscareTimer = null; }
     if (this._sleepSnakeRaf) { cancelAnimationFrame(this._sleepSnakeRaf); this._sleepSnakeRaf = null; }
     const overlay = document.getElementById('site-down-overlay');
     if (overlay) overlay.style.display = 'none';
