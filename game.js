@@ -1638,6 +1638,7 @@ class SnakeRogue {
   }
 
   _startGame() {
+    if (this._siteDown && !this._adminMode) { this._showMaintenanceScreen(this._siteDownSince); return; }
     this.particles = [];
     this.tick = 0;
     this.lastMoveTime = 0;
@@ -3294,6 +3295,7 @@ class SnakeRogue {
 
   // ── Online mode ──────────────────────────────
   _startOnlineMode() {
+    if (this._siteDown && !this._adminMode) { this._showMaintenanceScreen(this._siteDownSince); return; }
     // Online mode uses its own fixed canvas dimensions; remove full-screen layout
     this.canvas.width  = ONLINE_COLS * ONLINE_GRID;
     this.canvas.height = ONLINE_ROWS * ONLINE_GRID;
@@ -4817,5 +4819,5 @@ class SnakeRogue {
 
 // ── Boot ─────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  window._game = new SnakeRogue();
+  new SnakeRogue();
 });
