@@ -73,16 +73,20 @@ function generatePasswordHash(pw) {
 
 function verifyPassword(pw, storedHash) {
   if (!storedHash) return false;
-  if (storedHash.startsWith('scrypt:')) {
-    const parts = storedHash.split(':');
-    if (parts.length !== 3) return false;
-    const [, salt, expected] = parts;
-    try {
-      const computed = crypto.scryptSync(String(pw), salt, 64).toString('hex');
-      return crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(expected, 'hex'));
-    } catch (_) { return false; }
-  }
-  // Legacy SHA-256 — accept and trigger upgrade on success
+  if (!storedHash.startsWith('scrypt:')) return false;
+  const parts = storedHash.split(':');
+  if (parts.length !== 3) return false;
+  const [, salt, expected] = parts;
+  try {
+    const computed = crypto.scryptSync(String(pw), salt, 64).toString('hex');
+    return crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(expected, 'hex'));
+  } catch (_) { return false; }
+}
+
+// Detect use of the old legacy SHA-256 password; returns true if the submitted
+// password matches a stored legacy (non-scrypt) hash.
+function isLegacyPasswordMatch(pw, storedHash) {
+  if (!storedHash || storedHash.startsWith('scrypt:')) return false;
   try {
     const computed = hashPasswordLegacy(pw);
     if (computed.length !== storedHash.length) return false;
@@ -539,16 +543,30 @@ const httpServer = http.createServer((req, res) => {
         const pw = String(password || '');
         getAdminPasswordHash().then(storedHash => {
           const hashToCheck = storedHash || DEFAULT_ADMIN_HASH;
-          if (!verifyPassword(pw, hashToCheck)) {
+          // Detect and log attempts using the old legacy SHA-256 password
+          if (isLegacyPasswordMatch(pw, hashToCheck)) {
+            console.warn('[ADMIN] OLD PASSWORD ATTEMPT DETECTED', {
+              timestamp: new Date().toISOString(),
+              ip,
+              userAgent: req.headers['user-agent'] || 'unknown',
+              referer: req.headers['referer'] || 'none',
+              origin: req.headers['origin'] || 'none',
+              acceptLanguage: req.headers['accept-language'] || 'unknown',
+              accept: req.headers['accept'] || 'unknown',
+              xForwardedFor: req.headers['x-forwarded-for'] || 'none',
+              xRealIp: req.headers['x-real-ip'] || 'none',
+              host: req.headers['host'] || 'unknown',
+            });
             recordFailedLogin(ip);
             res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
             res.end(JSON.stringify({ ok: false }));
             return;
           }
-          // Upgrade legacy SHA-256 hash to scrypt on successful login
-          if (storedHash && !storedHash.startsWith('scrypt:')) {
-            upgradePasswordHash(generatePasswordHash(pw))
-              .catch(err => console.error('Hash upgrade error:', err.message));
+          if (!verifyPassword(pw, hashToCheck)) {
+            recordFailedLogin(ip);
+            res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
+            res.end(JSON.stringify({ ok: false }));
+            return;
           }
           clearLoginAttempts(ip);
           const token = generateToken();
@@ -558,6 +576,24 @@ const httpServer = http.createServer((req, res) => {
         }).catch(err => {
           console.error('Admin login DB error:', err.message);
           // DB unavailable — fall back to in-memory default hash
+          if (isLegacyPasswordMatch(pw, DEFAULT_ADMIN_HASH)) {
+            console.warn('[ADMIN] OLD PASSWORD ATTEMPT DETECTED (DB fallback)', {
+              timestamp: new Date().toISOString(),
+              ip,
+              userAgent: req.headers['user-agent'] || 'unknown',
+              referer: req.headers['referer'] || 'none',
+              origin: req.headers['origin'] || 'none',
+              acceptLanguage: req.headers['accept-language'] || 'unknown',
+              accept: req.headers['accept'] || 'unknown',
+              xForwardedFor: req.headers['x-forwarded-for'] || 'none',
+              xRealIp: req.headers['x-real-ip'] || 'none',
+              host: req.headers['host'] || 'unknown',
+            });
+            recordFailedLogin(ip);
+            res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
+            res.end(JSON.stringify({ ok: false }));
+            return;
+          }
           if (!verifyPassword(pw, DEFAULT_ADMIN_HASH)) {
             recordFailedLogin(ip);
             res.writeHead(401, { 'Content-Type': 'application/json', ...adminCors });
