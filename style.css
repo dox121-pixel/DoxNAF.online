@@ -340,6 +340,13 @@ canvas {
   gap: 6px;
 }
 
+#hud-lives {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+}
+
 #hud-perk-bar .label {
   color: #567;
   font-size: 11px;

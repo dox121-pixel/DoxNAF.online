@@ -24,6 +24,22 @@ GHOST_OPEN_IMG.src = 'sprites/GHOSTOPEN.png';
 const GHOST_CLOSE_IMG = new Image();
 GHOST_CLOSE_IMG.src = 'sprites/GHOSTCLOSE.png';
 
+// ── Ward / Heart HUD sprites ──────────────────
+const WARD_IMG = new Image();
+WARD_IMG.src = 'sprites/WARD.png';
+const HEART_IMG = new Image();
+HEART_IMG.src = 'sprites/HEART.png';
+const HEART_EMPTY_IMG = new Image();
+HEART_EMPTY_IMG.src = 'sprites/HEARTEMPTY.png';
+
+// ── Snake sprites ─────────────────────────────
+const SNAKE_HEAD_IMG = new Image();
+SNAKE_HEAD_IMG.src = 'sprites/SNAKEHEAD.png';
+const SNAKE_BODY_IMG = new Image();
+SNAKE_BODY_IMG.src = 'sprites/SNAKEBODY.png';
+const SNAKE_TAIL_IMG = new Image();
+SNAKE_TAIL_IMG.src = 'sprites/SNAKETAIL.png';
+
 // ── Inline red apple img tag for HTML contexts ─
 const APPLE_SPRITE_TAG = '<img src="sprites/APPLER.png" style="width:14px;height:14px;vertical-align:middle;display:inline-block;">';
 
@@ -110,9 +126,9 @@ const UPGRADES = [
   {
     id: 'shield',
     name: 'WARD',
-    icon: '🛡️',
-    desc: 'Survive one fatal hit. Stacks up to 5.',
-    apply(state) { state.shields = Math.min(5, (state.shields || 0) + 1); }
+    icon: '<img src="sprites/WARD.png" style="width:28px;height:28px;vertical-align:middle;display:inline-block;">',
+    desc: 'Survive one fatal hit. One stack only.',
+    apply(state) { state.shields = Math.min(1, (state.shields || 0) + 1); }
   },
   {
     id: 'freeze',
@@ -734,74 +750,105 @@ function drawSnake(ctx, state) {
   const snake = state.snake;
   if (snake.length < 2) return;
 
-  const headColor  = (state.shields > 0) ? '#66b8ff' : '#50e678';
-  const glowColor  = (state.shields > 0) ? '#4af'     : '#4f8';
+  const ang = state.snakeAngle || 0;
+  const sprSize = SNAKE_RADIUS * 2 * GRID * 1.6; // sprite draw size per segment
 
-  // Draw body as a smooth thick rounded path
   ctx.save();
-  ctx.lineCap  = 'round';
-  ctx.lineJoin = 'round';
-  ctx.lineWidth = SNAKE_RADIUS * 2 * GRID;
 
-  // Gradient opacity: head bright, tail fades
-  for (let i = snake.length - 2; i >= 0; i--) {
-    const a = snake[i], b = snake[i + 1];
-    const alpha = 0.35 + 0.65 * (1 - i / snake.length);
-    ctx.strokeStyle = `rgba(40, 160, 80, ${alpha})`;
-    ctx.shadowBlur  = 0;
-    ctx.beginPath();
-    ctx.moveTo(a.x * GRID + GRID / 2, a.y * GRID + GRID / 2);
-    ctx.lineTo(b.x * GRID + GRID / 2, b.y * GRID + GRID / 2);
-    ctx.stroke();
+  // Sample segment positions every ~1 grid cell along the snake path
+  // samples[0] = 0 (head), samples[last] = tail
+  const step = Math.max(1, Math.round(1 / SEG_SPACING));
+  const samples = [];
+  for (let i = 0; i < snake.length; i += step) {
+    samples.push(i);
+  }
+  if (samples[samples.length - 1] !== snake.length - 1) {
+    samples.push(snake.length - 1);
   }
 
-  // Head circle
-  const hx = snake[0].x * GRID + GRID / 2;
-  const hy = snake[0].y * GRID + GRID / 2;
-  const hr = SNAKE_RADIUS * GRID * 1.25;
-  ctx.shadowBlur  = _fxEnabled ? 14 : 0;
-  ctx.shadowColor = glowColor;
-  ctx.fillStyle   = headColor;
-  ctx.beginPath();
-  ctx.arc(hx, hy, hr, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  // Draw body and tail segments (skip head at si=0; head drawn separately on top)
+  for (let si = samples.length - 1; si >= 1; si--) {
+    const idx = samples[si];
+    const seg = snake[idx];
+    const cx = seg.x * GRID + GRID / 2;
+    const cy = seg.y * GRID + GRID / 2;
 
-  // Eyes
-  const eyeR    = hr * 0.32;
-  const eyeDist = hr * 0.55;
-  const ang     = state.snakeAngle || 0;
-  ctx.fillStyle = '#0a0a14';
-  [ang - Math.PI / 2, ang + Math.PI / 2].forEach(pa => {
-    ctx.beginPath();
-    ctx.arc(
-      hx + Math.cos(pa) * eyeDist,
-      hy + Math.sin(pa) * eyeDist,
-      eyeR, 0, Math.PI * 2
-    );
-    ctx.fill();
-  });
+    // Rotation: point toward the segment ahead
+    const prevSeg = snake[idx - 1];
+    const segAngle = Math.atan2(prevSeg.y - seg.y, prevSeg.x - seg.x);
+
+    // Tail is the last sample; everything else is body
+    const img = (si === samples.length - 1) ? SNAKE_TAIL_IMG : SNAKE_BODY_IMG;
+
+    if (img.complete && img.naturalWidth > 0) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(segAngle);
+      ctx.drawImage(img, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+      ctx.restore();
+    } else {
+      // Fallback: green circle while sprites load
+      const alpha = 0.35 + 0.65 * (1 - idx / snake.length);
+      ctx.fillStyle = `rgba(40, 160, 80, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, SNAKE_RADIUS * GRID, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Draw head sprite on top
+  {
+    const hx = snake[0].x * GRID + GRID / 2;
+    const hy = snake[0].y * GRID + GRID / 2;
+    if (SNAKE_HEAD_IMG.complete && SNAKE_HEAD_IMG.naturalWidth > 0) {
+      ctx.save();
+      ctx.shadowBlur  = _fxEnabled ? 14 : 0;
+      ctx.shadowColor = (state.shields > 0) ? '#4af' : '#4f8';
+      ctx.translate(hx, hy);
+      ctx.rotate(ang);
+      ctx.drawImage(SNAKE_HEAD_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    } else {
+      // Fallback: circle while sprite loads
+      const headColor = (state.shields > 0) ? '#66b8ff' : '#50e678';
+      const glowColor = (state.shields > 0) ? '#4af'     : '#4f8';
+      const hr = SNAKE_RADIUS * GRID * 1.25;
+      ctx.shadowBlur  = _fxEnabled ? 14 : 0;
+      ctx.shadowColor = glowColor;
+      ctx.fillStyle   = headColor;
+      ctx.beginPath();
+      ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
 
   // Cute pistol held in snake's mouth (extends forward from head)
-  ctx.save();
-  ctx.translate(hx, hy);
-  ctx.rotate(ang);
-  const gx = hr * 0.75;          // start just in front of head centre
-  const gl = hr * 1.9;           // barrel length
-  const gh = hr * 0.28;          // barrel height
-  // Barrel
-  ctx.fillStyle = '#8a8aaa';
-  ctx.shadowBlur = _fxEnabled ? 5 : 0;
-  ctx.shadowColor = '#555';
-  ctx.fillRect(gx, -gh / 2, gl, gh);
-  // Grip
-  ctx.fillStyle = '#5a4030';
-  ctx.fillRect(gx + gl * 0.25, gh * 0.4, gh * 0.9, gh * 1.4);
-  // Tiny highlight on barrel
-  ctx.fillStyle = 'rgba(200,200,255,0.3)';
-  ctx.fillRect(gx + 2, -gh / 2 + 1, gl - 4, gh * 0.4);
-  ctx.shadowBlur = 0;
-  ctx.restore();
+  {
+    const hx = snake[0].x * GRID + GRID / 2;
+    const hy = snake[0].y * GRID + GRID / 2;
+    const hr = SNAKE_RADIUS * GRID * 1.25;
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.rotate(ang);
+    const gx = hr * 0.75;          // start just in front of head centre
+    const gl = hr * 1.9;           // barrel length
+    const gh = hr * 0.28;          // barrel height
+    // Barrel
+    ctx.fillStyle = '#8a8aaa';
+    ctx.shadowBlur = _fxEnabled ? 5 : 0;
+    ctx.shadowColor = '#555';
+    ctx.fillRect(gx, -gh / 2, gl, gh);
+    // Grip
+    ctx.fillStyle = '#5a4030';
+    ctx.fillRect(gx + gl * 0.25, gh * 0.4, gh * 0.9, gh * 1.4);
+    // Tiny highlight on barrel
+    ctx.fillStyle = 'rgba(200,200,255,0.3)';
+    ctx.fillRect(gx + 2, -gh / 2 + 1, gl - 4, gh * 0.4);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
 
   ctx.restore();
 }
@@ -1693,6 +1740,7 @@ class SnakeRogue {
       growBuffer: 0,
       growPerApple: 2,
       shields: 0,
+      lives: 3,
       ghost: 0,
       freeze: 0,
       repel: 0,
@@ -2210,6 +2258,18 @@ class SnakeRogue {
           state.enemies.splice(i, 1);
           state.enemyKills = (state.enemyKills || 0) + 1;
           this.flashTimer = 20;
+          this._updateHUD();
+          if (this._checkLoreDamage(timestamp)) return;
+          continue;
+        }
+        if (state.lives > 1) {
+          state.lives--;
+          spawnParticles(this.particles, Math.round(nx), Math.round(ny), '#f84', 16);
+          state.apples.push({ x: Math.round(e.x), y: Math.round(e.y), fx: e.x, fy: e.y, dropped: true });
+          state.enemies.splice(i, 1);
+          state.enemyKills = (state.enemyKills || 0) + 1;
+          this.flashTimer = 20;
+          this._updateHUD();
           if (this._checkLoreDamage(timestamp)) return;
           continue;
         }
@@ -2466,13 +2526,38 @@ class SnakeRogue {
       perkBar.innerHTML = '';
     }
 
+    // Lives / hearts row (below perk bar)
+    const livesRow = document.getElementById('hud-lives');
+    if (livesRow && !s.nightmareMode) {
+      const maxLives = 3;
+      const currentLives = s.lives !== undefined ? s.lives : 3;
+      const wardActive = (s.shields || 0) > 0;
+      let html = '';
+      for (let i = 0; i < maxLives; i++) {
+        const filled = i < currentLives;
+        let src;
+        if (filled && wardActive && i === currentLives - 1) {
+          src = 'sprites/WARD.png';
+        } else if (filled) {
+          src = 'sprites/HEART.png';
+        } else {
+          src = 'sprites/HEARTEMPTY.png';
+        }
+        html += `<img src="${src}" style="width:18px;height:18px;vertical-align:middle;image-rendering:pixelated;">`;
+      }
+      livesRow.innerHTML = html;
+      livesRow.style.display = 'flex';
+    } else if (livesRow) {
+      livesRow.style.display = 'none';
+      livesRow.innerHTML = '';
+    }
+
     // Build upgrade summary
     const parts = [];
     if (s.nightmareMode) {
       parts.push('☠ NIGHTMARE');
     } else {
       if (s.ghost) parts.push('👻');
-      if (s.shields) parts.push(`🛡️×${s.shields}`);
       if (s.freeze) parts.push(`❄️×${s.freeze}`);
       if (s.pulse) parts.push(`💫×${s.pulse}`);
       if (s.oracle) parts.push('🔮');
@@ -2952,6 +3037,8 @@ class SnakeRogue {
     document.getElementById('hud-lbl-timer').textContent  = '';
     const perkBar = document.getElementById('hud-perk-bar');
     if (perkBar) { perkBar.style.display = 'none'; perkBar.innerHTML = ''; }
+    const livesRow = document.getElementById('hud-lives');
+    if (livesRow) { livesRow.style.display = 'none'; livesRow.innerHTML = ''; }
     // Hide pause button on main menu
     const pauseBtn = document.getElementById('pause-btn');
     if (pauseBtn) pauseBtn.style.display = 'none';
