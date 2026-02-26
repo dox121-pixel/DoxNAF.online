@@ -67,7 +67,7 @@ const ONLINE_TICK_MS = 120;
 
 // ── Smooth-snake physics ─────────────────────
 const SEG_SPACING            = 0.45;        // grid-cells between body segment points
-const SNAKE_RADIUS           = 0.42;        // grid-cells half-width (rendering + collision)
+const SNAKE_RADIUS           = 0.30;        // grid-cells half-width (rendering + collision)
 const SNAKE_SPRITE_SIZE_MULT  = 3.5;        // multiplier for snake sprite draw size relative to radius
 const SNAKE_SPRITE_ROT_OFFSET = Math.PI / 2; // sprites face up; offset aligns them with movement direction
 const INIT_SEGS        = 10;    // initial number of body segment points
@@ -137,7 +137,7 @@ const UPGRADES = [
   {
     id: 'shield',
     name: 'WARD',
-    icon: '<img src="sprites/WARD.png" style="width:28px;height:28px;vertical-align:middle;display:inline-block;">',
+    icon: '<img src="sprites/WARD.png" style="width:48px;height:48px;vertical-align:middle;display:inline-block;">',
     desc: 'Survive one fatal hit. One stack only.',
     apply(state) { state.shields = Math.min(1, (state.shields || 0) + 1); }
   },
@@ -528,8 +528,13 @@ function drawChests(ctx, state, tick, grid = GRID) {
 }
 
 function pickUpgrades(state) {
-  // Filter out one-time upgrades the player already owns
-  const available = UPGRADES.filter(u => !(u.oneTime && state.upgradeCount[u.id]));
+  // Filter out one-time upgrades the player already owns,
+  // and WARD while it is currently active
+  const available = UPGRADES.filter(u => {
+    if (u.oneTime && state.upgradeCount[u.id]) return false;
+    if (u.id === 'shield' && (state.shields || 0) > 0) return false;
+    return true;
+  });
 
   // Weight upgrades so ones we already have appear less often
   const weighted = available.map(u => ({
@@ -2013,6 +2018,14 @@ class SnakeRogue {
         const s = state.snake[i];
         const bx = s.x - nx, by = s.y - ny;
         if (bx * bx + by * by < SNAKE_RADIUS * SNAKE_RADIUS * 4) {
+          if (this.flashTimer > 0) break; // invincibility window from a prior hit — no action
+          if (state.shields > 0) {
+            state.shields--;
+            spawnParticles(this.particles, Math.round(nx), Math.round(ny), '#4af', 16);
+            this.flashTimer = 20;
+            this._updateHUD();
+            break;
+          }
           if (this._checkLoreDamage(timestamp)) return;
           this._die('self');
           return;
@@ -4807,7 +4820,11 @@ class SnakeRogue {
   _triggerUpgradeChoice() {
     if (!this.state) return;
     const s = this.state;
-    const pool = UPGRADES.filter(u => !u.oneTime || !s.upgradeCount[u.id]);
+    const pool = UPGRADES.filter(u => {
+      if (u.oneTime && s.upgradeCount[u.id]) return false;
+      if (u.id === 'shield' && (s.shields || 0) > 0) return false;
+      return true;
+    });
     const choices = pickRandom(pool, s.oracle ? 4 : 3);
     if (!choices.length) return;
     this.pendingUpgrades = choices;
