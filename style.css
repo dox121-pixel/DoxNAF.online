@@ -357,10 +357,10 @@ canvas {
 
 #hud-perk-bar-track {
   width: 400px;
-  height: 14px;
+  height: 22px;
   background: #1a1a2a;
   border: 1px solid #345;
-  border-radius: 7px;
+  border-radius: 11px;
   overflow: hidden;
 }
 
@@ -369,7 +369,7 @@ canvas {
   height: 100%;
   width: 0%;
   background: linear-gradient(90deg, #3a8 0%, #4f8 100%);
-  border-radius: 7px;
+  border-radius: 11px;
   transition: width 0.2s ease;
 }
 
@@ -433,7 +433,7 @@ canvas {
   z-index: 50;
   background: rgba(5, 5, 15, 0.7);
   height: auto;
-  padding: 4px 12px;
+  padding: 12px 12px 6px;
   gap: 4px;
   justify-content: center;
   font-size: 12px;
@@ -1297,7 +1297,7 @@ canvas {
     gap: 3px;
     font-size: 11px;
     height: auto;
-    padding: 4px 8px;
+    padding: 12px 8px 6px;
     align-items: center;
     max-width: 100vw;
     text-align: center;
