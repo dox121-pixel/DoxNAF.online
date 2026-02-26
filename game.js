@@ -1794,6 +1794,8 @@ class SnakeRogue {
       pulse: 0,
       upgradeCount: {},
       enemySpawnTimer: 0,
+      waveBreakUntil: 0,
+      waveHadEnemies: false,
       applesForNextUpgrade: 1,
       applesEatenSinceUpgrade: 0,
       nightmareMode: false,
@@ -2196,10 +2198,17 @@ class SnakeRogue {
     }
 
     // ── Enemy spawning (time-based target count) ──────────────
+    // Track whether a wave has been active so we can detect a clear
+    if (state.enemies.length > 0) state.waveHadEnemies = true;
+    // When the last enemy is killed, start a 10–20 s downtime
+    if (state.waveHadEnemies && state.enemies.length === 0 && elapsedMs > state.waveBreakUntil) {
+      state.waveBreakUntil = elapsedMs + 10000 + Math.random() * 10000;
+      state.waveHadEnemies = false;
+    }
     state.enemySpawnTimer += dt;
     const targetCount = getTargetEnemyCount(elapsedMs, state.nightmareMode);
     const spawnInterval = state.nightmareMode ? 400 : (elapsedMs >= 90000 ? 200 : (elapsedMs < 30000 ? 400 : 250));
-    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 3000 && !this._siteDown) {
+    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 3000 && elapsedMs >= state.waveBreakUntil && !this._siteDown) {
       state.enemySpawnTimer = 0;
       spawnEnemy(state, elapsedMs);
     }
