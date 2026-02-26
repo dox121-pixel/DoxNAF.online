@@ -3147,12 +3147,6 @@ class SnakeRogue {
          </div>`;
     el.innerHTML = `
       <h1>VIPER.exe<sup style="font-size:0.45em;letter-spacing:1px;vertical-align:super;">™</sup></h1>
-      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
-        <button class="btn" id="start-btn">SOLO [Enter]</button>
-        <button class="btn btn-online" id="online-btn">⚡ ONLINE</button>
-        <button class="btn btn-settings" id="settings-btn">⚙ SETTINGS</button>
-      </div>
-      ${nightmareUnlocked ? '<button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>' : ''}
       <div class="info">
         A roguelike snake<br>
         Eat apples → choose upgrades → survive<br>
@@ -3163,6 +3157,12 @@ class SnakeRogue {
         ${this._controlMode === 'wasd' ? 'WASD/Arrows to steer · Mouse to aim · LMB to shoot' : 'Mouse to steer · LMB to shoot'}<br>
         Mobile: joystick to move · gun joystick to shoot
       </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+        <button class="btn" id="start-btn">SOLO [Enter]</button>
+        <button class="btn btn-online" id="online-btn">⚡ ONLINE</button>
+        <button class="btn btn-settings" id="settings-btn">⚙ SETTINGS</button>
+      </div>
+      ${nightmareUnlocked ? '<button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>' : ''}
       <div id="leaderboard-section" style="margin-top:16px;">
         <div style="font-size:11px;color:#555;letter-spacing:1px;">🏆 LEADERBOARD</div>
         <div id="leaderboard-list" class="lb-container" style="margin-top:6px;">Loading…</div>
