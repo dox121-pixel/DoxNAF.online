@@ -1766,16 +1766,8 @@ class SnakeRogue {
       initSnake.push({ x: 10 - i * SEG_SPACING, y: 15 });
     }
 
-    // Build initial trail: oldest position first, newest (head) last
-    const initTrail = [];
-    for (let i = INIT_SEGS - 1; i >= 0; i--) {
-      initTrail.push({ x: 10 - i * SEG_SPACING, y: 15 });
-    }
-
     this.state = {
       snake: initSnake,
-      trail: initTrail,    // path history: oldest first, newest (head) last
-      trailArc: (INIT_SEGS - 1) * SEG_SPACING, // total arc-length of trail
       snakeAngle: 0,       // current heading (radians, 0 = right)
       targetAngle: 0,      // desired heading set by mouse/joystick
       direction: { x: 1, y: 0 }, // kept for online compat
@@ -2046,51 +2038,17 @@ class SnakeRogue {
     head.x = nx;
     head.y = ny;
 
-    // ── Trail: record head path for arc-length–based body following ──
-    const trail = state.trail;
-    const prevTrailPt = trail[trail.length - 1];
-    const stepDx = nx - prevTrailPt.x;
-    const stepDy = ny - prevTrailPt.y;
-    const stepLen = Math.sqrt(stepDx * stepDx + stepDy * stepDy);
-    trail.push({ x: nx, y: ny });
-    state.trailArc += stepLen;
-
-    // Trim oldest trail points that are beyond what the tail needs.
-    // +2 extra segments of slack so a newly grown segment always has trail to follow.
-    const maxArc = (state.snake.length + 2) * SEG_SPACING;
-    while (trail.length > 2) {
-      const tdx = trail[1].x - trail[0].x;
-      const tdy = trail[1].y - trail[0].y;
-      const firstSegArc = Math.sqrt(tdx * tdx + tdy * tdy);
-      if (state.trailArc - firstSegArc >= maxArc) {
-        state.trailArc -= firstSegArc;
-        trail.shift();
-      } else {
-        break;
-      }
-    }
-
-    // ── Place each body segment at equal arc-length intervals along trail ──
-    let trailIdx = trail.length - 1; // walk from newest (end) toward oldest (front)
-    let arcAcc = 0;                  // arc accumulated from head backward
+    // ── Chain body: each segment follows the one ahead ──
     for (let i = 1; i < state.snake.length; i++) {
-      const targetArc = i * SEG_SPACING;
-      while (trailIdx > 0) {
-        const ax = trail[trailIdx].x - trail[trailIdx - 1].x;
-        const ay = trail[trailIdx].y - trail[trailIdx - 1].y;
-        const segLen = Math.sqrt(ax * ax + ay * ay);
-        if (arcAcc + segLen >= targetArc) {
-          const arcFraction = segLen > 0 ? (targetArc - arcAcc) / segLen : 0;
-          state.snake[i].x = trail[trailIdx].x - ax * arcFraction;
-          state.snake[i].y = trail[trailIdx].y - ay * arcFraction;
-          break;
-        }
-        arcAcc += segLen;
-        trailIdx--;
-      }
-      if (trailIdx <= 0) {
-        state.snake[i].x = trail[0].x;
-        state.snake[i].y = trail[0].y;
+      const prev = state.snake[i - 1];
+      const seg  = state.snake[i];
+      const dx = seg.x - prev.x;
+      const dy = seg.y - prev.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > SEG_SPACING) {
+        const f  = SEG_SPACING / dist;
+        seg.x = prev.x + dx * f;
+        seg.y = prev.y + dy * f;
       }
     }
 
