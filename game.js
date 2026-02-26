@@ -771,6 +771,9 @@ function drawSnake(ctx, state) {
 
   ctx.save();
 
+  // Apply player hue to all snake fill sprites
+  if (_snakeHue !== 0) ctx.filter = `hue-rotate(${_snakeHue}deg)`;
+
   // Sample segment positions every ~1 grid cell along the snake path
   // samples[0] = 0 (head), samples[last] = tail
   const step = Math.max(1, Math.round(1 / SEG_SPACING));
@@ -1168,6 +1171,7 @@ function drawBullets(ctx, bullets, grid = GRID) {
 
 let _particleQualityMult = 1.0; // controlled by graphics settings
 let _fxEnabled = true;          // master special-effects toggle
+let _snakeHue   = 0;            // hue-rotate degrees for snake color (0 = default green)
 
 function spawnParticles(particles, x, y, color, count, grid = GRID) {
   const n = Math.round(count * _particleQualityMult);
@@ -1367,6 +1371,8 @@ class SnakeRogue {
     catch(_) { this._particleQuality = 'full'; }
     try { this._fxEnabled = localStorage.getItem('fxEnabled') !== 'false'; }
     catch(_) { this._fxEnabled = true; }
+    try { this._snakeHue = parseInt(localStorage.getItem('snakeHue'), 10) || 0; }
+    catch(_) { this._snakeHue = 0; }
     this._applyFxSettings();
 
     // ── Admin state ──────────────────────────
@@ -1467,6 +1473,7 @@ class SnakeRogue {
     // When all effects are disabled, also kill particles
     if (!_fxEnabled) _particleQualityMult = 0;
     else this._applyParticleQuality();
+    _snakeHue = this._snakeHue || 0;
   }
 
   _setupInput() {
@@ -3128,6 +3135,7 @@ class SnakeRogue {
         <button class="btn" id="start-btn">SOLO [Enter]</button>
         <button class="btn btn-online" id="online-btn">⚡ ONLINE</button>
         <button class="btn btn-settings" id="settings-btn">⚙ SETTINGS</button>
+        <button class="btn btn-settings" id="customize-btn">🎨 CUSTOMIZE</button>
       </div>
       ${nightmareUnlocked ? '<button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>' : ''}
       <div id="leaderboard-section" style="margin-top:16px;">
@@ -3147,6 +3155,7 @@ class SnakeRogue {
     document.getElementById('start-btn').addEventListener('click', () => this._startGame());
     document.getElementById('online-btn').addEventListener('click', () => this._startOnlineMode());
     document.getElementById('settings-btn').addEventListener('click', () => this._openSettings());
+    document.getElementById('customize-btn').addEventListener('click', () => this._openCustomize());
     const loreBtn = document.getElementById('lore-red-btn');
     if (loreBtn) loreBtn.addEventListener('click', () => this._startNightmareMode());
     this._loadLeaderboard('leaderboard-list');
@@ -3405,6 +3414,176 @@ class SnakeRogue {
         overlay.remove();
         if (onClose) onClose(); else this._renderOverlay();
       }
+    });
+  }
+
+  _openCustomize() {
+    const existing = document.getElementById('customize-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'customize-overlay';
+    overlay.style.cssText = [
+      'position:fixed', 'inset:0', 'background:rgba(5,5,15,0.92)',
+      'display:flex', 'align-items:center', 'justify-content:center', 'z-index:200',
+    ].join(';');
+
+    const hue = this._snakeHue || 0;
+
+    overlay.innerHTML = `
+      <div style="background:#0e0e1a;border:1px solid #446;border-radius:10px;padding:28px 32px;
+                  display:flex;flex-direction:column;align-items:center;gap:18px;min-width:300px;max-width:360px;">
+        <div style="font-size:16px;color:#89b;letter-spacing:4px;text-transform:uppercase;">🎨 CUSTOMIZE</div>
+
+        <!-- Snake preview canvas -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;">
+          <span style="font-size:11px;color:#567;letter-spacing:2px;text-transform:uppercase;">PREVIEW</span>
+          <div style="padding:8px;background:#050510;border:1px solid #335;border-radius:6px;width:100%;display:flex;justify-content:center;">
+            <canvas id="customize-preview-canvas" width="260" height="80"
+                    style="image-rendering:pixelated;display:block;border-radius:3px;"></canvas>
+          </div>
+        </div>
+
+        <!-- Hue slider -->
+        <div style="display:flex;flex-direction:column;gap:8px;width:100%;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;color:#7ab;letter-spacing:1px;">SNAKE COLOR</span>
+            <span id="customize-hue-val" style="font-size:12px;color:#aef;letter-spacing:1px;">${hue}°</span>
+          </div>
+          <input id="customize-hue-slider" type="range" min="0" max="359" step="1"
+                 value="${hue}"
+                 style="width:100%;accent-color:#89b;cursor:pointer;">
+          <!-- Hue spectrum bar -->
+          <div style="width:100%;height:10px;border-radius:5px;
+                      background:linear-gradient(to right,hsl(0,80%,45%),hsl(40,80%,45%),hsl(80,80%,45%),hsl(120,80%,45%),hsl(160,80%,45%),hsl(200,80%,45%),hsl(240,80%,45%),hsl(280,80%,45%),hsl(320,80%,45%),hsl(359,80%,45%));
+                      border:1px solid #334;"></div>
+          <button id="customize-reset-btn" class="btn btn-back" style="margin-top:0;font-size:11px;padding:4px 16px;align-self:center;">↺ RESET</button>
+        </div>
+
+        <button id="customize-close-btn" class="btn btn-back" style="margin-top:4px;font-size:12px;padding:6px 24px;">✕ CLOSE</button>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Draw snake preview
+    const previewCanvas = document.getElementById('customize-preview-canvas');
+    const previewCtx = previewCanvas.getContext('2d');
+
+    const drawPreview = (hueVal) => {
+      previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+      previewCtx.fillStyle = '#050510';
+      previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+      const sprSize = 28;
+      const segments = [
+        { x: 210, y: 40 }, { x: 182, y: 40 }, { x: 154, y: 40 },
+        { x: 126, y: 40 }, { x: 98, y: 40 },  { x: 70, y: 40 },
+        { x: 42, y: 40 },
+      ];
+
+      if (hueVal !== 0) previewCtx.filter = `hue-rotate(${hueVal}deg)`;
+
+      // Draw body segments tail → neck
+      for (let i = segments.length - 1; i >= 1; i--) {
+        const seg = segments[i];
+        const img = SNAKE_BODY_IMGS[1 + (i % 3)];
+        if (img.complete && img.naturalWidth > 0) {
+          previewCtx.save();
+          previewCtx.translate(seg.x, seg.y);
+          previewCtx.rotate(SNAKE_SPRITE_ROT_OFFSET);
+          previewCtx.drawImage(img, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+          previewCtx.restore();
+        } else {
+          const alpha = 0.35 + 0.65 * (1 - i / segments.length);
+          previewCtx.fillStyle = `rgba(40,160,80,${alpha})`;
+          previewCtx.beginPath();
+          previewCtx.arc(seg.x, seg.y, 10, 0, Math.PI * 2);
+          previewCtx.fill();
+        }
+      }
+
+      // Body borders
+      previewCtx.filter = 'none';
+      for (let i = segments.length - 1; i >= 1; i--) {
+        const seg = segments[i];
+        if (SNAKE_BODY_BORDER_IMG.complete && SNAKE_BODY_BORDER_IMG.naturalWidth > 0) {
+          previewCtx.save();
+          previewCtx.translate(seg.x, seg.y);
+          previewCtx.rotate(SNAKE_SPRITE_ROT_OFFSET);
+          previewCtx.drawImage(SNAKE_BODY_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+          previewCtx.restore();
+        }
+      }
+
+      // Head fill
+      if (hueVal !== 0) previewCtx.filter = `hue-rotate(${hueVal}deg)`;
+      const head = segments[0];
+      if (SNAKE_HEAD_IMG.complete && SNAKE_HEAD_IMG.naturalWidth > 0) {
+        previewCtx.save();
+        previewCtx.translate(head.x, head.y);
+        previewCtx.rotate(SNAKE_SPRITE_ROT_OFFSET);
+        previewCtx.drawImage(SNAKE_HEAD_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+        previewCtx.restore();
+      } else {
+        previewCtx.fillStyle = '#50e678';
+        previewCtx.beginPath();
+        previewCtx.arc(head.x, head.y, 13, 0, Math.PI * 2);
+        previewCtx.fill();
+      }
+
+      // Head border
+      previewCtx.filter = 'none';
+      if (SNAKE_HEAD_BORDER_IMG.complete && SNAKE_HEAD_BORDER_IMG.naturalWidth > 0) {
+        previewCtx.save();
+        previewCtx.translate(head.x, head.y);
+        previewCtx.rotate(SNAKE_SPRITE_ROT_OFFSET);
+        previewCtx.drawImage(SNAKE_HEAD_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+        previewCtx.restore();
+      }
+    };
+
+    drawPreview(hue);
+
+    // Hue slider interaction
+    const hueSlider = document.getElementById('customize-hue-slider');
+    const hueValDisplay = document.getElementById('customize-hue-val');
+    hueSlider.addEventListener('input', () => {
+      const val = parseInt(hueSlider.value, 10);
+      this._snakeHue = val;
+      _snakeHue = val;
+      hueValDisplay.textContent = `${val}°`;
+      try { localStorage.setItem('snakeHue', val); } catch(_) {}
+      drawPreview(val);
+    });
+
+    document.getElementById('customize-reset-btn').addEventListener('click', () => {
+      this._snakeHue = 0;
+      _snakeHue = 0;
+      hueSlider.value = 0;
+      hueValDisplay.textContent = '0°';
+      try { localStorage.setItem('snakeHue', 0); } catch(_) {}
+      drawPreview(0);
+    });
+
+    document.getElementById('customize-close-btn').addEventListener('click', () => {
+      overlay.remove();
+      this._renderOverlay();
+    });
+
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) {
+        overlay.remove();
+        this._renderOverlay();
+      }
+    });
+
+    // Re-draw preview once all sprites are fully loaded
+    const allImgs = [SNAKE_HEAD_IMG, SNAKE_HEAD_BORDER_IMG, SNAKE_BODY_BORDER_IMG, ...SNAKE_BODY_IMGS];
+    let loaded = 0;
+    allImgs.forEach(img => {
+      if (img.complete && img.naturalWidth > 0) { loaded++; }
+      else { img.addEventListener('load', () => { loaded++; if (loaded === allImgs.length) drawPreview(this._snakeHue || 0); }); }
     });
   }
 
