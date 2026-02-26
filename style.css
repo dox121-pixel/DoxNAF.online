@@ -345,8 +345,8 @@ canvas {
 #hud-lives {
   display: none;
   align-items: center;
-  gap: 4px;
-  height: 32px;
+  gap: 6px;
+  height: 44px;
 }
 
 #hud-perk-bar .label {
@@ -356,11 +356,11 @@ canvas {
 }
 
 #hud-perk-bar-track {
-  width: 300px;
-  height: 8px;
+  width: 400px;
+  height: 14px;
   background: #1a1a2a;
   border: 1px solid #345;
-  border-radius: 4px;
+  border-radius: 7px;
   overflow: hidden;
 }
 
@@ -369,7 +369,7 @@ canvas {
   height: 100%;
   width: 0%;
   background: linear-gradient(90deg, #3a8 0%, #4f8 100%);
-  border-radius: 4px;
+  border-radius: 7px;
   transition: width 0.2s ease;
 }
 
@@ -1312,7 +1312,7 @@ canvas {
   }
 
   #hud-perk-bar-track {
-    width: min(240px, calc(100vw - 80px));
+    width: min(320px, calc(100vw - 80px));
   }
 
   /* Mobile controls overlaid at the bottom */

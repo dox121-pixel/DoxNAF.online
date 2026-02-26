@@ -25,6 +25,7 @@ const GHOST_CLOSE_IMG = new Image();
 GHOST_CLOSE_IMG.src = 'sprites/GHOSTCLOSE.png';
 
 // ── Ward / Heart HUD sprites ──────────────────
+const WARD_PERK_ID = 'shield'; // upgrade id for the WARD perk (shown as a health stat, not a perk)
 const WARD_IMG = new Image();
 WARD_IMG.src = 'sprites/WARD.png';
 const HEART_IMG = new Image();
@@ -532,7 +533,7 @@ function pickUpgrades(state) {
   // and WARD while it is currently active
   const available = UPGRADES.filter(u => {
     if (u.oneTime && state.upgradeCount[u.id]) return false;
-    if (u.id === 'shield' && (state.shields || 0) > 0) return false;
+    if (u.id === WARD_PERK_ID && (state.shields || 0) > 0) return false;
     return true;
   });
 
@@ -2583,15 +2584,9 @@ class SnakeRogue {
     if (!this.state) return;
     const s = this.state;
 
-    document.getElementById('hud-lbl-apples').textContent = 'APPLES';
-    document.getElementById('hud-apples').textContent     = s.applesEaten;
-
-    // Timer
-    const elapsed = Math.max(0, (this._lastUpdateTimestamp || this.gameStartTime) - this.gameStartTime);
-    const secs    = Math.floor(elapsed / 1000);
-    const mins    = Math.floor(secs / 60);
-    document.getElementById('hud-lbl-timer').textContent = 'TIME';
-    document.getElementById('hud-timer').textContent     = `${mins}:${String(secs % 60).padStart(2, '0')}`;
+    // Hide the stats row (APPLES / TIME / upgrades) during solo gameplay
+    const hudStats = document.getElementById('hud-stats');
+    if (hudStats) hudStats.style.display = 'none';
 
     // Perk progress bar
     const perkBar = document.getElementById('hud-perk-bar');
@@ -2627,7 +2622,7 @@ class SnakeRogue {
         } else {
           src = 'sprites/HEARTEMPTY.png';
         }
-        html += `<img src="${src}" style="width:28px;height:28px;vertical-align:middle;image-rendering:pixelated;">`;
+        html += `<img src="${src}" style="width:36px;height:36px;vertical-align:middle;image-rendering:pixelated;">`;
       }
       livesRow.innerHTML = html;
       livesRow.style.display = 'flex';
@@ -3058,9 +3053,10 @@ class SnakeRogue {
       const deathTimeFmt = `${Math.floor(deathTimeSec / 60)}:${String(deathTimeSec % 60).padStart(2, '0')}`;
       const deathKills   = this._deathKills || 0;
 
-      // Build upgrade list
+      // Build upgrade list (exclude WARD — it's shown as a health stat, not a perk)
       const upgradeNames = Object.entries(s.upgradeCount)
         .map(([id, count]) => {
+          if (id === WARD_PERK_ID) return '';
           const u = UPGRADES.find(u => u.id === id);
           if (!u) return '';
           const countSuffix = (!u.oneTime && count > 1) ? ` ×${count}` : '';
@@ -3119,6 +3115,8 @@ class SnakeRogue {
     document.getElementById('hud-timer').textContent      = '';
     document.getElementById('hud-lbl-apples').textContent = '';
     document.getElementById('hud-lbl-timer').textContent  = '';
+    const hudStats = document.getElementById('hud-stats');
+    if (hudStats) hudStats.style.display = '';
     const perkBar = document.getElementById('hud-perk-bar');
     if (perkBar) { perkBar.style.display = 'none'; perkBar.innerHTML = ''; }
     const livesRow = document.getElementById('hud-lives');
@@ -3208,6 +3206,16 @@ class SnakeRogue {
     const secs = Math.floor(elapsedMs / 1000);
     const timeFmt = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
     const kills = s ? (s.enemyKills || 0) : 0;
+    // Build perks list for pause menu (exclude WARD — it's a health stat)
+    const pausePerks = s ? Object.entries(s.upgradeCount)
+      .map(([id, count]) => {
+        if (id === WARD_PERK_ID) return '';
+        const u = UPGRADES.find(u => u.id === id);
+        if (!u) return '';
+        const countSuffix = (!u.oneTime && count > 1) ? ` ×${count}` : '';
+        return `<span>${u.icon} ${u.name}${countSuffix}</span>`;
+      })
+      .filter(Boolean).join('  ') : '';
     pauseMenu.innerHTML = `
       <div style="font-size:22px;color:#7ef;letter-spacing:4px;text-transform:uppercase;text-shadow:0 0 12px #4af;">⏸ PAUSED</div>
       <div style="font-size:11px;color:#7ab;letter-spacing:1px;margin-bottom:4px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
@@ -3216,6 +3224,7 @@ class SnakeRogue {
         <span>KILLS: ${kills}</span>
         <span>TIME: ${timeFmt}</span>
       </div>
+      ${pausePerks ? `<div id="upgrades-list" style="font-size:12px;margin-bottom:4px;">${pausePerks}</div>` : ''}
       <div style="display:flex;flex-direction:column;gap:10px;align-items:center;">
         <button class="btn" id="pm-resume-btn">▶ RESUME [ESC]</button>
         <button class="btn btn-settings" id="pm-settings-btn">⚙ SETTINGS</button>
@@ -3929,6 +3938,8 @@ class SnakeRogue {
   _updateOnlineHUD() {
     if (!this.onlineState) return;
     const gs = this.onlineState;
+    const hudStats = document.getElementById('hud-stats');
+    if (hudStats) hudStats.style.display = '';
     document.getElementById('hud-lbl-apples').textContent = 'SCORES';
     document.getElementById('hud-apples').textContent     = `🟢 ${gs.snakes[0].score}  🟠 ${gs.snakes[1].score}`;
     document.getElementById('hud-lbl-timer').textContent  = 'ROOM';
