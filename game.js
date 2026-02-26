@@ -1975,6 +1975,7 @@ class SnakeRogue {
       if (this._keys['ArrowDown']  || this._keys['s'] || this._keys['S']) dy += 1;
       if (this._keys['ArrowUp']    || this._keys['w'] || this._keys['W']) dy -= 1;
       if (dx !== 0 || dy !== 0) { targetAngle = Math.atan2(dy, dx); this._inputReceived = true; }
+      else { targetAngle = state.snakeAngle; }
     } else if (this._mouseActive) {
       const dx = this._mouseGridX - VIEW_COLS / 2;
       const dy = this._mouseGridY - VIEW_ROWS / 2;
