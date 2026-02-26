@@ -141,6 +141,8 @@ canvas {
   justify-content: center;
   gap: 14px;
   z-index: 100;
+  overflow-y: auto;
+  padding: 16px 0;
 }
 
 #overlay h1 {
