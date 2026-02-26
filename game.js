@@ -573,7 +573,7 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(153,51,255,0.4)',
     size: 1.8,
     shape: 'bat',
-    speed: 0.0040,
+    speed: 0.0050,
     score: 5,
     maxHp: 3,
     label: 'CHASER',
@@ -609,14 +609,14 @@ const ENEMY_TYPES = {
       const dist = Math.sqrt(dx * dx + dy * dy);
       const spd = e.speed * dt * (1 / (1 + (state.freeze || 0) * 0.25));
       // Trigger charge when player gets close
-      if (!e.charging && dist < 8) {
+      if (!e.charging && dist < 20) {
         e.charging = true;
         e.chargeShield = true;
       }
       if (e.charging) {
         const len = dist || 1;
-        e.x += (dx / len) * spd * 4;
-        e.y += (dy / len) * spd * 4;
+        e.x += (dx / len) * spd * 8;
+        e.y += (dy / len) * spd * 8;
         e.angle = Math.atan2(dy, dx);
       } else {
         e.turnTimer = (e.turnTimer || 0) + dt;
@@ -634,7 +634,7 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(160,180,255,0.6)',
     size: 1.5,
     shape: 'ghost',
-    speed: 0.0055,
+    speed: 0.0110,
     score: 20,
     maxHp: 5,
     label: 'PHANTOM',
@@ -656,7 +656,7 @@ const ENEMY_TYPES = {
     shape: 'hexagon',
     speed: 0.0035,
     score: 30,
-    maxHp: 15,
+    maxHp: 60,
     label: 'TITAN',
     update(e, state, dt) {
       const head = state.snake[0];
@@ -1796,6 +1796,8 @@ class SnakeRogue {
       enemySpawnTimer: 0,
       waveBreakUntil: 0,
       waveHadEnemies: false,
+      waveCount: 0,
+      waveSpawnCap: 10,
       applesForNextUpgrade: 1,
       applesEatenSinceUpgrade: 0,
       nightmareMode: false,
@@ -2200,13 +2202,18 @@ class SnakeRogue {
     // ── Enemy spawning (time-based target count) ──────────────
     // Track whether a wave has been active so we can detect a clear
     if (state.enemies.length > 0) state.waveHadEnemies = true;
-    // When the last enemy is killed, start a 10–20 s downtime
+    // When the last enemy is killed, start a 10–20 s downtime and increase the spawn cap
     if (state.waveHadEnemies && state.enemies.length === 0 && elapsedMs > state.waveBreakUntil) {
       state.waveBreakUntil = elapsedMs + 10000 + Math.random() * 10000;
       state.waveHadEnemies = false;
+      state.waveCount = (state.waveCount || 0) + 1;
+      const currentCap = state.waveSpawnCap;
+      state.waveSpawnCap = currentCap < 50
+        ? Math.floor(currentCap * 1.5)
+        : Math.floor(currentCap * 2);
     }
     state.enemySpawnTimer += dt;
-    const targetCount = getTargetEnemyCount(elapsedMs, state.nightmareMode);
+    const targetCount = Math.min(getTargetEnemyCount(elapsedMs, state.nightmareMode), state.waveSpawnCap);
     const spawnInterval = state.nightmareMode ? 400 : (elapsedMs >= 90000 ? 200 : (elapsedMs < 30000 ? 400 : 250));
     if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 3000 && elapsedMs >= state.waveBreakUntil && !this._siteDown) {
       state.enemySpawnTimer = 0;
