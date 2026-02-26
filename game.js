@@ -654,7 +654,7 @@ const ENEMY_TYPES = {
     glowColor: 'rgba(200,0,100,0.5)',
     size: 2.4,
     shape: 'hexagon',
-    speed: 0.0068,
+    speed: 0.0035,
     score: 30,
     maxHp: 15,
     label: 'TITAN',
@@ -674,11 +674,11 @@ const ENEMY_TYPES = {
 function getTargetEnemyCount(elapsedMs, nightmareMode) {
   const s = elapsedMs / 1000;
   let count;
-  if      (s < 30)  count = 2;
-  else if (s < 60)  count = 6;
-  else if (s < 90)  count = 12;
-  else if (s < 150) count = 25;
-  else              count = Math.floor(25 + (s - 150) / 30 * 8);
+  if      (s < 30)  count = 3;
+  else if (s < 60)  count = 10;
+  else if (s < 90)  count = 20;
+  else if (s < 150) count = 40;
+  else              count = Math.floor(40 + (s - 150) / 30 * 12);
   return nightmareMode ? Math.floor(count * 3) : count;
 }
 
@@ -703,24 +703,25 @@ function spawnEnemy(state, elapsedMs) {
   let pos;
   let attempts = 0;
   do {
-    const edge = randInt(4);
-    if (edge === 0)      pos = { x: head.x - spawnRange + Math.random() * spawnRange * 2, y: head.y - spawnRange };
-    else if (edge === 1) pos = { x: head.x - spawnRange + Math.random() * spawnRange * 2, y: head.y + spawnRange };
-    else if (edge === 2) pos = { x: head.x - spawnRange, y: head.y - spawnRange + Math.random() * spawnRange * 2 };
-    else                 pos = { x: head.x + spawnRange, y: head.y - spawnRange + Math.random() * spawnRange * 2 };
+    // Spawn at a random angle all around the player to prevent running away
+    const angle = Math.random() * Math.PI * 2;
+    const dist = spawnRange + Math.random() * 3;
+    pos = { x: head.x + Math.cos(angle) * dist, y: head.y + Math.sin(angle) * dist };
     attempts++;
   } while ((
     Math.abs(pos.x - head.x) + Math.abs(pos.y - head.y) < 8 ||
     state.snake.some(s => { const bx = pos.x - s.x, by = pos.y - s.y; return bx * bx + by * by < 4; })
   ) && attempts < 50);
 
-  const speedMult = 1 + (elapsedMs / 1000) / 80;
+  // HP scales up by +0.35 every 30 seconds
+  const hpBonus = Math.floor(elapsedMs / 30000) * 0.35;
+  const baseHp = (type.maxHp || 1) + hpBonus;
   const enemy = {
     x: pos.x, y: pos.y,
     type: typeKey,
-    speed: type.speed * speedMult * (state.nightmareMode ? 2.5 : 1.0),
-    hp: type.maxHp || 1,
-    maxHp: type.maxHp || 1,
+    speed: type.speed * (state.nightmareMode ? 2.0 : 1.0),
+    hp: baseHp,
+    maxHp: baseHp,
     id: Math.random(),
   };
 
@@ -1793,6 +1794,8 @@ class SnakeRogue {
       pulse: 0,
       upgradeCount: {},
       enemySpawnTimer: 0,
+      waveBreakUntil: 0,
+      waveHadEnemies: false,
       applesForNextUpgrade: 1,
       applesEatenSinceUpgrade: 0,
       nightmareMode: false,
@@ -2195,10 +2198,17 @@ class SnakeRogue {
     }
 
     // ── Enemy spawning (time-based target count) ──────────────
+    // Track whether a wave has been active so we can detect a clear
+    if (state.enemies.length > 0) state.waveHadEnemies = true;
+    // When the last enemy is killed, start a 10–20 s downtime
+    if (state.waveHadEnemies && state.enemies.length === 0 && elapsedMs > state.waveBreakUntil) {
+      state.waveBreakUntil = elapsedMs + 10000 + Math.random() * 10000;
+      state.waveHadEnemies = false;
+    }
     state.enemySpawnTimer += dt;
     const targetCount = getTargetEnemyCount(elapsedMs, state.nightmareMode);
-    const spawnInterval = state.nightmareMode ? 800 : (elapsedMs >= 90000 ? 400 : (elapsedMs < 30000 ? 800 : 500));
-    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 10000 && !this._siteDown) {
+    const spawnInterval = state.nightmareMode ? 400 : (elapsedMs >= 90000 ? 200 : (elapsedMs < 30000 ? 400 : 250));
+    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 3000 && elapsedMs >= state.waveBreakUntil && !this._siteDown) {
       state.enemySpawnTimer = 0;
       spawnEnemy(state, elapsedMs);
     }
