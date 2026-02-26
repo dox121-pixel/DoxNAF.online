@@ -245,10 +245,10 @@ const CHEST_RARITIES_TOTAL_WEIGHT = CHEST_RARITIES.reduce((sum, r) => sum + r.we
 const CHEST_ITEMS = [
   // Common
   {
-    id: 'battle_hardened', rarity: 'common',
-    name: 'BATTLE HARDENED', icon: '🛡️',
-    desc: 'Gain 2 shield charges instantly.',
-    apply(state) { state.shields = Math.min(10, (state.shields || 0) + 2); }
+    id: 'swift_boots', rarity: 'common',
+    name: 'SWIFT BOOTS', icon: '💨',
+    desc: 'Move permanently faster.',
+    apply(state) { state.baseInterval = Math.max(80, state.baseInterval - 15); }
   },
   {
     id: 'quick_draw', rarity: 'common',
@@ -283,12 +283,12 @@ const CHEST_ITEMS = [
     }
   },
   {
-    id: 'ironclad', rarity: 'rare',
-    name: 'IRONCLAD', icon: '🐉',
-    desc: '+5 shields and triple growth per apple.',
+    id: 'marksman', rarity: 'rare',
+    name: 'MARKSMAN', icon: '🎯',
+    desc: '+5 bullet damage and greatly extended bullet range.',
     apply(state) {
-      state.shields = Math.min(10, (state.shields || 0) + 5);
-      state.growPerApple = Math.min(30, Math.round(state.growPerApple * 3));
+      state.bulletDamage = (state.bulletDamage || 2) + 5;
+      state.bulletRange = (state.bulletRange || 1) + 1.5;
     }
   },
   // Epic
