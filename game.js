@@ -1383,6 +1383,9 @@ class SnakeRogue {
     this._siteDownSince = null;
     this._siteDownJumpscareTimer = null;
     this._sitePollingInterval = null;
+    this._debugUsed = false;
+    this._debugShowEncircle = false;
+    this._lastDebugUpdate = 0;
     this._setupAdmin();
     this._setupFeedback();
 
@@ -1754,6 +1757,11 @@ class SnakeRogue {
     // Clear death replay data
     this._replayBuffer = [];
     this._deathReplay  = null;
+    // Reset debug flags for new run
+    this._debugUsed = false;
+    this._debugShowEncircle = false;
+    const encircleBtn = document.getElementById('adm-toggle-encircle');
+    if (encircleBtn) encircleBtn.textContent = '🐍 Show Encircle Zone';
     document.getElementById('app').classList.remove('nightmare-mode');
     this._resizeCanvas(false);
 
@@ -1971,6 +1979,7 @@ class SnakeRogue {
     this.tick++;
 
     const elapsedMs = timestamp - this.gameStartTime - this._totalPausedMs;
+    state.elapsedMs = elapsedMs;
 
     // ── Steer snake toward mouse / joystick / WASD ──────
     let targetAngle = state.targetAngle;
@@ -2819,6 +2828,7 @@ class SnakeRogue {
     drawChests(ctx, state, this.tick);
     drawBullets(ctx, state.bullets);
     drawSnake(ctx, state);
+    if (this._debugShowEncircle) this._drawEncircleOverlay(ctx, state);
     drawEnemies(ctx, state, this.tick);
 
     // Pulse rings
@@ -2950,6 +2960,10 @@ class SnakeRogue {
     this._update(timestamp);
     this._sendMouseDirection();
     this._renderFrame(timestamp);
+    if (this._adminPanelOpen && timestamp - this._lastDebugUpdate > 200) {
+      this._lastDebugUpdate = timestamp;
+      this._updateDebugCounters();
+    }
     requestAnimationFrame(this._loop);
   }
 
@@ -3502,6 +3516,7 @@ class SnakeRogue {
 
   _submitScore(score, applesEaten, kills, timePlayed) {
     if (score <= 0) return;
+    if (this._debugUsed) return; // debug was active during this run — do not upload
     const name      = this._playerName || 'Anonymous';
     const sessionId = this._submittedSessionId || null;
     fetch(`${API_SERVER}/api/leaderboard`, {
@@ -3547,6 +3562,7 @@ class SnakeRogue {
 
   _submitNightmareScore(score, applesEaten, kills, timePlayed) {
     if (score <= 0) return;
+    if (this._debugUsed) return; // debug was active during this run — do not upload
     const name      = this._playerName || 'Anonymous';
     const sessionId = this._submittedSessionId || null;
     fetch(`${API_SERVER}/api/nightmare-leaderboard`, {
@@ -4183,6 +4199,28 @@ class SnakeRogue {
     // Refresh button for SP sessions
     const spRefresh = document.getElementById('adm-sp-refresh');
     if (spRefresh) spRefresh.addEventListener('click', () => this._loadSpSessions());
+
+    // Group toggle buttons (collapse/expand panel sections)
+    document.querySelectorAll('.adm-group-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const groupId = 'adm-group-' + btn.getAttribute('data-group');
+        const content = document.getElementById(groupId);
+        if (!content) return;
+        const opening = content.style.display === 'none';
+        content.style.display = opening ? '' : 'none';
+        btn.textContent = btn.textContent.replace(/[▸▾]/, opening ? '▾' : '▸');
+      });
+    });
+
+    // Encircle overlay toggle
+    const encircleBtn = document.getElementById('adm-toggle-encircle');
+    if (encircleBtn) {
+      encircleBtn.addEventListener('click', () => {
+        this._debugShowEncircle = !this._debugShowEncircle;
+        encircleBtn.textContent = this._debugShowEncircle ? '🐍 Hide Encircle Zone' : '🐍 Show Encircle Zone';
+        if (this._debugShowEncircle) this._markDebugUsed();
+      });
+    }
   }
 
   _showAdminOpenBtn() {
@@ -4801,8 +4839,14 @@ class SnakeRogue {
       .catch(() => {}); // silently ignore if server unavailable
   }
 
+  _markDebugUsed() {
+    if (this.phase === 'playing' || this.phase === 'paused') this._debugUsed = true;
+  }
+
   _adminAction(action) {
     if (!this._adminToken) { console.warn('Skid get a job'); return; }
+    // Mark debug as used for the current run so the score won't be uploaded
+    this._markDebugUsed();
     // Apply debug actions to the current game state (solo or online)
     const s = this.state;
     switch (action) {
@@ -4862,6 +4906,7 @@ class SnakeRogue {
 
   _adminSetTime() {
     if (!this._adminToken) { console.warn('Skid get a job'); return; }
+    this._markDebugUsed();
     const input = document.getElementById('adm-time-input');
     if (!input) return;
     const val = input.value.trim();
@@ -4909,6 +4954,87 @@ class SnakeRogue {
     document.addEventListener('mouseup', () => {
       if (dragging) { dragging = false; handle.style.cursor = 'grab'; }
     });
+  }
+
+  _updateDebugCounters() {
+    if (!this._adminPanelOpen || !this.state || this.phase !== 'playing') return;
+    const enemyEl = document.getElementById('adm-debug-enemies');
+    const waveEl  = document.getElementById('adm-debug-wave');
+    if (!enemyEl && !waveEl) return;
+    const s = this.state;
+    const elapsedMs = s.elapsedMs != null
+      ? s.elapsedMs
+      : Math.max(0, performance.now() - (this.gameStartTime || 0) - (this._totalPausedMs || 0));
+    const targetCount = Math.min(
+      getTargetEnemyCount(elapsedMs, s.nightmareMode),
+      s.waveSpawnCap
+    );
+    if (enemyEl) {
+      enemyEl.textContent = `Enemies: ${s.enemies.length} / ${targetCount} (cap: ${s.waveSpawnCap})`;
+    }
+    if (waveEl) {
+      let waveStatus;
+      if (s.enemies.length > 0) {
+        waveStatus = 'ONGOING';
+      } else if (elapsedMs < s.waveBreakUntil) {
+        const remainSec = ((s.waveBreakUntil - elapsedMs) / 1000).toFixed(1);
+        waveStatus = `DOWNTIME (${remainSec}s)`;
+      } else {
+        waveStatus = 'CLEAR';
+      }
+      waveEl.textContent = `Wave #${s.waveCount || 0} | ${waveStatus}`;
+    }
+    const warnEl = document.getElementById('adm-debug-warn');
+    if (warnEl) warnEl.style.display = this._debugUsed ? '' : 'none';
+  }
+
+  _drawEncircleOverlay(ctx, state) {
+    if (!this._debugShowEncircle || !state) return;
+    const head  = state.snake[0];
+    const halfC = Math.floor(VIEW_COLS / 2);
+    const halfR = Math.floor(VIEW_ROWS / 2);
+    const minX  = Math.round(head.x) - halfC;
+    const maxX  = Math.round(head.x) + halfC;
+    const minY  = Math.round(head.y) - halfR;
+    const maxY  = Math.round(head.y) + halfR;
+
+    // Discretise snake body into a set of occupied grid cells
+    const snakeSet = new Set(state.snake.map(s => `${Math.round(s.x)},${Math.round(s.y)}`));
+
+    // Flood-fill from all viewport edge cells to find the reachable (non-encircled) cells
+    const reachable = new Set();
+    const queue = [];
+    const enqueue = (x, y) => {
+      const key = `${x},${y}`;
+      if (!snakeSet.has(key) && !reachable.has(key)) {
+        reachable.add(key);
+        queue.push([x, y]);
+      }
+    };
+    for (let x = minX; x <= maxX; x++) { enqueue(x, minY); enqueue(x, maxY); }
+    for (let y = minY + 1; y < maxY; y++) { enqueue(minX, y); enqueue(maxX, y); }
+    let queueIndex = 0;
+    while (queueIndex < queue.length) {
+      const [cx, cy] = queue[queueIndex++];
+      enqueue(cx + 1, cy); enqueue(cx - 1, cy);
+      enqueue(cx, cy + 1); enqueue(cx, cy - 1);
+    }
+
+    // Highlight cells that are inside the snake's loop
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 200, 255, 0.18)';
+    ctx.strokeStyle = 'rgba(0, 200, 255, 0.35)';
+    ctx.lineWidth = 0.5;
+    for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        const key = `${x},${y}`;
+        if (!snakeSet.has(key) && !reachable.has(key)) {
+          ctx.fillRect(x * GRID, y * GRID, GRID, GRID);
+          ctx.strokeRect(x * GRID, y * GRID, GRID, GRID);
+        }
+      }
+    }
+    ctx.restore();
   }
 
   _triggerUpgradeChoice() {

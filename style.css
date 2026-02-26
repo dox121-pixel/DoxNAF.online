@@ -724,6 +724,37 @@ canvas {
   color: #cde;
 }
 
+.adm-group-btn {
+  background: #0c0c1e;
+  border: 1px solid #446;
+  color: #89b;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 5px 10px;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 4px;
+  width: 100%;
+  transition: all 0.12s;
+}
+
+.adm-group-btn:hover {
+  background: #141428;
+  border-color: #cde;
+  color: #cde;
+}
+
+.adm-group-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding-left: 4px;
+  border-left: 2px solid #334;
+  margin-bottom: 4px;
+}
+
 #admin-open-btn {
   position: fixed;
   bottom: 12px;
