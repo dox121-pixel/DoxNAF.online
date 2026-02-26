@@ -138,11 +138,11 @@ canvas {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 14px;
   z-index: 100;
   overflow-y: auto;
-  padding: 16px 0;
+  padding: 20px 16px;
 }
 
 #overlay h1 {
@@ -1162,6 +1162,94 @@ canvas {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.65; }
 }
+
+/* ── Custom scrollbar styling ─────────────────── */
+.settings-box,
+#legal-modal-content,
+#admin-panel-body,
+#overlay {
+  scrollbar-width: thin;
+  scrollbar-color: #446 #0a0a18;
+}
+
+.settings-box::-webkit-scrollbar,
+#legal-modal-content::-webkit-scrollbar,
+#admin-panel-body::-webkit-scrollbar,
+#overlay::-webkit-scrollbar {
+  width: 6px;
+}
+
+.settings-box::-webkit-scrollbar-track,
+#legal-modal-content::-webkit-scrollbar-track,
+#admin-panel-body::-webkit-scrollbar-track,
+#overlay::-webkit-scrollbar-track {
+  background: #0a0a18;
+  border-radius: 3px;
+}
+
+.settings-box::-webkit-scrollbar-thumb,
+#legal-modal-content::-webkit-scrollbar-thumb,
+#admin-panel-body::-webkit-scrollbar-thumb,
+#overlay::-webkit-scrollbar-thumb {
+  background: #446;
+  border-radius: 3px;
+  border: 1px solid #223;
+}
+
+.settings-box::-webkit-scrollbar-thumb:hover,
+#legal-modal-content::-webkit-scrollbar-thumb:hover,
+#admin-panel-body::-webkit-scrollbar-thumb:hover,
+#overlay::-webkit-scrollbar-thumb:hover {
+  background: #89b;
+}
+
+/* ── Custom range slider styling ──────────────── */
+.custom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: #1a1a2e;
+  border: 1px solid #334;
+  border-radius: 3px;
+  outline: none;
+}
+
+.custom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #89b;
+  border: 2px solid #446;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(100, 130, 200, 0.4);
+  transition: background 0.12s, box-shadow 0.12s;
+}
+
+.custom-slider::-webkit-slider-thumb:hover {
+  background: #acd;
+  box-shadow: 0 0 10px rgba(100, 160, 220, 0.6);
+}
+
+.custom-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #89b;
+  border: 2px solid #446;
+  cursor: pointer;
+  box-shadow: 0 0 6px rgba(100, 130, 200, 0.4);
+}
+
+.custom-slider::-moz-range-track {
+  height: 6px;
+  background: #1a1a2e;
+  border: 1px solid #334;
+  border-radius: 3px;
+}
+
+
 
 @media (max-width: 640px), (pointer: coarse) {
   #mobile-controls {

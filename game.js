@@ -2005,17 +2005,31 @@ class SnakeRogue {
       this._shoot(state.snake[0].x, state.snake[0].y, this._gunJoystickAngle);
     }
 
-    // ── Auto-aim: shoot at closest enemy automatically ────────
+    // ── Auto-aim: shoot at closest enemy with predictive leading ─
     if (this._autoAim && state.enemies && state.enemies.length) {
       const head = state.snake[0];
       let closestDist = Infinity, closestAngle = state.snakeAngle;
       for (const e of state.enemies) {
         const dx = e.x - head.x;
         const dy = e.y - head.y;
-        const d = dx * dx + dy * dy;
-        if (d < closestDist) {
-          closestDist = d;
-          closestAngle = Math.atan2(dy, dx);
+        const d2 = dx * dx + dy * dy;
+        if (d2 < closestDist) {
+          closestDist = d2;
+          const d = Math.sqrt(d2);
+          if (d > 0) {
+            // Predictive aiming: estimate where enemy will be when bullet arrives.
+            // Enemy moves toward the snake head; bullet moves toward the enemy.
+            // Both close the gap, so intercept time ≈ d / (BULLET_SPEED + enemy speed).
+            const eType = ENEMY_TYPES[e.type];
+            const eSpeed = (eType && eType.speed) ? eType.speed : 0.004;
+            const t = d / (BULLET_SPEED + eSpeed);
+            // Enemy velocity direction: toward head (normalized)
+            const px = e.x + (-dx / d) * eSpeed * t;
+            const py = e.y + (-dy / d) * eSpeed * t;
+            closestAngle = Math.atan2(py - head.y, px - head.x);
+          } else {
+            closestAngle = Math.atan2(dy, dx);
+          }
         }
       }
       this._shoot(head.x, head.y, closestAngle);
@@ -3245,7 +3259,7 @@ class SnakeRogue {
     overlay.style.cssText = [
       'position:fixed', 'inset:0', 'background:rgba(5,5,15,0.92)',
       'display:flex', 'align-items:center', 'justify-content:center', 'z-index:200',
-      'overflow-y:auto', 'padding:16px',
+      'overflow-y:auto', 'padding:32px',
     ].join(';');
 
     const ctrlLabel = this._controlMode === 'wasd' ? '⌨ WASD' : '🖱 MOUSE';
@@ -3267,97 +3281,102 @@ class SnakeRogue {
     const autoAimEnabled = this._autoAim === true;
 
     overlay.innerHTML = `
-      <div style="background:#0e0e1a;border:1px solid #446;border-radius:10px;padding:28px 32px 28px 32px;
-                  display:flex;flex-direction:column;align-items:center;gap:18px;min-width:300px;max-width:360px;
-                  max-height:90vh;overflow-y:auto;position:relative;">
+      <div style="background:#0e0e1a;border:1px solid #446;border-radius:10px;
+                  min-width:300px;max-width:360px;max-height:90vh;
+                  position:relative;display:flex;flex-direction:column;">
         <img id="settings-bat-img" src="sprites/BAT.png"
-             style="position:sticky;top:0;right:0;float:right;width:44px;height:44px;
+             style="position:absolute;top:-22px;right:-22px;width:44px;height:44px;z-index:10;
                     filter:drop-shadow(0 0 8px rgba(153,51,255,0.9));transform:rotate(25deg);pointer-events:none;"
              alt="bat">
-        <div style="font-size:16px;color:#89b;letter-spacing:4px;text-transform:uppercase;">⚙ SETTINGS</div>
-        <div style="width:100%;display:flex;flex-direction:column;gap:14px;">
+        <div style="padding:28px 32px 0 32px;display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0;">
+          <div style="font-size:16px;color:#89b;letter-spacing:4px;text-transform:uppercase;margin-bottom:18px;">⚙ SETTINGS</div>
+        </div>
+        <div class="settings-box" style="overflow-y:auto;padding:0 32px 28px 32px;
+                    display:flex;flex-direction:column;align-items:center;gap:18px;">
+          <div style="width:100%;display:flex;flex-direction:column;gap:14px;">
 
-          <!-- Control mode -->
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <span style="font-size:12px;color:#7ab;letter-spacing:1px;">CONTROL MODE</span>
-            <button id="settings-ctrl-btn" class="btn btn-settings" style="margin-top:0;font-size:12px;padding:6px 18px;">${ctrlLabel}</button>
-          </div>
+            <!-- Gameplay separator -->
+            <div style="border-top:1px solid #223;margin:2px 0;"></div>
+            <div style="font-size:11px;color:#567;letter-spacing:2px;text-transform:uppercase;">🎮 GAMEPLAY</div>
 
-          <!-- Gameplay separator -->
-          <div style="border-top:1px solid #223;margin:2px 0;"></div>
-          <div style="font-size:11px;color:#567;letter-spacing:2px;text-transform:uppercase;">🎮 GAMEPLAY</div>
-
-          <!-- Auto-Aim -->
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <span style="font-size:12px;color:#7ab;letter-spacing:1px;">AUTO AIM</span>
-            <div id="autoaim-btns" style="display:flex;gap:6px;">
-              <button data-autoaim="true"  style="${fxBtnStyle(autoAimEnabled)}">✦ ON</button>
-              <button data-autoaim="false" style="${fxBtnStyle(!autoAimEnabled)}">○ OFF</button>
+            <!-- Control mode -->
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+              <span style="font-size:12px;color:#7ab;letter-spacing:1px;">CONTROL MODE</span>
+              <button id="settings-ctrl-btn" class="btn btn-settings" style="margin-top:0;font-size:12px;padding:6px 18px;">${ctrlLabel}</button>
             </div>
-          </div>
 
-          <!-- GUI Scale -->
-          <div style="display:flex;flex-direction:column;gap:6px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:12px;color:#7ab;letter-spacing:1px;">GUI SCALE</span>
-              <span id="settings-scale-val" style="font-size:12px;color:#aef;letter-spacing:1px;">${scaleVal}×</span>
-            </div>
-            <input id="settings-scale-slider" type="range" min="0.5" max="2.0" step="0.05"
-                   value="${scaleVal}"
-                   style="width:100%;accent-color:#89b;cursor:pointer;">
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:#456;">
-              <span>0.5× (zoom out)</span><span>2.0× (zoom in)</span>
-            </div>
-            <div style="padding:8px;background:#050510;border:1px solid #335;border-radius:6px;overflow:hidden;height:52px;display:flex;align-items:center;justify-content:center;">
-              <div id="settings-scale-preview" style="display:flex;gap:8px;align-items:center;transform:scale(${scaleVal});transform-origin:center center;transition:transform 0.1s;white-space:nowrap;">
-                <span style="font-size:14px;color:#4f8;letter-spacing:2px;text-shadow:0 0 8px #2d6;">VIPER.exe</span>
-                <span style="font-size:10px;color:#7ab;background:#0e0e1a;border:1px solid #234;border-radius:3px;padding:2px 6px;">START</span>
-                <span style="font-size:12px;">🦇</span>
+            <!-- Auto-Aim -->
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+              <span style="font-size:12px;color:#7ab;letter-spacing:1px;">AUTO AIM</span>
+              <div id="autoaim-btns" style="display:flex;gap:6px;">
+                <button data-autoaim="true"  style="${fxBtnStyle(autoAimEnabled)}">✦ ON</button>
+                <button data-autoaim="false" style="${fxBtnStyle(!autoAimEnabled)}">○ OFF</button>
               </div>
             </div>
-          </div>
 
-          <!-- Graphics separator -->
-          <div style="border-top:1px solid #223;margin:2px 0;"></div>
-          <div style="font-size:11px;color:#567;letter-spacing:2px;text-transform:uppercase;">🖥 GRAPHICS</div>
-
-          <!-- FPS Cap Slider -->
-          <div style="display:flex;flex-direction:column;gap:6px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:12px;color:#7ab;letter-spacing:1px;">FRAME RATE CAP</span>
-              <span id="settings-fps-val" style="font-size:12px;color:#aef;letter-spacing:1px;">${fpsLabel}</span>
+            <!-- GUI Scale -->
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:12px;color:#7ab;letter-spacing:1px;">GUI SCALE</span>
+                <span id="settings-scale-val" style="font-size:12px;color:#aef;letter-spacing:1px;">${scaleVal}×</span>
+              </div>
+              <input id="settings-scale-slider" type="range" min="0.5" max="2.0" step="0.05"
+                     value="${scaleVal}"
+                     class="custom-slider" style="width:100%;cursor:pointer;">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:#456;">
+                <span>0.5× (zoom out)</span><span>2.0× (zoom in)</span>
+              </div>
+              <div style="padding:8px;background:#050510;border:1px solid #335;border-radius:6px;overflow:hidden;height:52px;display:flex;align-items:center;justify-content:center;">
+                <div id="settings-scale-preview" style="display:flex;gap:8px;align-items:center;transform:scale(${scaleVal});transform-origin:center center;transition:transform 0.1s;white-space:nowrap;">
+                  <span style="font-size:14px;color:#4f8;letter-spacing:2px;text-shadow:0 0 8px #2d6;">VIPER.exe</span>
+                  <span style="font-size:10px;color:#7ab;background:#0e0e1a;border:1px solid #234;border-radius:3px;padding:2px 6px;">START</span>
+                  <span style="font-size:12px;">🦇</span>
+                </div>
+              </div>
             </div>
-            <input id="settings-fps-slider" type="range" min="30" max="241" step="1"
-                   value="${fpsCap === 0 ? 241 : fpsCap}"
-                   style="width:100%;accent-color:#89b;cursor:pointer;">
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:#456;">
-              <span>30 FPS</span><span>UNLIMITED</span>
+
+            <!-- Graphics separator -->
+            <div style="border-top:1px solid #223;margin:2px 0;"></div>
+            <div style="font-size:11px;color:#567;letter-spacing:2px;text-transform:uppercase;">🖥 GRAPHICS</div>
+
+            <!-- FPS Cap Slider -->
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:12px;color:#7ab;letter-spacing:1px;">FRAME RATE CAP</span>
+                <span id="settings-fps-val" style="font-size:12px;color:#aef;letter-spacing:1px;">${fpsLabel}</span>
+              </div>
+              <input id="settings-fps-slider" type="range" min="30" max="241" step="1"
+                     value="${fpsCap === 0 ? 241 : fpsCap}"
+                     class="custom-slider" style="width:100%;cursor:pointer;">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:#456;">
+                <span>30 FPS</span><span>UNLIMITED</span>
+              </div>
             </div>
-          </div>
 
-          <!-- Special Effects -->
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-            <span style="font-size:12px;color:#7ab;letter-spacing:1px;">SPECIAL EFFECTS</span>
-            <div id="fx-btns" style="display:flex;gap:6px;">
-              <button data-fx="true"  style="${fxBtnStyle(fxEnabled)}">✦ ON</button>
-              <button data-fx="false" style="${fxBtnStyle(!fxEnabled)}">○ OFF</button>
+            <!-- Special Effects -->
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+              <span style="font-size:12px;color:#7ab;letter-spacing:1px;">SPECIAL EFFECTS</span>
+              <div id="fx-btns" style="display:flex;gap:6px;">
+                <button data-fx="true"  style="${fxBtnStyle(fxEnabled)}">✦ ON</button>
+                <button data-fx="false" style="${fxBtnStyle(!fxEnabled)}">○ OFF</button>
+              </div>
             </div>
-          </div>
 
-          <!-- Particle Quality -->
-          <div style="display:flex;flex-direction:column;gap:5px;">
-            <span style="font-size:12px;color:#7ab;letter-spacing:1px;">PARTICLE EFFECTS</span>
-            <div id="particle-btns" style="display:flex;gap:6px;">${particleButtons}</div>
-          </div>
+            <!-- Particle Quality -->
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <span style="font-size:12px;color:#7ab;letter-spacing:1px;">PARTICLE EFFECTS</span>
+              <div id="particle-btns" style="display:flex;gap:6px;">${particleButtons}</div>
+            </div>
 
+          </div>
+          <button id="settings-close-btn" class="btn btn-back" style="margin-top:4px;font-size:12px;padding:6px 24px;">✕ CLOSE</button>
+          <div style="border-top:1px solid #223;width:100%;"></div>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+            <button id="settings-tos-btn" class="btn btn-back" style="margin-top:0;font-size:10px;padding:4px 12px;">📄 TERMS OF SERVICE</button>
+            <button id="settings-pp-btn" class="btn btn-back" style="margin-top:0;font-size:10px;padding:4px 12px;">🔒 PRIVACY POLICY</button>
+          </div>
+          <div style="font-size:9px;color:#334;letter-spacing:1px;text-align:center;">© 2026 VIPER.exe — All rights reserved.</div>
         </div>
-        <button id="settings-close-btn" class="btn btn-back" style="margin-top:4px;font-size:12px;padding:6px 24px;">✕ CLOSE</button>
-        <div style="border-top:1px solid #223;width:100%;"></div>
-        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-          <button id="settings-tos-btn" class="btn btn-back" style="margin-top:0;font-size:10px;padding:4px 12px;">📄 TERMS OF SERVICE</button>
-          <button id="settings-pp-btn" class="btn btn-back" style="margin-top:0;font-size:10px;padding:4px 12px;">🔒 PRIVACY POLICY</button>
-        </div>
-        <div style="font-size:9px;color:#334;letter-spacing:1px;text-align:center;">© 2026 VIPER.exe — All rights reserved.</div>
       </div>
     `;
 
