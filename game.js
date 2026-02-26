@@ -1368,8 +1368,8 @@ class SnakeRogue {
     catch(_) { this._particleQuality = 'full'; }
     try { this._fxEnabled = localStorage.getItem('fxEnabled') !== 'false'; }
     catch(_) { this._fxEnabled = true; }
-    try { this._autoAim = localStorage.getItem('autoAim') === 'true'; }
-    catch(_) { this._autoAim = false; }
+    try { this._autoAim = localStorage.getItem('autoAim') !== 'false'; }
+    catch(_) { this._autoAim = true; }
     this._applyFxSettings();
 
     // ── Admin state ──────────────────────────
@@ -2344,7 +2344,6 @@ class SnakeRogue {
           state.enemyKills = (state.enemyKills || 0) + 1;
           this.flashTimer = 20;
           this._updateHUD();
-          if (this._checkLoreDamage(timestamp)) return;
           continue;
         }
         if (state.lives > 1) {
@@ -2355,7 +2354,6 @@ class SnakeRogue {
           state.enemyKills = (state.enemyKills || 0) + 1;
           this.flashTimer = 20;
           this._updateHUD();
-          if (this._checkLoreDamage(timestamp)) return;
           continue;
         }
         if (this._checkLoreDamage(timestamp)) return;
@@ -2452,7 +2450,7 @@ class SnakeRogue {
   _checkLoreDamage(timestamp) {
     if (this.loreEventActive) return false;
     if (this.state && this.state.nightmareMode) return false;
-    if (timestamp - this.gameStartTime < 90000) return false;
+    if (timestamp - this.gameStartTime < 120000) return false;
     if (isNightmareUnlocked()) return false;
     this._triggerLoreEvent(timestamp);
     return true;
