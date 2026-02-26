@@ -1367,6 +1367,8 @@ class SnakeRogue {
     catch(_) { this._particleQuality = 'full'; }
     try { this._fxEnabled = localStorage.getItem('fxEnabled') !== 'false'; }
     catch(_) { this._fxEnabled = true; }
+    try { this._autoAim = localStorage.getItem('autoAim') === 'true'; }
+    catch(_) { this._autoAim = false; }
     this._applyFxSettings();
 
     // ── Admin state ──────────────────────────
@@ -2001,6 +2003,22 @@ class SnakeRogue {
     }
     if (this._gunJoystickActive && this.state) {
       this._shoot(state.snake[0].x, state.snake[0].y, this._gunJoystickAngle);
+    }
+
+    // ── Auto-aim: shoot at closest enemy automatically ────────
+    if (this._autoAim && state.enemies && state.enemies.length) {
+      const head = state.snake[0];
+      let closestDist = Infinity, closestAngle = state.snakeAngle;
+      for (const e of state.enemies) {
+        const dx = e.x - head.x;
+        const dy = e.y - head.y;
+        const d = dx * dx + dy * dy;
+        if (d < closestDist) {
+          closestDist = d;
+          closestAngle = Math.atan2(dy, dx);
+        }
+      }
+      this._shoot(head.x, head.y, closestAngle);
     }
 
     // ── Movement delay: snake doesn't move for first 5 seconds unless input received ──
@@ -3227,7 +3245,7 @@ class SnakeRogue {
     overlay.style.cssText = [
       'position:fixed', 'inset:0', 'background:rgba(5,5,15,0.92)',
       'display:flex', 'align-items:center', 'justify-content:center', 'z-index:200',
-      'overflow-y:auto',
+      'overflow-y:auto', 'padding:16px',
     ].join(';');
 
     const ctrlLabel = this._controlMode === 'wasd' ? '⌨ WASD' : '🖱 MOUSE';
@@ -3246,13 +3264,15 @@ class SnakeRogue {
     const fxEnabled = this._fxEnabled !== false;
     const fxLabel = fxEnabled ? '✦ ON' : '○ OFF';
     const fxBtnStyle = (active) => `flex:1;padding:5px 2px;font-size:10px;font-family:'Courier New',monospace;letter-spacing:1px;background:${active ? '#1a1a3a' : '#0a0a18'};border:1px solid ${active ? '#89b' : '#334'};color:${active ? '#cde' : '#567'};cursor:pointer;border-radius:3px;transition:all 0.1s;`;
+    const autoAimEnabled = this._autoAim === true;
 
     overlay.innerHTML = `
       <div style="background:#0e0e1a;border:1px solid #446;border-radius:10px;padding:28px 32px 28px 32px;
-                  display:flex;flex-direction:column;align-items:center;gap:18px;min-width:300px;max-width:360px;position:relative;overflow:visible;">
+                  display:flex;flex-direction:column;align-items:center;gap:18px;min-width:300px;max-width:360px;
+                  max-height:90vh;overflow-y:auto;position:relative;">
         <img id="settings-bat-img" src="sprites/BAT.png"
-             style="position:absolute;top:-22px;right:-22px;width:56px;height:56px;
-                    filter:drop-shadow(0 0 8px rgba(153,51,255,0.9));transform:rotate(25deg);"
+             style="position:sticky;top:0;right:0;float:right;width:44px;height:44px;
+                    filter:drop-shadow(0 0 8px rgba(153,51,255,0.9));transform:rotate(25deg);pointer-events:none;"
              alt="bat">
         <div style="font-size:16px;color:#89b;letter-spacing:4px;text-transform:uppercase;">⚙ SETTINGS</div>
         <div style="width:100%;display:flex;flex-direction:column;gap:14px;">
@@ -3261,6 +3281,19 @@ class SnakeRogue {
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
             <span style="font-size:12px;color:#7ab;letter-spacing:1px;">CONTROL MODE</span>
             <button id="settings-ctrl-btn" class="btn btn-settings" style="margin-top:0;font-size:12px;padding:6px 18px;">${ctrlLabel}</button>
+          </div>
+
+          <!-- Gameplay separator -->
+          <div style="border-top:1px solid #223;margin:2px 0;"></div>
+          <div style="font-size:11px;color:#567;letter-spacing:2px;text-transform:uppercase;">🎮 GAMEPLAY</div>
+
+          <!-- Auto-Aim -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <span style="font-size:12px;color:#7ab;letter-spacing:1px;">AUTO AIM</span>
+            <div id="autoaim-btns" style="display:flex;gap:6px;">
+              <button data-autoaim="true"  style="${fxBtnStyle(autoAimEnabled)}">✦ ON</button>
+              <button data-autoaim="false" style="${fxBtnStyle(!autoAimEnabled)}">○ OFF</button>
+            </div>
           </div>
 
           <!-- GUI Scale -->
@@ -3386,6 +3419,21 @@ class SnakeRogue {
       try { localStorage.setItem('particleQuality', val); } catch(_) {}
       document.querySelectorAll('#particle-btns [data-particle]').forEach(b => {
         const active = b.dataset.particle === val;
+        b.style.background = active ? '#1a1a3a' : '#0a0a18';
+        b.style.borderColor = active ? '#89b' : '#334';
+        b.style.color = active ? '#cde' : '#567';
+      });
+    });
+
+    // Auto-aim toggle
+    document.getElementById('autoaim-btns').addEventListener('click', e => {
+      const btn = e.target.closest('[data-autoaim]');
+      if (!btn) return;
+      const val = btn.dataset.autoaim === 'true';
+      this._autoAim = val;
+      try { localStorage.setItem('autoAim', val); } catch(_) {}
+      document.querySelectorAll('#autoaim-btns [data-autoaim]').forEach(b => {
+        const active = (b.dataset.autoaim === 'true') === val;
         b.style.background = active ? '#1a1a3a' : '#0a0a18';
         b.style.borderColor = active ? '#89b' : '#334';
         b.style.color = active ? '#cde' : '#567';
