@@ -777,8 +777,7 @@ function drawSnake(ctx, state) {
     samples.push(snake.length - 1);
   }
 
-  // ── Pass 1: draw all fill sprites (tail → neck) so circular bodies overlap cleanly
-  // Pre-compute per-sample cx/cy/angle to reuse in Pass 2 without redundant calculation
+  // Pre-compute per-sample cx/cy/angle
   const sampleData = samples.map((idx) => {
     const seg = snake[idx];
     const prevSeg = snake[Math.max(0, idx - 1)];
@@ -790,6 +789,8 @@ function drawSnake(ctx, state) {
     };
   });
 
+  // Draw each body segment (fill then border) from tail → neck so segments
+  // closer to the head are fully on top of those farther away.
   for (let si = samples.length - 1; si >= 1; si--) {
     const { idx, cx, cy, angle: segAngle } = sampleData[si];
 
@@ -810,19 +811,12 @@ function drawSnake(ctx, state) {
       ctx.arc(cx, cy, SNAKE_RADIUS * GRID, 0, Math.PI * 2);
       ctx.fill();
     }
-  }
 
-  // ── Pass 2: draw all border sprites on top (tail → neck) so no border clips under a fill
-  for (let si = samples.length - 1; si >= 1; si--) {
-    const { cx, cy, angle: segAngle } = sampleData[si];
-
-    const borderImg = SNAKE_BODY_BORDER_IMG;
-
-    if (borderImg.complete && borderImg.naturalWidth > 0) {
+    if (SNAKE_BODY_BORDER_IMG.complete && SNAKE_BODY_BORDER_IMG.naturalWidth > 0) {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(segAngle + SNAKE_SPRITE_ROT_OFFSET);
-      ctx.drawImage(borderImg, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+      ctx.drawImage(SNAKE_BODY_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
       ctx.restore();
     }
   }
