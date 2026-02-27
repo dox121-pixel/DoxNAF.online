@@ -356,7 +356,7 @@ function clearNightmareUnlocked() {
 }
 
 function escapeHtml(str) {
-  return String(str).replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+  return String(str).replace(/[<>&"'`]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;','\'':'&#x27;','`':'&#x60;'}[c]));
 }
 
 function shuffle(arr) {
@@ -3739,7 +3739,7 @@ class SnakeRogue {
     el.innerHTML = `
       <h1>ONLINE</h1>
       <div class="info">Share this code with your opponent:</div>
-      <div class="room-code-display">${this.onlineRoomCode}</div>
+      <div class="room-code-display">${escapeHtml(this.onlineRoomCode || '')}</div>
       <div class="info">Waiting for opponent to join…</div>
       <div id="online-error" class="online-error"></div>
       <button class="btn btn-back" id="back-btn">← BACK</button>

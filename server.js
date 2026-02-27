@@ -1453,7 +1453,21 @@ const httpServer = http.createServer((req, res) => {
   fs.readFile(full, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
     const mime = MIME[path.extname(full)] || 'text/plain; charset=utf-8';
-    res.writeHead(200, { 'Content-Type': mime });
+    const headers = { 'Content-Type': mime };
+    if (mime.startsWith('text/html')) {
+      headers['X-Content-Type-Options'] = 'nosniff';
+      headers['X-Frame-Options'] = 'SAMEORIGIN';
+      headers['Content-Security-Policy'] =
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: https:; " +
+        "connect-src 'self' wss: https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; " +
+        "object-src 'none'; " +
+        "base-uri 'self'; " +
+        "form-action 'self';";
+    }
+    res.writeHead(200, headers);
     res.end(data);
   });
 });
