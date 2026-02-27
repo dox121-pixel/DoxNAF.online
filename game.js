@@ -2587,6 +2587,7 @@ class SnakeRogue {
   }
 
   _chooseUpgrade(upgrade) {
+    if (this.phase !== 'upgrade') return; // guard: stale handlers can't fire twice
     const state = this.state;
     upgrade.apply(state);
     state.upgradeCount[upgrade.id] = (state.upgradeCount[upgrade.id] || 0) + 1;
@@ -4156,6 +4157,14 @@ class SnakeRogue {
     const timeInput = document.getElementById('adm-time-input');
     if (timeInput) timeInput.addEventListener('keydown', e => { if (e.key === 'Enter') this._adminSetTime(); });
 
+    // Set wave button
+    const setWaveBtn = document.getElementById('adm-set-wave');
+    if (setWaveBtn) setWaveBtn.addEventListener('click', () => this._adminSetWave());
+
+    // Allow Enter key in set wave input
+    const waveInput = document.getElementById('adm-wave-input');
+    if (waveInput) waveInput.addEventListener('keydown', e => { if (e.key === 'Enter') this._adminSetWave(); });
+
     // Delegate click handler for leaderboard delete buttons (added once)
     const lbList = document.getElementById('adm-leaderboard-list');
     if (lbList) {
@@ -4924,6 +4933,29 @@ class SnakeRogue {
     this.gameStartTime = now - desiredMs - (this._totalPausedMs || 0);
     this._updateHUD();
     this._flashAdminBtn('adm-set-time', '⏱ Time Set!');
+  }
+
+  _adminSetWave() {
+    if (!this._adminToken) { console.warn('Skid get a job'); return; }
+    this._markDebugUsed();
+    const input = document.getElementById('adm-wave-input');
+    if (!input) return;
+    const waveNum = parseInt(input.value, 10);
+    if (isNaN(waveNum) || waveNum < 0) return;
+    const s = this.state;
+    if (!s) return;
+    s.waveCount = waveNum;
+    // Recompute waveSpawnCap for the target wave (cap starts at 10, ×1.5 per wave)
+    let cap = 10;
+    for (let i = 0; i < waveNum; i++) cap = Math.min(Math.floor(cap * 1.5), 50);
+    s.waveSpawnCap = cap;
+    // End any active wave so the next one starts fresh
+    s.enemies = [];
+    s.waveSpawnedCount = 0;
+    s.waveHadEnemies = false;
+    s.waveBreakUntil = (s.elapsedMs || 0);
+    this._updateHUD();
+    this._flashAdminBtn('adm-set-wave', '🌊 Wave Set!');
   }
 
   _makePanelDraggable() {
