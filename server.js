@@ -821,31 +821,32 @@ const httpServer = http.createServer((req, res) => {
       req.on('end', () => {
         try {
           const d = JSON.parse(body);
+          // Require a server-tracked session — reject any submission without one.
+          // This prevents score tampering by omitting sessionId to fall back to
+          // client-supplied score values.
+          if (!d.sessionId) {
+            res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ ok: false, error: 'Session required' }));
+            return;
+          }
+          const safeId = String(d.sessionId).replace(/[^0-9a-f]/gi, '').slice(0, 16);
+          const sess = spSessions.get(safeId);
+          if (!sess) {
+            res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ ok: false, error: 'Invalid or expired session' }));
+            return;
+          }
+          // Use only server-tracked values — never trust client-supplied stats
+          const score       = sess.score;
+          const applesEaten = sess.applesEaten;
+          const kills       = sess.kills;
+          const timePlayed  = Math.floor((Date.now() - sess.startTime) / 1000);
+          // Consume the session so it cannot be reused
+          clearTimeout(sess.cleanupTimer);
+          spSessions.delete(safeId);
           // Verify auth token — only account holders may use a non-Anonymous name
           const tokenStr = d.token ? String(d.token).slice(0, 64) : null;
           verifyUserSession(tokenStr).then(verifiedUsername => {
-            // Anti-cheat: if a session ID was provided, use the server-tracked score/kills and cap timePlayed
-            let score       = d.score;
-            let applesEaten = d.applesEaten;
-            let kills       = d.kills;
-            let timePlayed  = d.timePlayed;
-            if (d.sessionId) {
-              const safeId = String(d.sessionId).replace(/[^0-9a-f]/gi, '').slice(0, 16);
-              const sess = spSessions.get(safeId);
-              if (!sess) {
-                res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders });
-                res.end(JSON.stringify({ ok: false, error: 'Invalid or expired session' }));
-                return;
-              }
-              score       = sess.score;
-              applesEaten = sess.applesEaten;
-              kills       = sess.kills;
-              timePlayed  = Math.min(d.timePlayed || 0, Math.floor((Date.now() - sess.startTime) / 1000));
-              // Consume the session so it cannot be reused
-              clearTimeout(sess.cleanupTimer);
-              spSessions.delete(safeId);
-            }
-            // Use server-verified username; unauthenticated players are always Anonymous
             const name = verifiedUsername || 'Anonymous';
             addLeaderboardEntry(name, score, applesEaten, kills, timePlayed).then(() => {
               res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
@@ -896,31 +897,30 @@ const httpServer = http.createServer((req, res) => {
       req.on('end', () => {
         try {
           const d = JSON.parse(body);
+          // Require a server-tracked session — reject any submission without one.
+          if (!d.sessionId) {
+            res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ ok: false, error: 'Session required' }));
+            return;
+          }
+          const safeId = String(d.sessionId).replace(/[^0-9a-f]/gi, '').slice(0, 16);
+          const sess = spSessions.get(safeId);
+          if (!sess) {
+            res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders });
+            res.end(JSON.stringify({ ok: false, error: 'Invalid or expired session' }));
+            return;
+          }
+          // Use only server-tracked values — never trust client-supplied stats
+          const score       = sess.score;
+          const applesEaten = sess.applesEaten;
+          const kills       = sess.kills;
+          const timePlayed  = Math.floor((Date.now() - sess.startTime) / 1000);
+          // Consume the session so it cannot be reused
+          clearTimeout(sess.cleanupTimer);
+          spSessions.delete(safeId);
           // Verify auth token — only account holders may use a non-Anonymous name
           const tokenStr = d.token ? String(d.token).slice(0, 64) : null;
           verifyUserSession(tokenStr).then(verifiedUsername => {
-            // Anti-cheat: if a session ID was provided, use the server-tracked score/kills and cap timePlayed
-            let score       = d.score;
-            let applesEaten = d.applesEaten;
-            let kills       = d.kills;
-            let timePlayed  = d.timePlayed;
-            if (d.sessionId) {
-              const safeId = String(d.sessionId).replace(/[^0-9a-f]/gi, '').slice(0, 16);
-              const sess = spSessions.get(safeId);
-              if (!sess) {
-                res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders });
-                res.end(JSON.stringify({ ok: false, error: 'Invalid or expired session' }));
-                return;
-              }
-              score       = sess.score;
-              applesEaten = sess.applesEaten;
-              kills       = sess.kills;
-              timePlayed  = Math.min(d.timePlayed || 0, Math.floor((Date.now() - sess.startTime) / 1000));
-              // Consume the session so it cannot be reused
-              clearTimeout(sess.cleanupTimer);
-              spSessions.delete(safeId);
-            }
-            // Use server-verified username; unauthenticated players are always Anonymous
             const name = verifiedUsername || 'Anonymous';
             addNightmareLeaderboardEntry(name, score, applesEaten, kills, timePlayed).then(() => {
               res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
@@ -1468,6 +1468,9 @@ const spSessions = new Map(); // sessionId → { ws, playerName, startTime, last
 // How long (ms) to keep a closed session available for score submission
 const SP_SCORE_SUBMISSION_TTL_MS = 120000;
 const SP_VALID_COMMANDS = new Set(['sp_spawn_enemy', 'sp_spawn_apple', 'sp_spawn_chest', 'sp_toggle_nightmare']);
+// Anti-cheat: cheapest enemy awards 5 pts per kill — used to cap kill count proportional to score
+const MIN_PTS_PER_KILL = 5;
+const KILL_RATE_BUFFER = 50; // extra kills tolerated above the score-derived maximum
 
 function createSpSession(ws, playerName) {
   const sessionId = crypto.randomBytes(8).toString('hex');
@@ -2006,8 +2009,13 @@ wss.on('connection', ws => {
         if (sess.score + scoreDelta <= maxAllowed) {
           sess.score       += scoreDelta;
           sess.applesEaten += applesDelta;
+          // Kills are also rate-limited: minimum 5 pts per kill (cheapest enemy)
+          // means kills cannot legitimately exceed score/5 plus a small buffer
+          const maxKills = Math.ceil(sess.score / MIN_PTS_PER_KILL) + KILL_RATE_BUFFER;
+          if (sess.kills + killsDelta <= maxKills) {
+            sess.kills += killsDelta;
+          }
         }
-        sess.kills += killsDelta;
         break;
       }
 
