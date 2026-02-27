@@ -1806,6 +1806,7 @@ class SnakeRogue {
       waveHadEnemies: false,
       waveCount: 0,
       waveSpawnCap: 10,
+      waveSpawnedCount: 0,
       applesForNextUpgrade: 1,
       applesEatenSinceUpgrade: 0,
       nightmareMode: false,
@@ -2217,15 +2218,15 @@ class SnakeRogue {
       state.waveHadEnemies = false;
       state.waveCount = (state.waveCount || 0) + 1;
       const currentCap = state.waveSpawnCap;
-      state.waveSpawnCap = currentCap < 50
-        ? Math.floor(currentCap * 1.5)
-        : Math.floor(currentCap * 2);
+      state.waveSpawnCap = Math.min(Math.floor(currentCap * 1.5), 50);
+      state.waveSpawnedCount = 0; // reset per-wave spawn counter for the next wave
     }
     state.enemySpawnTimer += dt;
     const targetCount = Math.min(getTargetEnemyCount(elapsedMs, state.nightmareMode), state.waveSpawnCap);
     const spawnInterval = state.nightmareMode ? 400 : (elapsedMs >= 90000 ? 200 : (elapsedMs < 30000 ? 400 : 250));
-    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && elapsedMs >= 3000 && elapsedMs >= state.waveBreakUntil && !this._siteDown) {
+    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && (state.waveSpawnedCount || 0) < state.waveSpawnCap && elapsedMs >= 3000 && elapsedMs >= state.waveBreakUntil && !this._siteDown) {
       state.enemySpawnTimer = 0;
+      state.waveSpawnedCount = (state.waveSpawnedCount || 0) + 1;
       spawnEnemy(state, elapsedMs);
     }
 
@@ -4970,7 +4971,7 @@ class SnakeRogue {
       s.waveSpawnCap
     );
     if (enemyEl) {
-      enemyEl.textContent = `Enemies: ${s.enemies.length} / ${targetCount} (cap: ${s.waveSpawnCap})`;
+      enemyEl.textContent = `Enemies: ${s.enemies.length} / ${targetCount} (spawned: ${s.waveSpawnedCount || 0}/${s.waveSpawnCap})`;
     }
     if (waveEl) {
       let waveStatus;
@@ -5005,6 +5006,7 @@ class SnakeRogue {
     const reachable = new Set();
     const queue = [];
     const enqueue = (x, y) => {
+      if (x < minX || x > maxX || y < minY || y > maxY) return;
       const key = `${x},${y}`;
       if (!snakeSet.has(key) && !reachable.has(key)) {
         reachable.add(key);
