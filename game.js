@@ -3519,12 +3519,11 @@ class SnakeRogue {
   _submitScore(score, applesEaten, kills, timePlayed) {
     if (score <= 0) return;
     if (this._debugUsed) return; // debug was active during this run — do not upload
-    const name      = this._playerName || 'Anonymous';
     const sessionId = this._submittedSessionId || null;
     fetch(`${API_SERVER}/api/leaderboard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, score, applesEaten, kills: kills || 0, timePlayed: timePlayed || 0, sessionId }),
+      body: JSON.stringify({ score, applesEaten, kills: kills || 0, timePlayed: timePlayed || 0, sessionId, token: this._authToken || null }),
     }).catch(() => {}); // silently ignore if server unavailable
   }
 
@@ -3565,12 +3564,11 @@ class SnakeRogue {
   _submitNightmareScore(score, applesEaten, kills, timePlayed) {
     if (score <= 0) return;
     if (this._debugUsed) return; // debug was active during this run — do not upload
-    const name      = this._playerName || 'Anonymous';
     const sessionId = this._submittedSessionId || null;
     fetch(`${API_SERVER}/api/nightmare-leaderboard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, score, applesEaten, kills: kills || 0, timePlayed: timePlayed || 0, sessionId }),
+      body: JSON.stringify({ score, applesEaten, kills: kills || 0, timePlayed: timePlayed || 0, sessionId, token: this._authToken || null }),
     }).catch(() => {}); // silently ignore if server unavailable
   }
 
@@ -3997,7 +3995,7 @@ class SnakeRogue {
       const ws = new WebSocket(WS_SERVER);
       this._spWs = ws;
       ws.addEventListener('open', () => {
-        ws.send(JSON.stringify({ type: 'sp_register', name: this._playerName || 'Anonymous' }));
+        ws.send(JSON.stringify({ type: 'sp_register', token: this._authToken || null }));
       });
       ws.addEventListener('message', ev => {
         let msg; try { msg = JSON.parse(ev.data); } catch { return; }

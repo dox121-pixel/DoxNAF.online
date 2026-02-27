@@ -549,8 +549,8 @@ async function getLeaderboardFromDb() {
 }
 
 async function addLeaderboardEntry(name, score, applesEaten, kills, timePlayed) {
-  // Sanitize input
-  let safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').trim() || 'Anonymous';
+  // Sanitize input — strip non-printable ASCII and HTML-injection characters
+  let safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').replace(/[<>&"']/g, '').trim() || 'Anonymous';
   // Replace banned names silently with Anonymous
   if (containsBannedWord(safeName)) safeName = 'Anonymous';
   const safeScore  = Math.max(0, Math.min(1e7, Math.floor(Number(score) || 0)));
@@ -592,7 +592,8 @@ async function getNightmareLeaderboardFromDb() {
 }
 
 async function addNightmareLeaderboardEntry(name, score, applesEaten, kills, timePlayed) {
-  let safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').trim() || 'Anonymous';
+  // Sanitize input — strip non-printable ASCII and HTML-injection characters
+  let safeName = String(name || 'Anonymous').slice(0, 30).replace(/[^\x20-\x7E]/g, '').replace(/[<>&"']/g, '').trim() || 'Anonymous';
   if (containsBannedWord(safeName)) safeName = 'Anonymous';
   const safeScore  = Math.max(0, Math.min(1e7, Math.floor(Number(score) || 0)));
   const safeApples = Math.max(0, Math.min(1e6, Math.floor(Number(applesEaten) || 0)));
@@ -820,32 +821,41 @@ const httpServer = http.createServer((req, res) => {
       req.on('end', () => {
         try {
           const d = JSON.parse(body);
-          // Anti-cheat: if a session ID was provided, use the server-tracked score/kills and cap timePlayed
-          let score       = d.score;
-          let applesEaten = d.applesEaten;
-          let kills       = d.kills;
-          let timePlayed  = d.timePlayed;
-          if (d.sessionId) {
-            const safeId = String(d.sessionId).replace(/[^0-9a-f]/gi, '').slice(0, 16);
-            const sess = spSessions.get(safeId);
-            if (!sess) {
-              res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders });
-              res.end(JSON.stringify({ ok: false, error: 'Invalid or expired session' }));
-              return;
+          // Verify auth token — only account holders may use a non-Anonymous name
+          const tokenStr = d.token ? String(d.token).slice(0, 64) : null;
+          verifyUserSession(tokenStr).then(verifiedUsername => {
+            // Anti-cheat: if a session ID was provided, use the server-tracked score/kills and cap timePlayed
+            let score       = d.score;
+            let applesEaten = d.applesEaten;
+            let kills       = d.kills;
+            let timePlayed  = d.timePlayed;
+            if (d.sessionId) {
+              const safeId = String(d.sessionId).replace(/[^0-9a-f]/gi, '').slice(0, 16);
+              const sess = spSessions.get(safeId);
+              if (!sess) {
+                res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders });
+                res.end(JSON.stringify({ ok: false, error: 'Invalid or expired session' }));
+                return;
+              }
+              score       = sess.score;
+              applesEaten = sess.applesEaten;
+              kills       = sess.kills;
+              timePlayed  = Math.min(d.timePlayed || 0, Math.floor((Date.now() - sess.startTime) / 1000));
+              // Consume the session so it cannot be reused
+              clearTimeout(sess.cleanupTimer);
+              spSessions.delete(safeId);
             }
-            score       = sess.score;
-            applesEaten = sess.applesEaten;
-            kills       = sess.kills;
-            timePlayed  = Math.min(d.timePlayed || 0, Math.floor((Date.now() - sess.startTime) / 1000));
-            // Consume the session so it cannot be reused
-            clearTimeout(sess.cleanupTimer);
-            spSessions.delete(safeId);
-          }
-          addLeaderboardEntry(d.name, score, applesEaten, kills, timePlayed).then(() => {
-            res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
-            res.end(JSON.stringify({ ok: true }));
+            // Use server-verified username; unauthenticated players are always Anonymous
+            const name = verifiedUsername || 'Anonymous';
+            addLeaderboardEntry(name, score, applesEaten, kills, timePlayed).then(() => {
+              res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+              res.end(JSON.stringify({ ok: true }));
+            }).catch(err => {
+              console.error('Leaderboard POST error:', err.message);
+              res.writeHead(500); res.end('Internal Server Error');
+            });
           }).catch(err => {
-            console.error('Leaderboard POST error:', err.message);
+            console.error('Leaderboard token verify error:', err.message);
             res.writeHead(500); res.end('Internal Server Error');
           });
         } catch (_) {
@@ -886,32 +896,41 @@ const httpServer = http.createServer((req, res) => {
       req.on('end', () => {
         try {
           const d = JSON.parse(body);
-          // Anti-cheat: if a session ID was provided, use the server-tracked score/kills and cap timePlayed
-          let score       = d.score;
-          let applesEaten = d.applesEaten;
-          let kills       = d.kills;
-          let timePlayed  = d.timePlayed;
-          if (d.sessionId) {
-            const safeId = String(d.sessionId).replace(/[^0-9a-f]/gi, '').slice(0, 16);
-            const sess = spSessions.get(safeId);
-            if (!sess) {
-              res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders });
-              res.end(JSON.stringify({ ok: false, error: 'Invalid or expired session' }));
-              return;
+          // Verify auth token — only account holders may use a non-Anonymous name
+          const tokenStr = d.token ? String(d.token).slice(0, 64) : null;
+          verifyUserSession(tokenStr).then(verifiedUsername => {
+            // Anti-cheat: if a session ID was provided, use the server-tracked score/kills and cap timePlayed
+            let score       = d.score;
+            let applesEaten = d.applesEaten;
+            let kills       = d.kills;
+            let timePlayed  = d.timePlayed;
+            if (d.sessionId) {
+              const safeId = String(d.sessionId).replace(/[^0-9a-f]/gi, '').slice(0, 16);
+              const sess = spSessions.get(safeId);
+              if (!sess) {
+                res.writeHead(403, { 'Content-Type': 'application/json', ...corsHeaders });
+                res.end(JSON.stringify({ ok: false, error: 'Invalid or expired session' }));
+                return;
+              }
+              score       = sess.score;
+              applesEaten = sess.applesEaten;
+              kills       = sess.kills;
+              timePlayed  = Math.min(d.timePlayed || 0, Math.floor((Date.now() - sess.startTime) / 1000));
+              // Consume the session so it cannot be reused
+              clearTimeout(sess.cleanupTimer);
+              spSessions.delete(safeId);
             }
-            score       = sess.score;
-            applesEaten = sess.applesEaten;
-            kills       = sess.kills;
-            timePlayed  = Math.min(d.timePlayed || 0, Math.floor((Date.now() - sess.startTime) / 1000));
-            // Consume the session so it cannot be reused
-            clearTimeout(sess.cleanupTimer);
-            spSessions.delete(safeId);
-          }
-          addNightmareLeaderboardEntry(d.name, score, applesEaten, kills, timePlayed).then(() => {
-            res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
-            res.end(JSON.stringify({ ok: true }));
+            // Use server-verified username; unauthenticated players are always Anonymous
+            const name = verifiedUsername || 'Anonymous';
+            addNightmareLeaderboardEntry(name, score, applesEaten, kills, timePlayed).then(() => {
+              res.writeHead(200, { 'Content-Type': 'application/json', ...corsHeaders });
+              res.end(JSON.stringify({ ok: true }));
+            }).catch(err => {
+              console.error('Nightmare leaderboard POST error:', err.message);
+              res.writeHead(500); res.end('Internal Server Error');
+            });
           }).catch(err => {
-            console.error('Nightmare leaderboard POST error:', err.message);
+            console.error('Nightmare leaderboard token verify error:', err.message);
             res.writeHead(500); res.end('Internal Server Error');
           });
         } catch (_) {
@@ -1450,6 +1469,25 @@ const spSessions = new Map(); // sessionId → { ws, playerName, startTime, last
 const SP_SCORE_SUBMISSION_TTL_MS = 120000;
 const SP_VALID_COMMANDS = new Set(['sp_spawn_enemy', 'sp_spawn_apple', 'sp_spawn_chest', 'sp_toggle_nightmare']);
 
+function createSpSession(ws, playerName) {
+  const sessionId = crypto.randomBytes(8).toString('hex');
+  spSessions.set(sessionId, {
+    ws,
+    playerName,
+    startTime:    Date.now(),
+    lastSnapshot: null,
+    score:        0,
+    applesEaten:  0,
+    kills:        0,
+    pendingScore: false,
+    cleanupTimer: null,
+  });
+  ws._spSessionId = sessionId;
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'sp_registered', sessionId }));
+  }
+}
+
 // ── Quick-play matchmaking ─────────────────────
 const matchmakingQueue    = []; // entries: { room, botTimeout }
 const QUICK_PLAY_WAIT_MS  = 8000; // milliseconds to wait for PvP before spawning a bot
@@ -1941,22 +1979,17 @@ wss.on('connection', ws => {
 
       case 'sp_register': {
         // Register this connection as an observable singleplayer session
-        if (playerRoom || ws._spSessionId) return; // already in use
-        const spName = String(msg.name || 'Anonymous').slice(0, 30);
-        const sessionId = crypto.randomBytes(8).toString('hex');
-        spSessions.set(sessionId, {
-          ws,
-          playerName:   spName,
-          startTime:    Date.now(),
-          lastSnapshot: null,
-          score:        0,
-          applesEaten:  0,
-          kills:        0,
-          pendingScore: false,
-          cleanupTimer: null,
+        if (playerRoom || ws._spSessionId || ws._spRegistrationInProgress) return; // already in use
+        ws._spRegistrationInProgress = true; // prevent re-entry while token verification is in flight
+        const tokenStr = msg.token ? String(msg.token).slice(0, 64) : null;
+        verifyUserSession(tokenStr).then(verifiedUsername => {
+          // Only account holders may use their real name; everyone else is Anonymous
+          createSpSession(ws, verifiedUsername || 'Anonymous');
+        }).catch(() => {
+          createSpSession(ws, 'Anonymous');
+        }).finally(() => {
+          ws._spRegistrationInProgress = false;
         });
-        ws._spSessionId = sessionId;
-        ws.send(JSON.stringify({ type: 'sp_registered', sessionId }));
         break;
       }
 
