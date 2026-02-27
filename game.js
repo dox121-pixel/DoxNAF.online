@@ -4992,29 +4992,46 @@ class SnakeRogue {
   _drawEncircleOverlay(ctx, state) {
     if (!this._debugShowEncircle || !state) return;
     const head  = state.snake[0];
+    const snake = state.snake;
+
+    // Compute bounding box of all snake segments with 1-cell padding so the
+    // flood-fill area encompasses the entire snake, even when parts of the body
+    // lie outside the visible viewport.
+    let fMinX = Math.round(snake[0].x), fMaxX = fMinX;
+    let fMinY = Math.round(snake[0].y), fMaxY = fMinY;
+    for (const s of snake) {
+      const rx = Math.round(s.x), ry = Math.round(s.y);
+      if (rx < fMinX) fMinX = rx; if (rx > fMaxX) fMaxX = rx;
+      if (ry < fMinY) fMinY = ry; if (ry > fMaxY) fMaxY = ry;
+    }
+    fMinX -= 1; fMaxX += 1; fMinY -= 1; fMaxY += 1;
+
+    // Viewport bounds — used only to limit which cells we actually draw.
     const halfC = Math.floor(VIEW_COLS / 2);
     const halfR = Math.floor(VIEW_ROWS / 2);
-    const minX  = Math.round(head.x) - halfC;
-    const maxX  = Math.round(head.x) + halfC;
-    const minY  = Math.round(head.y) - halfR;
-    const maxY  = Math.round(head.y) + halfR;
+    const vMinX = Math.round(head.x) - halfC;
+    const vMaxX = Math.round(head.x) + halfC;
+    const vMinY = Math.round(head.y) - halfR;
+    const vMaxY = Math.round(head.y) + halfR;
 
     // Discretise snake body into a set of occupied grid cells
-    const snakeSet = new Set(state.snake.map(s => `${Math.round(s.x)},${Math.round(s.y)}`));
+    const snakeSet = new Set(snake.map(s => `${Math.round(s.x)},${Math.round(s.y)}`));
 
-    // Flood-fill from all viewport edge cells to find the reachable (non-encircled) cells
+    // Flood-fill from all snake-bbox edge cells to find the reachable (non-encircled) cells.
+    // Using the full snake bounding box (rather than only the viewport) ensures that body
+    // segments outside the viewport still act as walls in the flood-fill.
     const reachable = new Set();
     const queue = [];
     const enqueue = (x, y) => {
-      if (x < minX || x > maxX || y < minY || y > maxY) return;
+      if (x < fMinX || x > fMaxX || y < fMinY || y > fMaxY) return;
       const key = `${x},${y}`;
       if (!snakeSet.has(key) && !reachable.has(key)) {
         reachable.add(key);
         queue.push([x, y]);
       }
     };
-    for (let x = minX; x <= maxX; x++) { enqueue(x, minY); enqueue(x, maxY); }
-    for (let y = minY + 1; y < maxY; y++) { enqueue(minX, y); enqueue(maxX, y); }
+    for (let x = fMinX; x <= fMaxX; x++) { enqueue(x, fMinY); enqueue(x, fMaxY); }
+    for (let y = fMinY + 1; y < fMaxY; y++) { enqueue(fMinX, y); enqueue(fMaxX, y); }
     let queueIndex = 0;
     while (queueIndex < queue.length) {
       const [cx, cy] = queue[queueIndex++];
@@ -5022,13 +5039,13 @@ class SnakeRogue {
       enqueue(cx, cy + 1); enqueue(cx, cy - 1);
     }
 
-    // Highlight cells that are inside the snake's loop
+    // Highlight cells that are inside the snake's loop (drawing limited to viewport).
     ctx.save();
     ctx.fillStyle = 'rgba(0, 200, 255, 0.18)';
     ctx.strokeStyle = 'rgba(0, 200, 255, 0.35)';
     ctx.lineWidth = 0.5;
-    for (let x = minX; x <= maxX; x++) {
-      for (let y = minY; y <= maxY; y++) {
+    for (let x = vMinX; x <= vMaxX; x++) {
+      for (let y = vMinY; y <= vMaxY; y++) {
         const key = `${x},${y}`;
         if (!snakeSet.has(key) && !reachable.has(key)) {
           ctx.fillRect(x * GRID, y * GRID, GRID, GRID);
