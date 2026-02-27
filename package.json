@@ -4,7 +4,7 @@
   "description": "Snake Roguelike with Online Multiplayer",
   "main": "server.js",
   "scripts": {
-    "build": "javascript-obfuscator game.js --output game.js --compact true --string-array true --string-array-encoding base64 --self-defending true",
+    "build": "javascript-obfuscator game.js --output game.js --compact true --string-array true --string-array-encoding base64 --self-defending true --numbers-to-expressions true --transform-object-keys true --split-strings true --split-strings-chunk-length 10",
     "start": "node server.js"
   },
   "dependencies": {
