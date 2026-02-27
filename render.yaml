@@ -2,7 +2,7 @@ services:
   - type: web
     name: doxnaf-online
     runtime: node
-    buildCommand: npm install
+    buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
