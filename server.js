@@ -677,6 +677,10 @@ const MIME = {
 };
 
 const httpServer = http.createServer((req, res) => {
+  if (req.headers['x-forwarded-proto'] === 'https' || req.socket.encrypted) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+
   const rawPath = (req.url || '/').split('?')[0];
   let urlPath;
   try { urlPath = decodeURIComponent(rawPath); } catch { res.writeHead(400); res.end('Bad Request'); return; }
