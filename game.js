@@ -804,16 +804,17 @@ function drawSnake(ctx, state) {
     // Body segments cycle through Body1, Body2, Body3 (indices 1-3)
     const img = SNAKE_BODY_IMGS[1 + (idx % 3)];
 
+    const snakeColor = `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`;
     if (img.complete && img.naturalWidth > 0) {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(segAngle + SNAKE_SPRITE_ROT_OFFSET);
-      ctx.drawImage(img, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+      drawTintedSprite(ctx, img, -sprSize / 2, -sprSize / 2, sprSize, sprSize, snakeColor);
       ctx.restore();
     } else {
-      // Fallback: green circle while sprites load
+      // Fallback: coloured circle while sprites load
       const alpha = 0.35 + 0.65 * (1 - idx / snake.length);
-      ctx.fillStyle = `rgba(40, 160, 80, ${alpha})`;
+      ctx.fillStyle = `hsla(${_snakeHue}, 70%, ${_snakeBrightness}%, ${alpha})`;
       ctx.beginPath();
       ctx.arc(cx, cy, SNAKE_RADIUS * GRID, 0, Math.PI * 2);
       ctx.fill();
@@ -823,7 +824,7 @@ function drawSnake(ctx, state) {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(segAngle + SNAKE_SPRITE_ROT_OFFSET);
-      ctx.drawImage(SNAKE_BODY_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+      drawTintedSprite(ctx, SNAKE_BODY_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize, snakeColor);
       ctx.restore();
     }
   }
@@ -835,16 +836,16 @@ function drawSnake(ctx, state) {
     if (SNAKE_HEAD_IMG.complete && SNAKE_HEAD_IMG.naturalWidth > 0) {
       ctx.save();
       ctx.shadowBlur  = _fxEnabled ? 14 : 0;
-      ctx.shadowColor = (state.shields > 0) ? '#4af' : '#4f8';
+      ctx.shadowColor = (state.shields > 0) ? '#4af' : `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`;
       ctx.translate(hx, hy);
       ctx.rotate(ang + SNAKE_SPRITE_ROT_OFFSET);
-      ctx.drawImage(SNAKE_HEAD_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+      drawTintedSprite(ctx, SNAKE_HEAD_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize, `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`);
       ctx.shadowBlur = 0;
       ctx.restore();
     } else {
       // Fallback: circle while sprite loads
-      const headColor = (state.shields > 0) ? '#66b8ff' : '#50e678';
-      const glowColor = (state.shields > 0) ? '#4af'     : '#4f8';
+      const headColor = (state.shields > 0) ? '#66b8ff' : `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`;
+      const glowColor = (state.shields > 0) ? '#4af'     : `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`;
       const hr = SNAKE_RADIUS * GRID * 1.25;
       ctx.shadowBlur  = _fxEnabled ? 14 : 0;
       ctx.shadowColor = glowColor;
@@ -864,7 +865,7 @@ function drawSnake(ctx, state) {
       ctx.save();
       ctx.translate(hx, hy);
       ctx.rotate(ang + SNAKE_SPRITE_ROT_OFFSET);
-      ctx.drawImage(SNAKE_HEAD_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+      drawTintedSprite(ctx, SNAKE_HEAD_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize, `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`);
       ctx.restore();
     }
   }
@@ -1171,6 +1172,32 @@ function drawBullets(ctx, bullets, grid = GRID) {
 let _particleQualityMult = 1.0; // controlled by graphics settings
 let _fxEnabled = true;          // master special-effects toggle
 
+// ── Snake colour customisation ────────────────
+let _snakeHue        = 120; // 0-359 (default soft green)
+let _snakeBrightness = 55;  // 20-80 percentage
+
+// Offscreen canvas used for per-sprite colour tinting
+const _tintCanvas = document.createElement('canvas');
+const _tintCtx    = _tintCanvas.getContext('2d');
+
+// Tint a white sprite with the current snake colour.
+// The transform on `ctx` (translate/rotate) is already applied by the caller;
+// x/y/w/h are in that local coordinate space.
+function drawTintedSprite(ctx, img, x, y, w, h, color) {
+  const cw = Math.ceil(w), ch = Math.ceil(h);
+  if (_tintCanvas.width  < cw) _tintCanvas.width  = cw;
+  if (_tintCanvas.height < ch) _tintCanvas.height = ch;
+  _tintCtx.clearRect(0, 0, cw, ch);
+  _tintCtx.drawImage(img, 0, 0, cw, ch);
+  _tintCtx.globalCompositeOperation = 'multiply';
+  _tintCtx.fillStyle = color;
+  _tintCtx.fillRect(0, 0, cw, ch);
+  _tintCtx.globalCompositeOperation = 'destination-in';
+  _tintCtx.drawImage(img, 0, 0, cw, ch);
+  _tintCtx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(_tintCanvas, 0, 0, cw, ch, x, y, w, h);
+}
+
 function spawnParticles(particles, x, y, color, count, grid = GRID) {
   const n = Math.round(count * _particleQualityMult);
   if (n <= 0) return;
@@ -1371,6 +1398,14 @@ class SnakeRogue {
     catch(_) { this._fxEnabled = true; }
     try { this._autoAim = localStorage.getItem('autoAim') !== 'false'; }
     catch(_) { this._autoAim = true; }
+    try {
+      const h = parseInt(localStorage.getItem('snakeHue'), 10);
+      _snakeHue = isNaN(h) ? 120 : Math.min(359, Math.max(0, h));
+    } catch(_) { _snakeHue = 120; }
+    try {
+      const b = parseInt(localStorage.getItem('snakeBrightness'), 10);
+      _snakeBrightness = isNaN(b) ? 55 : Math.min(80, Math.max(20, b));
+    } catch(_) { _snakeBrightness = 55; }
     this._applyFxSettings();
 
     // ── Admin state ──────────────────────────
@@ -3190,6 +3225,7 @@ class SnakeRogue {
         <button class="btn" id="start-btn">SOLO [Enter]</button>
         <button class="btn btn-online" id="online-btn">⚡ ONLINE</button>
         <button class="btn btn-settings" id="settings-btn">⚙ SETTINGS</button>
+        <button class="btn btn-settings" id="customize-btn">🎨 CUSTOMIZE</button>
       </div>
       ${nightmareUnlocked ? '<button class="btn btn-lore" id="lore-red-btn">☠ NIGHTMARE</button>' : ''}
       <div id="leaderboard-section" style="margin-top:16px;">
@@ -3209,6 +3245,7 @@ class SnakeRogue {
     document.getElementById('start-btn').addEventListener('click', () => this._startGame());
     document.getElementById('online-btn').addEventListener('click', () => this._startOnlineMode());
     document.getElementById('settings-btn').addEventListener('click', () => this._openSettings());
+    document.getElementById('customize-btn').addEventListener('click', () => this._openCustomizeMenu());
     const loreBtn = document.getElementById('lore-red-btn');
     if (loreBtn) loreBtn.addEventListener('click', () => this._startNightmareMode());
     this._loadLeaderboard('leaderboard-list');
@@ -3513,6 +3550,185 @@ class SnakeRogue {
         overlay.remove();
         if (onClose) onClose(); else this._renderOverlay();
       }
+    });
+  }
+
+  _openCustomizeMenu() {
+    const existing = document.getElementById('customize-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'customize-overlay';
+    overlay.style.cssText = [
+      'position:fixed', 'inset:0', 'background:rgba(5,5,15,0.92)',
+      'display:flex', 'align-items:center', 'justify-content:center', 'z-index:200',
+    ].join(';');
+
+    overlay.innerHTML = `
+      <div style="background:#0e0e1a;border:1px solid #2a6;border-radius:10px;
+                  min-width:280px;max-width:340px;padding:28px 28px 24px;
+                  display:flex;flex-direction:column;align-items:center;gap:18px;">
+        <div style="font-size:16px;color:#4f8;letter-spacing:4px;text-transform:uppercase;text-shadow:0 0 12px #2d6;">
+          🎨 CUSTOMIZE
+        </div>
+
+        <!-- Preview + vertical brightness slider -->
+        <div style="display:flex;align-items:center;gap:24px;">
+          <!-- Vertical brightness slider on the left -->
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <span style="font-size:10px;color:#aef;letter-spacing:1px;">☀</span>
+            <input id="cust-brightness-slider" type="range" orient="vertical"
+                   min="20" max="80" step="1" value="${_snakeBrightness}"
+                   class="custom-slider"
+                   style="-webkit-appearance:slider-vertical;appearance:slider-vertical;
+                          writing-mode:vertical-lr;direction:rtl;
+                          height:110px;width:20px;cursor:pointer;padding:0;">
+            <span style="font-size:10px;color:#456;letter-spacing:1px;">◐</span>
+          </div>
+          <!-- Preview canvas -->
+          <canvas id="cust-preview" width="160" height="120"
+                  style="border:1px solid #234;border-radius:6px;background:#080812;
+                         image-rendering:pixelated;"></canvas>
+        </div>
+
+        <!-- Horizontal hue slider -->
+        <div style="width:100%;display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;color:#7ab;letter-spacing:1px;">HUE</span>
+            <span id="cust-hue-val" style="font-size:12px;color:#aef;letter-spacing:1px;">${_snakeHue}°</span>
+          </div>
+          <input id="cust-hue-slider" type="range" min="0" max="359" step="1"
+                 value="${_snakeHue}" class="custom-slider"
+                 style="width:100%;cursor:pointer;
+                        background:linear-gradient(to right,
+                          hsl(0,80%,55%), hsl(40,80%,55%), hsl(80,80%,55%),
+                          hsl(120,80%,55%), hsl(160,80%,55%), hsl(200,80%,55%),
+                          hsl(240,80%,55%), hsl(280,80%,55%), hsl(320,80%,55%),
+                          hsl(359,80%,55%));
+                        border-radius:3px;">
+        </div>
+
+        <button id="cust-close-btn" class="btn" style="margin-top:0;font-size:12px;padding:8px 28px;">
+          ✓ SAVE & CLOSE
+        </button>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const previewCanvas = document.getElementById('cust-preview');
+    const hueSlider = document.getElementById('cust-hue-slider');
+    const hueVal = document.getElementById('cust-hue-val');
+    const brightnessSlider = document.getElementById('cust-brightness-slider');
+
+    const drawPreview = () => {
+      const ctx = previewCanvas.getContext('2d');
+      const W = previewCanvas.width, H = previewCanvas.height;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#080812';
+      ctx.fillRect(0, 0, W, H);
+
+      const hue = parseInt(hueSlider.value, 10);
+      const bri = parseInt(brightnessSlider.value, 10);
+      const color = `hsl(${hue}, 70%, ${bri}%)`;
+      // Sprite size and segment spacing mirror the in-game overlap ratio
+      // (in-game: spriteSize≈42px, step≈18px → ~2.3× overlap)
+      const sprSz = 38;
+      const step  = 18; // px between segment centres
+
+      // 5 segments (4 body + 1 head) centred horizontally in the 160px canvas
+      const segCount = 5;
+      const totalSpan = (segCount - 1) * step; // 72px
+      const startX = Math.round((W - totalSpan) / 2); // 44px
+
+      // Build segment list (left = tail, right = head)
+      const segs = [];
+      for (let i = 0; i < segCount - 1; i++) {
+        segs.push({ x: startX + i * step, y: H / 2, isHead: false, bodyIdx: 1 + (i % 3) });
+      }
+      segs.push({ x: startX + (segCount - 1) * step, y: H / 2, isHead: true });
+      const angle = 0; // facing right
+      const rot = angle + SNAKE_SPRITE_ROT_OFFSET;
+
+      // Draw body fills (tail → neck)
+      for (let i = 0; i < segs.length - 1; i++) {
+        const { x, y, bodyIdx } = segs[i];
+        const img = SNAKE_BODY_IMGS[bodyIdx];
+        if (img.complete && img.naturalWidth > 0) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(rot);
+          drawTintedSprite(ctx, img, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(x, y, sprSz / 2 * 0.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Draw body borders
+      for (let i = 0; i < segs.length - 1; i++) {
+        const { x, y } = segs[i];
+        if (SNAKE_BODY_BORDER_IMG.complete && SNAKE_BODY_BORDER_IMG.naturalWidth > 0) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(rot);
+          drawTintedSprite(ctx, SNAKE_BODY_BORDER_IMG, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
+          ctx.restore();
+        }
+      }
+
+      // Draw head fill
+      const { x: hx, y: hy } = segs[segs.length - 1];
+      if (SNAKE_HEAD_IMG.complete && SNAKE_HEAD_IMG.naturalWidth > 0) {
+        ctx.save();
+        ctx.translate(hx, hy);
+        ctx.rotate(rot);
+        drawTintedSprite(ctx, SNAKE_HEAD_IMG, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
+        ctx.restore();
+      } else {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(hx, hy, sprSz / 2 * 0.75, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Draw head border
+      if (SNAKE_HEAD_BORDER_IMG.complete && SNAKE_HEAD_BORDER_IMG.naturalWidth > 0) {
+        ctx.save();
+        ctx.translate(hx, hy);
+        ctx.rotate(rot);
+        drawTintedSprite(ctx, SNAKE_HEAD_BORDER_IMG, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
+        ctx.restore();
+      }
+    };
+
+    drawPreview();
+
+    hueSlider.addEventListener('input', () => {
+      hueVal.textContent = hueSlider.value + '°';
+      drawPreview();
+    });
+
+    brightnessSlider.addEventListener('input', () => {
+      drawPreview();
+    });
+
+    const saveAndClose = () => {
+      _snakeHue        = parseInt(hueSlider.value, 10);
+      _snakeBrightness = parseInt(brightnessSlider.value, 10);
+      try { localStorage.setItem('snakeHue', _snakeHue); } catch(_) {}
+      try { localStorage.setItem('snakeBrightness', _snakeBrightness); } catch(_) {}
+      overlay.remove();
+      this._renderOverlay();
+    };
+
+    document.getElementById('cust-close-btn').addEventListener('click', saveAndClose);
+
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) saveAndClose();
     });
   }
 

@@ -1282,6 +1282,16 @@ canvas {
 
 
 
+/* ── Vertical range slider (brightness control in customise menu) ─ */
+.custom-slider[orient="vertical"],
+.custom-slider[style*="slider-vertical"] {
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  writing-mode: vertical-lr;
+  direction: rtl;
+}
+
+
 @media (max-width: 640px), (pointer: coarse) {
   #mobile-controls {
     display: flex;
