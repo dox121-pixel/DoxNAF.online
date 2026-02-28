@@ -3015,12 +3015,11 @@ class SnakeRogue {
       state.waveBreakUntil = elapsedMs + 10000 + Math.random() * 10000;
       state.waveHadEnemies = false;
       state.waveCount = (state.waveCount || 0) + 1;
-      const currentCap = state.waveSpawnCap;
-      state.waveSpawnCap = Math.min(Math.floor(currentCap * 1.5), 20);
+      state.waveSpawnCap = Math.max(state.waveSpawnCap, getTargetEnemyCount(elapsedMs, state.nightmareMode));
       state.waveSpawnedCount = 0; // reset per-wave spawn counter for the next wave
     }
     state.enemySpawnTimer += dt;
-    const targetCount = Math.min(getTargetEnemyCount(elapsedMs, state.nightmareMode), state.waveSpawnCap);
+    const targetCount = getTargetEnemyCount(elapsedMs, state.nightmareMode);
     const spawnInterval = state.nightmareMode ? 400 : (elapsedMs >= 90000 ? 200 : (elapsedMs < 30000 ? 400 : 250));
     if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && (state.waveSpawnedCount || 0) < state.waveSpawnCap && elapsedMs >= 3000 && elapsedMs >= state.waveBreakUntil && !this._siteDownWhenStarted) {
       state.enemySpawnTimer = 0;
@@ -4083,7 +4082,11 @@ class SnakeRogue {
       this._resumeGame();
       this.state = null;
       this.phase = 'start';
-      this._renderOverlay();
+      if (this._siteDown && !this._adminToken) {
+        this._showMaintenanceScreen(this._siteDownSince);
+      } else {
+        this._renderOverlay();
+      }
     });
   }
 
