@@ -1225,6 +1225,42 @@ function spawnParticles(particles, x, y, color, count, grid = GRID) {
   }
 }
 
+// ── PixiJS color helpers ─────────────────────
+// Convert HSL values to a PixiJS-compatible hex number (0xRRGGBB)
+function hslToPixiTint(h, s, l) {
+  s /= 100; l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => {
+    const k = (n + h / 30) % 12;
+    return Math.round(255 * (l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)));
+  };
+  return (f(0) << 16) | (f(8) << 8) | f(4);
+}
+
+// Parse a CSS color string to { hex: number, alpha: number }
+function parseCssColor(css) {
+  if (!css) return { hex: 0xffffff, alpha: 1 };
+  if (typeof css === 'number') return { hex: css, alpha: 1 };
+  if (css.startsWith('#')) {
+    const h = css.slice(1);
+    const expanded = h.length === 3
+      ? h[0]+h[0]+h[1]+h[1]+h[2]+h[2]
+      : h;
+    return { hex: parseInt(expanded, 16), alpha: 1 };
+  }
+  const rgba = css.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)/);
+  if (rgba) {
+    const hex = (Math.round(parseFloat(rgba[1])) << 16) | (Math.round(parseFloat(rgba[2])) << 8) | Math.round(parseFloat(rgba[3]));
+    return { hex, alpha: rgba[4] !== undefined ? parseFloat(rgba[4]) : 1 };
+  }
+  const hsl = css.match(/hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%(?:\s*,\s*([\d.]+))?\s*\)/);
+  if (hsl) {
+    const hex = hslToPixiTint(parseFloat(hsl[1]), parseFloat(hsl[2]), parseFloat(hsl[3]));
+    return { hex, alpha: hsl[4] !== undefined ? parseFloat(hsl[4]) : 1 };
+  }
+  return { hex: 0xffffff, alpha: 1 };
+}
+
 // ── Online mode helpers ───────────────────────
 // Must match QUICK_PLAY_WAIT_MS in server.js
 const QUICK_PLAY_WAIT_S = 8;
@@ -1349,7 +1385,8 @@ function drawOnlineSnake(ctx, body, playerIdx, prevBody, t, grid = GRID) {
 class SnakeRogue {
   constructor() {
     this.canvas = document.getElementById('canvas');
-    this.ctx = this.canvas.getContext('2d', { alpha: false });
+    this.ctx = null; // replaced by PixiJS renderer
+    this._initPixi();
     this._resizeCanvas(false);
 
     this.state = null;
@@ -1481,6 +1518,650 @@ class SnakeRogue {
     this._sitePollingInterval = setInterval(() => this._checkSiteState(true), 30000);
   }
 
+  _initPixi() {
+    this.app = new PIXI.Application({
+      view: this.canvas,
+      backgroundColor: 0x08080f,
+      antialias: false,
+      resolution: 1,
+      autoDensity: false,
+      clearBeforeRender: true,
+    });
+    this.app.ticker.stop(); // game loop drives rendering manually
+
+    // ── Textures ────────────────────────────────
+    this._tex = {
+      snakeHead:       PIXI.Texture.from('sprites/SNAKEHEAD.png'),
+      snakeHeadBorder: PIXI.Texture.from('sprites/SNAKEHEADBORDER.png'),
+      snakeBody:  [
+        PIXI.Texture.from('sprites/SNAKEBODY.png'),
+        PIXI.Texture.from('sprites/SNAKEBODY1.png'),
+        PIXI.Texture.from('sprites/SNAKEBODY2.png'),
+        PIXI.Texture.from('sprites/SNAKEBODY3.png'),
+      ],
+      snakeBodyBorder: PIXI.Texture.from('sprites/SNAKEBODYBORDER.png'),
+      appleRed:        PIXI.Texture.from('sprites/APPLER.png'),
+      appleYellow:     PIXI.Texture.from('sprites/APPLEY.png'),
+      teleportPerk:    PIXI.Texture.from('sprites/TELEPORTPERK.png'),
+      bat:             PIXI.Texture.from('sprites/BAT.png'),
+      batFlap:         PIXI.Texture.from('sprites/BATFLAP.png'),
+      ghostOpen:       PIXI.Texture.from('sprites/GHOSTOPEN.png'),
+      ghostClose:      PIXI.Texture.from('sprites/GHOSTCLOSE.png'),
+    };
+
+    // ── Stage hierarchy ─────────────────────────
+    // Background graphics (screen-space)
+    this._pixiBg = new PIXI.Graphics();
+    this.app.stage.addChild(this._pixiBg);
+
+    // World container: camera-offset transform applied here
+    this._worldCtr = new PIXI.Container();
+    this.app.stage.addChild(this._worldCtr);
+
+    // Grid lines
+    this._gridGfx = new PIXI.Graphics();
+    this._worldCtr.addChild(this._gridGfx);
+
+    // Apple sprites container
+    this._appleCtr = new PIXI.Container();
+    this._worldCtr.addChild(this._appleCtr);
+
+    // Chest graphics
+    this._chestGfx = new PIXI.Graphics();
+    this._worldCtr.addChild(this._chestGfx);
+
+    // Bullet graphics
+    this._bulletGfx = new PIXI.Graphics();
+    this._worldCtr.addChild(this._bulletGfx);
+
+    // Snake: body sprites behind head
+    this._snakeBodyCtr = new PIXI.Container();
+    this._worldCtr.addChild(this._snakeBodyCtr);
+
+    // Snake: head sprite + head border sprite + gun graphics
+    this._snakeHeadCtr = new PIXI.Container();
+    this._worldCtr.addChild(this._snakeHeadCtr);
+    this._snakeHeadSprite = new PIXI.Sprite(this._tex.snakeHead);
+    this._snakeHeadSprite.anchor.set(0.5);
+    this._snakeHeadSprite.visible = false;
+    this._snakeHeadCtr.addChild(this._snakeHeadSprite);
+    this._snakeHeadBorderSprite = new PIXI.Sprite(this._tex.snakeHeadBorder);
+    this._snakeHeadBorderSprite.anchor.set(0.5);
+    this._snakeHeadBorderSprite.visible = false;
+    this._snakeHeadCtr.addChild(this._snakeHeadBorderSprite);
+    this._gunGfx = new PIXI.Graphics();
+    this._snakeHeadCtr.addChild(this._gunGfx);
+
+    // Enemy sprites container + enemy shape/healthbar graphics
+    this._enemySprCtr = new PIXI.Container();
+    this._worldCtr.addChild(this._enemySprCtr);
+    this._enemyGfx = new PIXI.Graphics();
+    this._worldCtr.addChild(this._enemyGfx);
+
+    // Pulse ring effects
+    this._pulseGfx = new PIXI.Graphics();
+    this._worldCtr.addChild(this._pulseGfx);
+
+    // Particle graphics
+    this._particleGfx = new PIXI.Graphics();
+    this._worldCtr.addChild(this._particleGfx);
+
+    // Teleport perks (above online world for online mode)
+    this._teleportCtr = new PIXI.Container();
+    this._worldCtr.addChild(this._teleportCtr);
+
+    // Screen-space UI graphics (enemy indicators, flash overlays, etc.)
+    this._uiGfx = new PIXI.Graphics();
+    this.app.stage.addChild(this._uiGfx);
+
+    // Screen-space text objects
+    this._fpsText = new PIXI.Text('', {
+      fontFamily: 'Courier New', fontSize: 18, fontWeight: 'bold',
+      fill: 0x00ff80, alpha: 0.85,
+    });
+    this._fpsText.anchor.set(1, 0);
+    this._fpsText.visible = false;
+    this.app.stage.addChild(this._fpsText);
+
+    this._notifText1 = new PIXI.Text('', {
+      fontFamily: 'Courier New', fontSize: 22, fontWeight: 'bold', fill: 0xffffff,
+    });
+    this._notifText1.anchor.set(0.5, 0);
+    this._notifText1.visible = false;
+    this.app.stage.addChild(this._notifText1);
+
+    this._notifText2 = new PIXI.Text('', {
+      fontFamily: 'Courier New', fontSize: 12, fill: 0xcccccc,
+    });
+    this._notifText2.anchor.set(0.5, 0);
+    this._notifText2.visible = false;
+    this.app.stage.addChild(this._notifText2);
+
+    // Sprite pools (grow as needed, sprites added to containers on creation)
+    this._snakeBodyPool = [];  // { spr: Sprite(body fill), border: Sprite(body border) }
+    this._applePool     = [];  // Sprite
+    this._teleportPool  = [];  // Sprite
+    this._enemySprPool  = [];  // Sprite (bat/ghost)
+
+    // Persistent text objects for jumpscare / death-replay phases
+    this._nightmareSkullTxt = new PIXI.Text('☠', {
+      fontFamily: 'serif', fontSize: 80, fontWeight: 'bold', fill: 0xff6666,
+    });
+    this._nightmareSkullTxt.anchor.set(0.5);
+    this._nightmareSkullTxt.visible = false;
+    this.app.stage.addChild(this._nightmareSkullTxt);
+
+    this._nightmareDiedTxt = new PIXI.Text('YOU DIED', {
+      fontFamily: 'Courier New', fontSize: 36, fontWeight: 'bold', fill: 0xff6666,
+    });
+    this._nightmareDiedTxt.anchor.set(0.5);
+    this._nightmareDiedTxt.visible = false;
+    this.app.stage.addChild(this._nightmareDiedTxt);
+
+    this._siteMainTxt = new PIXI.Text('YOU SHOULD NOT BE HERE', {
+      fontFamily: 'Courier New', fontSize: 52, fontWeight: 'bold', fill: 0xff0000,
+    });
+    this._siteMainTxt.anchor.set(0.5);
+    this._siteMainTxt.visible = false;
+    this.app.stage.addChild(this._siteMainTxt);
+
+    this._siteDownTxt = new PIXI.Text('SITE IS DOWN', {
+      fontFamily: 'Courier New', fontSize: 22, fontWeight: 'bold', fill: 0x880000,
+    });
+    this._siteDownTxt.anchor.set(0.5);
+    this._siteDownTxt.visible = false;
+    this.app.stage.addChild(this._siteDownTxt);
+
+    this._siteErrTxt = new PIXI.Text('╔═══[ ERROR ]═══╗', {
+      fontFamily: 'Courier New', fontSize: 16, fontWeight: 'bold', fill: 0x550000,
+    });
+    this._siteErrTxt.anchor.set(0.5);
+    this._siteErrTxt.visible = false;
+    this.app.stage.addChild(this._siteErrTxt);
+
+    this._siteReloadTxt = new PIXI.Text('RELOADING...', {
+      fontFamily: 'Courier New', fontSize: 16, fontWeight: 'bold', fill: 0x550000,
+    });
+    this._siteReloadTxt.anchor.set(0.5);
+    this._siteReloadTxt.visible = false;
+    this.app.stage.addChild(this._siteReloadTxt);
+
+    this._deathReplayWatermark = new PIXI.Text('⏪ DEATH REPLAY', {
+      fontFamily: 'Courier New', fontSize: 14, fontWeight: 'bold', fill: 0xff4444,
+    });
+    this._deathReplayWatermark.anchor.set(0.5, 0);
+    this._deathReplayWatermark.visible = false;
+    this.app.stage.addChild(this._deathReplayWatermark);
+  }
+
+  // ── PixiJS pool helpers ─────────────────────
+  _hideAllPoolSprites() {
+    for (const s of this._snakeBodyPool) {
+      s.spr.visible = false;
+      s.border.visible = false;
+    }
+    for (const s of this._applePool)    s.visible = false;
+    for (const s of this._teleportPool) s.visible = false;
+    for (const s of this._enemySprPool) { s.visible = false; s.alpha = 1; }
+  }
+
+  _borrowBodySpr(idx) {
+    if (idx >= this._snakeBodyPool.length) {
+      const spr    = new PIXI.Sprite();
+      spr.anchor.set(0.5);
+      const border = new PIXI.Sprite();
+      border.anchor.set(0.5);
+      this._snakeBodyCtr.addChild(spr);
+      this._snakeBodyCtr.addChild(border);
+      this._snakeBodyPool.push({ spr, border });
+    }
+    const s = this._snakeBodyPool[idx];
+    s.spr.visible    = true;
+    s.border.visible = true;
+    return s;
+  }
+
+  _borrowAppleSpr() {
+    for (const s of this._applePool) {
+      if (!s.visible) { s.visible = true; return s; }
+    }
+    const s = new PIXI.Sprite();
+    s.anchor.set(0.5);
+    this._appleCtr.addChild(s);
+    this._applePool.push(s);
+    return s;
+  }
+
+  _borrowTeleportSpr() {
+    for (const s of this._teleportPool) {
+      if (!s.visible) { s.visible = true; return s; }
+    }
+    const s = new PIXI.Sprite(this._tex.teleportPerk);
+    s.anchor.set(0.5);
+    this._teleportCtr.addChild(s);
+    this._teleportPool.push(s);
+    return s;
+  }
+
+  _borrowEnemySpr() {
+    for (const s of this._enemySprPool) {
+      if (!s.visible) { s.visible = true; return s; }
+    }
+    const s = new PIXI.Sprite();
+    s.anchor.set(0.5);
+    this._enemySprCtr.addChild(s);
+    this._enemySprPool.push(s);
+    return s;
+  }
+
+  // ── PixiJS world-space draw helpers ─────────
+  _pixiDrawGrid(camX, camY) {
+    const g = this._gridGfx;
+    g.clear();
+    const startX = Math.floor((camX || 0) - VIEW_COLS / 2) - 1;
+    const endX   = startX + VIEW_COLS + 2;
+    const startY = Math.floor((camY || 0) - VIEW_ROWS / 2) - 1;
+    const endY   = startY + VIEW_ROWS + 2;
+    g.lineStyle(0.5, 0xffffff, 0.025);
+    for (let x = startX; x <= endX; x++) {
+      g.moveTo(x * GRID, startY * GRID);
+      g.lineTo(x * GRID, endY   * GRID);
+    }
+    for (let y = startY; y <= endY; y++) {
+      g.moveTo(startX * GRID, y * GRID);
+      g.lineTo(endX   * GRID, y * GRID);
+    }
+  }
+
+  _pixiDrawFixedGrid(cols, rows, grid) {
+    const g = this._gridGfx;
+    g.clear();
+    const gW = cols * grid, gH = rows * grid;
+    g.lineStyle(0.5, 0xffffff, 0.025);
+    for (let x = 0; x <= cols; x++) {
+      g.moveTo(x * grid, 0); g.lineTo(x * grid, gH);
+    }
+    for (let y = 0; y <= rows; y++) {
+      g.moveTo(0, y * grid); g.lineTo(gW, y * grid);
+    }
+  }
+
+  _pixiDrawApples(state, tick, grid = GRID) {
+    for (const apple of state.apples) {
+      const ax = apple.fx !== undefined ? apple.fx : apple.x;
+      const ay = apple.fy !== undefined ? apple.fy : apple.y;
+      const pulse = 0.85 + 0.15 * Math.sin(tick * 0.08);
+      const size  = grid * 1.6 * pulse;
+      const cx = ax * grid + grid / 2;
+      const cy = ay * grid + grid / 2;
+      const tex = apple.dropped ? this._tex.appleYellow : this._tex.appleRed;
+      if (tex.valid) {
+        const spr = this._borrowAppleSpr();
+        spr.texture = tex;
+        spr.x = cx; spr.y = cy;
+        spr.width = size; spr.height = size;
+      } else {
+        // fallback: draw circle
+        const r = size / 2;
+        const col = apple.dropped ? 0xcc8800 : 0xcc2200;
+        this._chestGfx.beginFill(col, 1);
+        this._chestGfx.drawCircle(cx, cy, r);
+        this._chestGfx.endFill();
+      }
+    }
+  }
+
+  _pixiDrawTeleportPerks(teleportPerks, tick, grid = GRID) {
+    for (const tp of teleportPerks) {
+      const pulse = 0.85 + 0.15 * Math.sin(tick * 0.1 + 1.5);
+      const size  = grid * 1.6 * pulse;
+      const cx = tp.x * grid + grid / 2;
+      const cy = tp.y * grid + grid / 2;
+      if (this._tex.teleportPerk.valid) {
+        const spr = this._borrowTeleportSpr();
+        spr.x = cx; spr.y = cy;
+        spr.width = size; spr.height = size;
+      }
+    }
+  }
+
+  _pixiDrawChests(state, tick, grid = GRID) {
+    if (!state.chests || !state.chests.length) return;
+    const g = this._chestGfx;
+    for (const chest of state.chests) {
+      const rData = CHEST_RARITIES.find(r => r.id === chest.rarity);
+      if (!rData) continue;
+      const cx = chest.x * grid + grid / 2;
+      const cy = chest.y * grid + grid / 2;
+      const pulse = 0.9 + 0.1 * Math.sin(tick * 0.08);
+      const r = grid * 0.85 * pulse;
+      const { hex: col } = parseCssColor(rData.color);
+      // Chest body
+      g.beginFill(col, 1);
+      g.drawRect(cx - r, cy - r * 0.2, r * 2, r * 1.1);
+      // Chest lid
+      g.drawRect(cx - r, cy - r * 1.1, r * 2, r * 0.9);
+      g.endFill();
+      // Divider
+      g.beginFill(0x000000, 0.45);
+      g.drawRect(cx - r, cy - r * 0.25, r * 2, r * 0.1);
+      g.endFill();
+      // Clasp
+      g.beginFill(0xffdd66, 1);
+      g.drawRect(cx - r * 0.22, cy - r * 0.65, r * 0.44, r * 0.65);
+      g.endFill();
+    }
+  }
+
+  _pixiDrawBullets(bullets, grid = GRID) {
+    if (!bullets || !bullets.length) return;
+    const g = this._bulletGfx;
+    for (const b of bullets) {
+      const alpha = b.life / b.maxLife;
+      g.beginFill(0xffe040, alpha);
+      g.drawCircle(b.x * grid + grid / 2, b.y * grid + grid / 2, grid * 0.12);
+      g.endFill();
+    }
+  }
+
+  _pixiDrawSnake(state) {
+    const snake = state.snake;
+    if (snake.length < 2) return;
+
+    const ang    = state.snakeAngle || 0;
+    const sprSize = SNAKE_RADIUS * 2 * GRID * SNAKE_SPRITE_SIZE_MULT;
+    const snakeTint = hslToPixiTint(_snakeHue, 70, _snakeBrightness);
+
+    const step = Math.max(1, Math.round(1 / SEG_SPACING));
+    const samples = [];
+    for (let i = 0; i < snake.length; i += step) samples.push(i);
+    if (samples[samples.length - 1] !== snake.length - 1) samples.push(snake.length - 1);
+
+    const sampleData = samples.map(idx => {
+      const seg = snake[idx];
+      const prevSeg = snake[Math.max(0, idx - 1)];
+      return {
+        idx,
+        cx: seg.x * GRID + GRID / 2,
+        cy: seg.y * GRID + GRID / 2,
+        angle: Math.atan2(prevSeg.y - seg.y, prevSeg.x - seg.x),
+      };
+    });
+
+    // Draw body segments tail→neck using sprite pool
+    let poolIdx = 0;
+    for (let si = samples.length - 1; si >= 1; si--) {
+      const { idx, cx, cy, angle: segAngle } = sampleData[si];
+      const texKey = 1 + (idx % 3); // body texture index 1-3
+      const bodyTex   = this._tex.snakeBody[texKey];
+      const borderTex = this._tex.snakeBodyBorder;
+
+      const s = this._borrowBodySpr(poolIdx++);
+      s.spr.texture    = bodyTex.valid    ? bodyTex    : PIXI.Texture.WHITE;
+      s.border.texture = borderTex.valid  ? borderTex  : PIXI.Texture.EMPTY;
+      s.spr.tint    = snakeTint;
+      s.border.tint = snakeTint;
+      s.spr.x = cx; s.spr.y = cy;
+      s.border.x = cx; s.border.y = cy;
+      s.spr.width = sprSize; s.spr.height = sprSize;
+      s.border.width = sprSize; s.border.height = sprSize;
+      s.spr.rotation    = segAngle + SNAKE_SPRITE_ROT_OFFSET;
+      s.border.rotation = segAngle + SNAKE_SPRITE_ROT_OFFSET;
+    }
+    // Hide unused pool sprites beyond poolIdx
+    for (let i = poolIdx; i < this._snakeBodyPool.length; i++) {
+      this._snakeBodyPool[i].spr.visible = false;
+      this._snakeBodyPool[i].border.visible = false;
+    }
+
+    // Head
+    const hx = snake[0].x * GRID + GRID / 2;
+    const hy = snake[0].y * GRID + GRID / 2;
+    if (this._tex.snakeHead.valid) {
+      this._snakeHeadSprite.texture  = this._tex.snakeHead;
+      this._snakeHeadSprite.tint     = snakeTint;
+      this._snakeHeadSprite.x        = hx;
+      this._snakeHeadSprite.y        = hy;
+      this._snakeHeadSprite.width    = sprSize;
+      this._snakeHeadSprite.height   = sprSize;
+      this._snakeHeadSprite.rotation = ang + SNAKE_SPRITE_ROT_OFFSET;
+      this._snakeHeadSprite.visible  = true;
+    }
+    if (this._tex.snakeHeadBorder.valid) {
+      this._snakeHeadBorderSprite.texture  = this._tex.snakeHeadBorder;
+      this._snakeHeadBorderSprite.tint     = snakeTint;
+      this._snakeHeadBorderSprite.x        = hx;
+      this._snakeHeadBorderSprite.y        = hy;
+      this._snakeHeadBorderSprite.width    = sprSize;
+      this._snakeHeadBorderSprite.height   = sprSize;
+      this._snakeHeadBorderSprite.rotation = ang + SNAKE_SPRITE_ROT_OFFSET;
+      this._snakeHeadBorderSprite.visible  = true;
+    }
+
+    // Gun (drawn as rotated rectangles using manual vertex calculation)
+    const g   = this._gunGfx;
+    g.clear();
+    const hr  = SNAKE_RADIUS * GRID * 1.25;
+    const gxOff = hr * 0.75;
+    const gl  = hr * 1.9;
+    const gh  = hr * 0.28;
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    const rp  = (rx, ry) => [hx + rx * cos - ry * sin, hy + rx * sin + ry * cos];
+    const [ax, ay] = rp(gxOff, -gh / 2);
+    const [bx, by] = rp(gxOff + gl, -gh / 2);
+    const [cx2, cy2] = rp(gxOff + gl, gh / 2);
+    const [dx, dy] = rp(gxOff, gh / 2);
+    g.beginFill(0x8a8aaa, 1);
+    g.drawPolygon([ax, ay, bx, by, cx2, cy2, dx, dy]);
+    g.endFill();
+    // Grip
+    const [gpa, gpb] = [rp(gxOff + gl * 0.25, gh * 0.4), rp(gxOff + gl * 0.25 + gh * 0.9, gh * 0.4)];
+    const [gpc, gpd] = [rp(gxOff + gl * 0.25 + gh * 0.9, gh * 0.4 + gh * 1.4), rp(gxOff + gl * 0.25, gh * 0.4 + gh * 1.4)];
+    g.beginFill(0x5a4030, 1);
+    g.drawPolygon([gpa[0], gpa[1], gpb[0], gpb[1], gpc[0], gpc[1], gpd[0], gpd[1]]);
+    g.endFill();
+  }
+
+  _pixiDrawEnemies(state, tick) {
+    if (!state.snake || !state.snake.length) return;
+    const camX = state.snake[0].x, camY = state.snake[0].y;
+    const cullHalfW = VIEW_COLS / 2 + 5, cullHalfH = VIEW_ROWS / 2 + 5;
+    const g = this._enemyGfx;
+
+    for (const e of state.enemies) {
+      if (Math.abs(e.x - camX) > cullHalfW || Math.abs(e.y - camY) > cullHalfH) continue;
+      const type   = ENEMY_TYPES[e.type];
+      const bounce = Math.sin(tick * 0.12 + e.id * 10) * 1.5;
+      const cx = e.x * GRID + GRID / 2;
+      const cy = e.y * GRID + GRID / 2 + bounce;
+      const r  = GRID * type.size * 0.45;
+      const { hex: col } = parseCssColor(type.color);
+
+      if (type.shape === 'bat') {
+        const batTex = (Math.floor(tick / 15) % 2 === 0) ? this._tex.bat : this._tex.batFlap;
+        if (batTex.valid) {
+          const spr = this._borrowEnemySpr();
+          spr.texture = batTex;
+          const bSize = GRID * 1.2 * 0.45 * 6.5;
+          spr.x = cx; spr.y = cy;
+          spr.width = bSize; spr.height = bSize;
+          this._pixiDrawHealthBar(g, cx, cy, r, e);
+          continue;
+        }
+      } else if (type.shape === 'ghost') {
+        const ghostTex = (Math.floor(tick / 20) % 2 === 0) ? this._tex.ghostOpen : this._tex.ghostClose;
+        if (ghostTex.valid) {
+          const spr = this._borrowEnemySpr();
+          spr.texture  = ghostTex;
+          const gSize  = GRID * 1.2 * 0.45 * 5.5;
+          spr.x = cx; spr.y = cy;
+          spr.width = gSize; spr.height = gSize;
+          spr.alpha = 0.70 + 0.12 * Math.sin(tick * 0.07 + e.id * 5);
+          this._pixiDrawHealthBar(g, cx, cy, r, e);
+          continue;
+        }
+      }
+
+      // Shape-based enemies
+      g.beginFill(col, 1);
+      if (type.shape === 'circle') {
+        g.drawCircle(cx, cy, r);
+      } else if (type.shape === 'square') {
+        g.drawRect(cx - r, cy - r, r * 2, r * 2);
+      } else if (type.shape === 'triangle') {
+        g.drawPolygon([cx, cy - r, cx + r, cy + r, cx - r, cy + r]);
+      } else if (type.shape === 'diamond') {
+        g.drawPolygon([cx, cy - r, cx + r, cy, cx, cy + r, cx - r, cy]);
+      } else if (type.shape === 'hexagon') {
+        const pts = [];
+        for (let i = 0; i < 6; i++) {
+          const a = (Math.PI / 3) * i - Math.PI / 6;
+          pts.push(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+        }
+        g.drawPolygon(pts);
+      } else {
+        g.drawCircle(cx, cy, r);
+      }
+      g.endFill();
+
+      // Eye
+      g.beginFill(0xffffff, 0.8);
+      g.drawCircle(cx + r * 0.3, cy - r * 0.2, r * 0.18);
+      g.endFill();
+
+      this._pixiDrawHealthBar(g, cx, cy, r, e);
+
+      // Charge shield ring
+      if (e.chargeShield) {
+        g.lineStyle(2.5, 0xb4b4ff, 0.7 + 0.3 * Math.sin(tick * 0.15 + e.id * 3));
+        g.drawCircle(cx, cy, r * 1.5);
+        g.lineStyle(0);
+      }
+    }
+  }
+
+  _pixiDrawHealthBar(g, cx, cy, r, e) {
+    const maxHp = e.maxHp || 1;
+    if (e.hp >= maxHp) return;
+    const barW = r * 2.4, barH = 3;
+    const barX = cx - barW / 2, barY = cy - r - 7;
+    g.beginFill(0x440000, 1);
+    g.drawRect(barX, barY, barW, barH);
+    g.endFill();
+    const hpFrac = Math.max(0, e.hp / maxHp);
+    const hpCol = hpFrac > 0.5 ? 0x44ff44 : hpFrac > 0.25 ? 0xffff44 : 0xff4444;
+    g.beginFill(hpCol, 1);
+    g.drawRect(barX, barY, barW * hpFrac, barH);
+    g.endFill();
+  }
+
+  _pixiDrawParticles(particles) {
+    const g = this._particleGfx;
+    for (const p of particles) {
+      const { hex } = parseCssColor(p.color);
+      const alpha = p.life / p.maxLife;
+      g.beginFill(hex, alpha);
+      g.drawRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      g.endFill();
+    }
+  }
+
+  _pixiDrawOnlineSnake(body, playerIdx, prevBody, t, grid = GRID) {
+    if (body.length < 2) return;
+    const pts = body.map((s, i) => {
+      const p = prevBody && i < prevBody.length ? prevBody[i] : s;
+      let rx, ry;
+      if (Math.abs(s.x - p.x) <= 1 && Math.abs(s.y - p.y) <= 1) {
+        rx = p.x + (s.x - p.x) * t; ry = p.y + (s.y - p.y) * t;
+      } else { rx = s.x; ry = s.y; }
+      return { x: rx, y: ry };
+    });
+    const isP1 = playerIdx === 0;
+    const snakeR = 0.42;
+    const g = this._enemyGfx;
+    g.lineStyle(snakeR * 2 * grid, 0xffffff, 0);
+
+    for (let i = pts.length - 2; i >= 0; i--) {
+      const a = pts[i], b = pts[i + 1];
+      if (Math.abs(a.x - b.x) > ONLINE_COLS / 2 || Math.abs(a.y - b.y) > ONLINE_ROWS / 2) continue;
+      const alpha = 0.35 + 0.65 * (1 - i / pts.length);
+      const bodyColor = isP1 ? 0x28a050 : 0xb45014;
+      g.lineStyle(snakeR * 2 * grid, bodyColor, alpha);
+      const midAbX = (a.x + b.x) / 2 * grid + grid / 2;
+      const midAbY = (a.y + b.y) / 2 * grid + grid / 2;
+      let midAcX = a.x * grid + grid / 2, midAcY = a.y * grid + grid / 2;
+      if (i > 0) {
+        const c = pts[i - 1];
+        if (Math.abs(a.x - c.x) <= ONLINE_COLS / 2 && Math.abs(a.y - c.y) <= ONLINE_ROWS / 2) {
+          midAcX = (a.x + c.x) / 2 * grid + grid / 2;
+          midAcY = (a.y + c.y) / 2 * grid + grid / 2;
+        }
+      }
+      g.moveTo(midAbX, midAbY);
+      g.quadraticCurveTo(a.x * grid + grid / 2, a.y * grid + grid / 2, midAcX, midAcY);
+    }
+    g.lineStyle(0);
+
+    const hx = pts[0].x * grid + grid / 2;
+    const hy = pts[0].y * grid + grid / 2;
+    const hr = snakeR * grid * 1.25;
+    const headColor = isP1 ? 0x50e678 : 0xff8040;
+    g.beginFill(headColor, 1);
+    g.drawCircle(hx, hy, hr);
+    g.endFill();
+
+    const eyeR = hr * 0.32;
+    const eyeDist = hr * 0.55;
+    const ang = pts.length > 1 ? Math.atan2(pts[0].y - pts[1].y, pts[0].x - pts[1].x) : 0;
+    g.beginFill(0x0a0a14, 1);
+    [ang - Math.PI / 2, ang + Math.PI / 2].forEach(pa => {
+      g.drawCircle(hx + Math.cos(pa) * eyeDist, hy + Math.sin(pa) * eyeDist, eyeR);
+    });
+    g.endFill();
+  }
+
+  _pixiRenderText(timestamp, state) {
+    // FPS counter
+    if (this._showFpsCounter && this._fpsValue > 0) {
+      this._fpsText.text = `${this._fpsValue} FPS`;
+      this._fpsText.x = W - 6;
+      this._fpsText.y = 6;
+      this._fpsText.visible = true;
+    } else {
+      this._fpsText.visible = false;
+    }
+
+    // Chest notification
+    if (state && state.chestNotif) {
+      const now = performance.now();
+      if (now < state.chestNotif.until) {
+        const remaining = state.chestNotif.until - now;
+        const alpha = Math.min(1, remaining / 600);
+        const rData = CHEST_RARITIES.find(r => r.id === state.chestNotif.rarity);
+        const cssColor = rData ? rData.color : '#ffffff';
+        const { hex } = parseCssColor(cssColor);
+        this._notifText1.text    = state.chestNotif.text;
+        this._notifText1.style.fill = hex;
+        this._notifText1.x       = W / 2;
+        this._notifText1.y       = H * 0.38;
+        this._notifText1.alpha   = alpha;
+        this._notifText1.visible = true;
+        this._notifText2.text    = state.chestNotif.subtext;
+        this._notifText2.x       = W / 2;
+        this._notifText2.y       = H * 0.38 + 24;
+        this._notifText2.alpha   = alpha;
+        this._notifText2.visible = true;
+      } else {
+        state.chestNotif = null;
+        this._notifText1.visible = false;
+        this._notifText2.visible = false;
+      }
+    } else {
+      this._notifText1.visible = false;
+      this._notifText2.visible = false;
+    }
+  }
+
   _resizeCanvas(nightmareMode) {
     const isMobile = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 640;
     if (nightmareMode || isMobile) {
@@ -1490,6 +2171,7 @@ class SnakeRogue {
       H = VIEW_ROWS * GRID;
       this.canvas.width  = W;
       this.canvas.height = H;
+      if (this.app) this.app.renderer.resize(W, H);
       this.canvas.style.width  = '';
       this.canvas.style.height = '';
       this.canvas.style.imageRendering = '';
@@ -1503,6 +2185,7 @@ class SnakeRogue {
       H = VIEW_ROWS * GRID;
       this.canvas.width  = Math.round(W * rs);
       this.canvas.height = Math.round(H * rs);
+      if (this.app) this.app.renderer.resize(Math.round(W * rs), Math.round(H * rs));
       this.canvas.style.width  = window.innerWidth  + 'px';
       this.canvas.style.height = window.innerHeight + 'px';
       this.canvas.style.imageRendering = rs < 1.0 ? 'pixelated' : '';
@@ -2761,289 +3444,256 @@ class SnakeRogue {
   }
 
   _renderFrame(timestamp) {
-    const ctx = this.ctx;
     const state = this.state;
 
-    // Apply render resolution scale so all draw calls use logical W/H coordinates
-    const rs = this._renderScale || 1.0;
-    ctx.setTransform(rs, 0, 0, rs, 0, 0);
-
-    // Background
+    // ── Background ───────────────────────────────
+    const bg = this._pixiBg;
+    bg.clear();
     if (this.flashTimer > 0) {
-      ctx.fillStyle = `rgba(100, 200, 255, ${this.flashTimer / 40})`;
+      const alpha = this.flashTimer / 40;
+      bg.beginFill(0x08080f, 1);
+      bg.drawRect(0, 0, W, H);
+      bg.endFill();
+      bg.beginFill(0x64c8ff, alpha);
+      bg.drawRect(0, 0, W, H);
+      bg.endFill();
       this.flashTimer--;
     } else {
-      ctx.fillStyle = '#08080f';
+      bg.beginFill(0x08080f, 1);
+      bg.drawRect(0, 0, W, H);
+      bg.endFill();
     }
-    ctx.fillRect(0, 0, W, H);
 
-    // ── Online multiplayer rendering ─────────
+    // Hide all sprite pools at start of frame (will be re-enabled below)
+    this._hideAllPoolSprites();
+    // Clear all graphics layers
+    this._gridGfx.clear();
+    this._chestGfx.clear();
+    this._bulletGfx.clear();
+    this._enemyGfx.clear();
+    this._pulseGfx.clear();
+    this._particleGfx.clear();
+    this._uiGfx.clear();
+    this._gunGfx.clear();
+    this._snakeHeadSprite.visible = false;
+    this._snakeHeadBorderSprite.visible = false;
+
+    // ── Online multiplayer rendering ─────────────
     if (this.phase === 'online_playing' && this.onlineState) {
       const gs = this.onlineState;
       const prev = this.prevOnlineState;
       const t = prev ? Math.min(1, (timestamp - this.lastOnlineTick) / ONLINE_TICK_MS) : 1;
-      drawFixedGrid(ctx, ONLINE_COLS, ONLINE_ROWS, ONLINE_GRID);
 
-      drawApples(ctx, { apples: gs.apples }, gs.tick, ONLINE_GRID);
-      if (gs.teleportPerks) drawTeleportPerks(ctx, gs.teleportPerks, gs.tick, ONLINE_GRID);
+      this._worldCtr.x = 0;
+      this._worldCtr.y = 0;
+
+      this._pixiDrawFixedGrid(ONLINE_COLS, ONLINE_ROWS, ONLINE_GRID);
+      this._pixiDrawApples({ apples: gs.apples }, gs.tick, ONLINE_GRID);
+      if (gs.teleportPerks) this._pixiDrawTeleportPerks(gs.teleportPerks, gs.tick, ONLINE_GRID);
       gs.snakes.forEach((sn, idx) => {
         if (sn.body && sn.body.length > 0) {
           const prevBody = prev && prev.snakes[idx] ? prev.snakes[idx].body : null;
-          drawOnlineSnake(ctx, sn.body, idx, prevBody, t, ONLINE_GRID);
+          this._pixiDrawOnlineSnake(sn.body, idx, prevBody, t, ONLINE_GRID);
         }
       });
       for (const p of this.particles) { p.x += p.vx; p.y += p.vy; p.life -= 0.03; }
       this.particles = this.particles.filter(p => p.life > 0);
-      drawParticles(ctx, this.particles);
+      this._pixiDrawParticles(this.particles);
+
+      this._pixiRenderText(timestamp, state);
+      this.app.renderer.render(this.app.stage);
       return;
     }
 
-    // ── Nightmare jumpscare phase ─────────────
+    // ── Nightmare jumpscare ──────────────────────
     if (this.phase === 'nightmare_jumpscare') {
+      this._worldCtr.visible = false;
       const elapsed = timestamp - this.nightmareJumpscareStart;
       const frame = Math.floor(elapsed / 200) % 2;
-      ctx.fillStyle = frame === 0 ? '#660000' : '#1a0000';
-      ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = frame === 0 ? '#ff6666' : '#cc0000';
-      ctx.font = `bold ${Math.floor(80 + Math.sin(elapsed * 0.05) * 10)}px Courier New`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('☠', W / 2, H / 2 - 50);
-      ctx.font = 'bold 36px Courier New';
-      ctx.fillText('YOU DIED', W / 2, H / 2 + 40);
-      ctx.textBaseline = 'alphabetic';
+      const ui = this._uiGfx;
+      ui.beginFill(frame === 0 ? 0x660000 : 0x1a0000, 1);
+      ui.drawRect(0, 0, W, H);
+      ui.endFill();
+      const fillColor = frame === 0 ? 0xff6666 : 0xcc0000;
+      this._nightmareSkullTxt.style.fontSize = Math.floor(80 + Math.sin(elapsed * 0.05) * 10);
+      this._nightmareSkullTxt.style.fill = fillColor;
+      this._nightmareSkullTxt.x = W / 2; this._nightmareSkullTxt.y = H / 2 - 50;
+      this._nightmareSkullTxt.visible = true;
+      this._nightmareDiedTxt.style.fill = fillColor;
+      this._nightmareDiedTxt.x = W / 2; this._nightmareDiedTxt.y = H / 2 + 40;
+      this._nightmareDiedTxt.visible = true;
+      this.app.renderer.render(this.app.stage);
+      this._nightmareSkullTxt.visible = false;
+      this._nightmareDiedTxt.visible = false;
+      this._worldCtr.visible = true;
       return;
     }
 
-    // ── Site-down jumpscare phase ──────────────
+    // ── Site-down jumpscare ──────────────────────
     if (this.phase === 'site_down_jumpscare') {
+      this._worldCtr.visible = false;
       const elapsed = timestamp - this.siteDownJumpscareStart;
-      // Fast alternating flicker between pure black and deep red
       const frame = Math.floor(elapsed / 100) % 2;
-      ctx.fillStyle = frame === 0 ? '#000000' : '#110000';
-      ctx.fillRect(0, 0, W, H);
-
-      // Random static noise overlay
+      const ui = this._uiGfx;
+      ui.beginFill(frame === 0 ? 0x000000 : 0x110000, 1);
+      ui.drawRect(0, 0, W, H);
+      ui.endFill();
+      // Noise rectangles
       const noiseAlpha = 0.08 + 0.12 * Math.random();
-      ctx.fillStyle = `rgba(255,0,0,${noiseAlpha})`;
       for (let i = 0; i < 60; i++) {
-        const nx = Math.random() * W;
-        const ny = Math.random() * H;
-        const nw = 2 + Math.random() * 6;
-        const nh = 1 + Math.random() * 3;
-        ctx.fillRect(nx, ny, nw, nh);
+        const nx = Math.random() * W, ny = Math.random() * H;
+        ui.beginFill(0xff0000, noiseAlpha);
+        ui.drawRect(nx, ny, 2 + Math.random() * 6, 1 + Math.random() * 3);
+        ui.endFill();
       }
-
-      // Pulsing red glow
       const pulse = 0.5 + 0.5 * Math.sin(elapsed * 0.015);
-      ctx.fillStyle = `rgba(180,0,0,${0.08 + pulse * 0.12})`;
-      ctx.fillRect(0, 0, W, H);
-
-      // Main text
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      ui.beginFill(0xb40000, 0.08 + pulse * 0.12);
+      ui.drawRect(0, 0, W, H);
+      ui.endFill();
+      // Text (reuse persistent objects)
       const textFlicker = Math.floor(elapsed / 80) % 3;
-      ctx.fillStyle = textFlicker === 0 ? '#ff0000' : textFlicker === 1 ? '#ff4444' : '#cc0000';
-      ctx.font = `bold ${Math.floor(52 + Math.sin(elapsed * 0.02) * 6)}px Courier New`;
-      ctx.fillText('YOU SHOULD NOT BE HERE', W / 2, H / 2 - 44);
-
-      // Distorted subtitle
+      const textColor = textFlicker === 0 ? 0xff0000 : textFlicker === 1 ? 0xff4444 : 0xcc0000;
+      this._siteMainTxt.style.fontSize = Math.floor(52 + Math.sin(elapsed * 0.02) * 6);
+      this._siteMainTxt.style.fill = textColor;
+      this._siteMainTxt.x = W / 2; this._siteMainTxt.y = H / 2 - 44;
+      this._siteMainTxt.visible = true;
       const subFlicker = Math.floor(elapsed / 120) % 2;
-      ctx.fillStyle = subFlicker === 0 ? '#880000' : '#ff2222';
-      ctx.font = 'bold 22px Courier New';
-      ctx.fillText('SITE IS DOWN', W / 2, H / 2 + 10);
-      ctx.font = 'bold 16px Courier New';
-      ctx.fillStyle = frame === 0 ? '#550000' : '#ff0000';
-      ctx.fillText('╔═══[ ERROR ]═══╗', W / 2, H / 2 + 42);
-      ctx.fillText('RELOADING...', W / 2, H / 2 + 66);
-
-      ctx.textBaseline = 'alphabetic';
+      this._siteDownTxt.style.fill = subFlicker === 0 ? 0x880000 : 0xff2222;
+      this._siteDownTxt.x = W / 2; this._siteDownTxt.y = H / 2 + 10;
+      this._siteDownTxt.visible = true;
+      const errColor = frame === 0 ? 0x550000 : 0xff0000;
+      this._siteErrTxt.style.fill = errColor;
+      this._siteErrTxt.x = W / 2; this._siteErrTxt.y = H / 2 + 42;
+      this._siteErrTxt.visible = true;
+      this._siteReloadTxt.style.fill = errColor;
+      this._siteReloadTxt.x = W / 2; this._siteReloadTxt.y = H / 2 + 66;
+      this._siteReloadTxt.visible = true;
+      this.app.renderer.render(this.app.stage);
+      this._siteMainTxt.visible = false;
+      this._siteDownTxt.visible = false;
+      this._siteErrTxt.visible = false;
+      this._siteReloadTxt.visible = false;
+      this._worldCtr.visible = true;
       return;
     }
 
-    // ── Death replay phase ─────────────────────
+    // ── Death replay phase ──────────────────────
     if (this.phase === 'death_replay') {
-      this._renderDeathReplay(ctx, timestamp);
+      this._renderDeathReplay(timestamp);
       return;
     }
 
-    // ── Lore event phase — aggressive flicker ─
+    // ── Lore event phase ─────────────────────────
     if (this.phase === 'lore_event') {
       const loreCamX = this.state ? this.state.snake[0].x : 0;
       const loreCamY = this.state ? this.state.snake[0].y : 0;
-      const loreCamOffX = W / 2 - loreCamX * GRID;
-      const loreCamOffY = H / 2 - loreCamY * GRID;
-      ctx.save();
-      ctx.translate(loreCamOffX, loreCamOffY);
-      drawGrid(ctx, loreCamX, loreCamY);
+      this._worldCtr.x = W / 2 - loreCamX * GRID;
+      this._worldCtr.y = H / 2 - loreCamY * GRID;
+      this._pixiDrawGrid(loreCamX, loreCamY);
       if (this.state) {
-        drawApples(ctx, this.state, this.tick);
-        drawSnake(ctx, this.state);
-        drawEnemies(ctx, this.state, this.tick);
-        drawParticles(ctx, this.particles);
+        this._pixiDrawApples(this.state, this.tick);
+        this._pixiDrawSnake(this.state);
+        this._pixiDrawEnemies(this.state, this.tick);
+        this._pixiDrawParticles(this.particles);
       }
-      ctx.restore();
       const elapsed = timestamp - this.loreEventStart;
       if (elapsed >= 3000) {
         this._showLoreEndOverlay();
+        this.app.renderer.render(this.app.stage);
         return;
       }
       if (Math.floor(elapsed / 200) % 2 === 0) {
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.25)';
-        ctx.fillRect(0, 0, W, H);
+        this._uiGfx.beginFill(0xff0000, 0.25);
+        this._uiGfx.drawRect(0, 0, W, H);
+        this._uiGfx.endFill();
       }
+      this.app.renderer.render(this.app.stage);
       return;
     }
 
-    // ── Main menu / gameover background grid ──────
+    // ── Main menu / gameover background grid ─────
     if (!state) {
-      // Draw a subtle grid so GUI scale changes are visually apparent
-      drawGrid(ctx, VIEW_COLS / 2, VIEW_ROWS / 2);
+      this._worldCtr.x = 0;
+      this._worldCtr.y = 0;
+      this._pixiDrawGrid(VIEW_COLS / 2, VIEW_ROWS / 2);
+      this.app.renderer.render(this.app.stage);
       return;
     }
 
-    // Camera transform: center view on snake head
+    // ── Main game rendering ──────────────────────
     const camX = state.snake[0].x;
     const camY = state.snake[0].y;
-    const camOffX = W / 2 - camX * GRID;
-    const camOffY = H / 2 - camY * GRID;
-    ctx.save();
-    ctx.translate(camOffX, camOffY);
+    this._worldCtr.x = W / 2 - camX * GRID;
+    this._worldCtr.y = H / 2 - camY * GRID;
 
-    drawGrid(ctx, camX, camY);
-
-    // Draw elements
-    drawApples(ctx, state, this.tick);
-    drawChests(ctx, state, this.tick);
-    drawBullets(ctx, state.bullets);
-    drawSnake(ctx, state);
-    drawEnemies(ctx, state, this.tick);
+    this._pixiDrawGrid(camX, camY);
+    this._pixiDrawApples(state, this.tick);
+    this._pixiDrawChests(state, this.tick);
+    this._pixiDrawBullets(state.bullets);
+    this._pixiDrawSnake(state);
+    this._pixiDrawEnemies(state, this.tick);
 
     // Pulse rings
-    if (_fxEnabled && state.pulseEffects) {
+    if (state.pulseEffects) {
       for (const pe of state.pulseEffects) {
-        ctx.save();
-        ctx.strokeStyle = `rgba(220, 100, 255, ${pe.life})`;
-        ctx.lineWidth = 2;
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = '#d0f';
-        ctx.beginPath();
-        ctx.arc(pe.x * GRID + GRID / 2, pe.y * GRID + GRID / 2, pe.r * GRID, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
+        if (_fxEnabled) {
+          this._pulseGfx.lineStyle(2, 0xdc64ff, pe.life);
+          this._pulseGfx.drawCircle(pe.x * GRID + GRID / 2, pe.y * GRID + GRID / 2, pe.r * GRID);
+        }
         pe.r += (pe.maxR - pe.r) * 0.25 + 0.2;
         pe.life -= 0.06;
       }
       state.pulseEffects = state.pulseEffects.filter(pe => pe.life > 0);
-    } else if (state.pulseEffects) {
-      // Still advance pulse state even when effects disabled, so stale entries don't pile up
-      for (const pe of state.pulseEffects) { pe.r += (pe.maxR - pe.r) * 0.25 + 0.2; pe.life -= 0.06; }
-      state.pulseEffects = state.pulseEffects.filter(pe => pe.life > 0);
     }
 
     // Particles
-    for (const p of this.particles) {
-      p.x += p.vx;
-      p.y += p.vy;
-      p.life -= 0.03;
-    }
+    for (const p of this.particles) { p.x += p.vx; p.y += p.vy; p.life -= 0.03; }
     this.particles = this.particles.filter(p => p.life > 0);
-    drawParticles(ctx, this.particles);
+    this._pixiDrawParticles(this.particles);
 
-    ctx.restore();
-
-    // ── Off-screen enemy indicators ─────────────────────────────
-    if (state && state.enemies.length > 0 && this.phase === 'playing') {
-      this._drawEnemyIndicators(ctx, state, timestamp);
+    // Off-screen enemy indicators
+    if (state.enemies.length > 0 && this.phase === 'playing') {
+      this._drawEnemyIndicators(state, timestamp);
     }
 
-    // ── Chest pickup notification (screen-space, after camera restore) ──
-    if (state.chestNotif) {
-      const now = performance.now();
-      if (now < state.chestNotif.until) {
-        const remaining = state.chestNotif.until - now;
-        const alpha = Math.min(1, remaining / 600);
-        const rData = CHEST_RARITIES.find(r => r.id === state.chestNotif.rarity);
-        const color = rData ? rData.color : '#ffffff';
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.textAlign = 'center';
-        ctx.shadowBlur = _fxEnabled ? 16 : 0;
-        ctx.shadowColor = color;
-        ctx.font = 'bold 22px Courier New';
-        ctx.fillStyle = color;
-        ctx.fillText(state.chestNotif.text, W / 2, H * 0.38);
-        ctx.shadowBlur = 0;
-        ctx.font = '12px Courier New';
-        ctx.fillStyle = '#cccccc';
-        ctx.fillText(state.chestNotif.subtext, W / 2, H * 0.38 + 24);
-        ctx.restore();
-      } else {
-        state.chestNotif = null;
-      }
-    }
+    // Chest notification text
+    this._pixiRenderText(timestamp, state);
 
-    // FPS counter overlay
-    if (this._showFpsCounter && this._fpsValue > 0) {
-      ctx.save();
-      ctx.font = 'bold 18px Courier New';
-      ctx.fillStyle = 'rgba(0,255,128,0.85)';
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'top';
-      ctx.fillText(`${this._fpsValue} FPS`, W - 6, 6);
-      ctx.restore();
-    }
+    this.app.renderer.render(this.app.stage);
   }
 
-  _drawEnemyIndicators(ctx, state, timestamp) {
+  _drawEnemyIndicators(state, timestamp) {
     const margin = 20;
-    const camX = state.snake[0].x;
-    const camY = state.snake[0].y;
-    // Flash at ~2 Hz
+    const camX = state.snake[0].x, camY = state.snake[0].y;
     const flash = Math.floor(timestamp / 400) % 2 === 0;
     if (!flash) return;
 
-    ctx.save();
+    const g = this._uiGfx;
     for (const e of state.enemies) {
-      // Compute screen-space position of enemy
       const sx = (e.x - camX) * GRID + W / 2;
       const sy = (e.y - camY) * GRID + H / 2;
-
-      // Only draw indicator if enemy is off-screen
       if (sx >= margin && sx <= W - margin && sy >= margin && sy <= H - margin) continue;
 
-      // Angle from screen center to enemy screen pos
       const angle = Math.atan2(sy - H / 2, sx - W / 2);
       const cos = Math.cos(angle), sin = Math.sin(angle);
-
-      // Find intersection with screen rectangle (inset by margin)
       const hw = W / 2 - margin, hh = H / 2 - margin;
       let ex, ey;
       if (Math.abs(cos) * hh > Math.abs(sin) * hw) {
-        ex = Math.sign(cos) * hw;
-        ey = ex * Math.tan(angle);
+        ex = Math.sign(cos) * hw; ey = ex * Math.tan(angle);
       } else {
-        ey = Math.sign(sin) * hh;
-        ex = ey / Math.tan(angle);
+        ey = Math.sign(sin) * hh; ex = ey / Math.tan(angle);
       }
-      ex += W / 2;
-      ey += H / 2;
+      ex += W / 2; ey += H / 2;
 
-      ctx.save();
-      ctx.translate(ex, ey);
-      ctx.rotate(angle);
-      ctx.fillStyle = 'rgba(255,50,50,0.9)';
-      ctx.shadowBlur = _fxEnabled ? 10 : 0;
-      ctx.shadowColor = '#ff0000';
-      ctx.beginPath();
-      ctx.moveTo(12, 0);
-      ctx.lineTo(-7, -6);
-      ctx.lineTo(-7, 6);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
+      // Draw rotated triangle arrow manually
+      const rp = (rx, ry) => [ex + rx * cos - ry * sin, ey + rx * sin + ry * cos];
+      const [p1x, p1y] = rp(12, 0);
+      const [p2x, p2y] = rp(-7, -6);
+      const [p3x, p3y] = rp(-7, 6);
+      g.beginFill(0xff3232, 0.9);
+      g.drawPolygon([p1x, p1y, p2x, p2y, p3x, p3y]);
+      g.endFill();
     }
-    ctx.restore();
   }
 
   _gameLoop(timestamp) {
@@ -3082,7 +3732,7 @@ class SnakeRogue {
     document.getElementById('overlay').style.display = 'none';
   }
 
-  _renderDeathReplay(ctx, timestamp) {
+  _renderDeathReplay(timestamp) {
     const frames = this._deathReplay;
     if (!frames || frames.length === 0) {
       this.phase = 'gameover';
@@ -3090,68 +3740,57 @@ class SnakeRogue {
       return;
     }
 
-    const elapsed   = timestamp - this._deathReplayStart;
-    const firstTs   = frames[0].timestamp;
-    const lastTs    = frames[frames.length - 1].timestamp;
-    const targetTs  = firstTs + elapsed;
+    const elapsed  = timestamp - this._deathReplayStart;
+    const firstTs  = frames[0].timestamp;
+    const lastTs   = frames[frames.length - 1].timestamp;
+    const targetTs = firstTs + elapsed;
 
-    // Find the nearest frame to display
     let frame = frames[frames.length - 1];
     for (let i = 0; i < frames.length; i++) {
-      if (frames[i].timestamp >= targetTs) {
-        frame = frames[i];
-        break;
-      }
+      if (frames[i].timestamp >= targetTs) { frame = frames[i]; break; }
     }
 
-    // Once we've played through all frames, transition back to gameover overlay
     if (elapsed > lastTs - firstTs + 400) {
       this.phase = 'gameover';
       document.getElementById('overlay').style.display = '';
       return;
     }
 
-    // Background
-    ctx.fillStyle = '#08080f';
-    ctx.fillRect(0, 0, W, H);
+    // Background already cleared; set camera
+    const camX    = frame.snake[0].x, camY = frame.snake[0].y;
+    this._worldCtr.x = W / 2 - camX * GRID;
+    this._worldCtr.y = H / 2 - camY * GRID;
 
-    const camX    = frame.snake[0].x;
-    const camY    = frame.snake[0].y;
-    const camOffX = W / 2 - camX * GRID;
-    const camOffY = H / 2 - camY * GRID;
-    ctx.save();
-    ctx.translate(camOffX, camOffY);
+    this._pixiDrawGrid(camX, camY);
 
-    drawGrid(ctx, camX, camY);
-
-    // Build a pseudo-state object compatible with the draw functions
     const ps = {
       snake:      frame.snake,
       snakeAngle: frame.snakeAngle,
-      apples:     frame.apples.map(a => ({ x: Math.round(a.fx), y: Math.round(a.fy), fx: a.fx, fy: a.fy, dropped: a.dropped })),
+      shields:    frame.shields || 0,
+      apples:     frame.apples.map(a => ({
+        x: Math.round(a.fx), y: Math.round(a.fy),
+        fx: a.fx, fy: a.fy, dropped: a.dropped,
+      })),
       bullets:    frame.bullets,
       enemies:    frame.enemies,
       chests:     frame.chests,
     };
 
-    drawApples(ctx, ps, frame.tick);
-    drawChests(ctx, ps, frame.tick);
-    drawBullets(ctx, ps.bullets);
-    drawSnake(ctx, ps);
-    drawEnemies(ctx, ps, frame.tick);
-    drawParticles(ctx, frame.particles);
-
-    ctx.restore();
+    this._pixiDrawApples(ps, frame.tick);
+    this._pixiDrawChests(ps, frame.tick);
+    this._pixiDrawBullets(ps.bullets);
+    this._pixiDrawSnake(ps);
+    this._pixiDrawEnemies(ps, frame.tick);
+    this._pixiDrawParticles(frame.particles);
 
     // "DEATH REPLAY" watermark
     const alpha = 0.4 + 0.3 * Math.sin(timestamp * 0.006);
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle   = '#ff4444';
-    ctx.font        = 'bold 13px Courier New';
-    ctx.textAlign   = 'right';
-    ctx.fillText('⏮ DEATH REPLAY', W - 14, 22);
-    ctx.restore();
+    this._deathReplayWatermark.x = W / 2;
+    this._deathReplayWatermark.y = 10;
+    this._deathReplayWatermark.alpha = alpha;
+    this._deathReplayWatermark.visible = true;
+    this.app.renderer.render(this.app.stage);
+    this._deathReplayWatermark.visible = false;
   }
 
   // ── UI methods ──────────────────────────────
