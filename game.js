@@ -5317,8 +5317,26 @@ class SnakeRogue {
     this._showUpgradePanel();
   }
 
+  // ── Mobile warning screen ─────────────────────
+  _showMobileWarningIfNeeded() {
+    if (this._mobileWarningShown) return;
+    const isMobile = window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 640;
+    if (!isMobile) return;
+    const modal = document.getElementById('mobile-warning-modal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    const continueBtn = document.getElementById('mobile-warning-continue-btn');
+    if (continueBtn) {
+      continueBtn.addEventListener('click', () => {
+        modal.style.display = 'none';
+        this._mobileWarningShown = true;
+      }, { once: true });
+    }
+  }
+
   // ── Greeting screen ───────────────────────────
   _showGreetingIfNeeded() {
+    this._showMobileWarningIfNeeded();
     let shown;
     try { shown = localStorage.getItem('greetingShown_v2'); } catch(_) {}
     if (shown) return;
