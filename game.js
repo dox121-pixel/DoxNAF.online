@@ -824,7 +824,7 @@ function drawSnake(ctx, state) {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(segAngle + SNAKE_SPRITE_ROT_OFFSET);
-      ctx.drawImage(SNAKE_BODY_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+      drawTintedSprite(ctx, SNAKE_BODY_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize, snakeColor);
       ctx.restore();
     }
   }
@@ -865,7 +865,7 @@ function drawSnake(ctx, state) {
       ctx.save();
       ctx.translate(hx, hy);
       ctx.rotate(ang + SNAKE_SPRITE_ROT_OFFSET);
-      ctx.drawImage(SNAKE_HEAD_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize);
+      drawTintedSprite(ctx, SNAKE_HEAD_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize, `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`);
       ctx.restore();
     }
   }
@@ -3573,7 +3573,7 @@ class SnakeRogue {
         </div>
 
         <!-- Preview + vertical brightness slider -->
-        <div style="display:flex;align-items:center;gap:12px;">
+        <div style="display:flex;align-items:center;gap:24px;">
           <!-- Vertical brightness slider on the left -->
           <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
             <span style="font-size:10px;color:#aef;letter-spacing:1px;">☀</span>
@@ -3631,15 +3631,22 @@ class SnakeRogue {
       const hue = parseInt(hueSlider.value, 10);
       const bri = parseInt(brightnessSlider.value, 10);
       const color = `hsl(${hue}, 70%, ${bri}%)`;
-      const sprSz = 36;
+      // Sprite size and segment spacing mirror the in-game overlap ratio
+      // (in-game: spriteSize≈42px, step≈18px → ~2.3× overlap)
+      const sprSz = 38;
+      const step  = 18; // px between segment centres
 
-      // Snake drawn facing right: 3 body segments + head
-      const segs = [
-        { x: 24,  y: H / 2, isHead: false, bodyIdx: 1 },
-        { x: 58,  y: H / 2, isHead: false, bodyIdx: 2 },
-        { x: 92,  y: H / 2, isHead: false, bodyIdx: 3 },
-        { x: 126, y: H / 2, isHead: true  },
-      ];
+      // 5 segments (4 body + 1 head) centred horizontally in the 160px canvas
+      const segCount = 5;
+      const totalSpan = (segCount - 1) * step; // 72px
+      const startX = Math.round((W - totalSpan) / 2); // 44px
+
+      // Build segment list (left = tail, right = head)
+      const segs = [];
+      for (let i = 0; i < segCount - 1; i++) {
+        segs.push({ x: startX + i * step, y: H / 2, isHead: false, bodyIdx: 1 + (i % 3) });
+      }
+      segs.push({ x: startX + (segCount - 1) * step, y: H / 2, isHead: true });
       const angle = 0; // facing right
       const rot = angle + SNAKE_SPRITE_ROT_OFFSET;
 
@@ -3668,7 +3675,7 @@ class SnakeRogue {
           ctx.save();
           ctx.translate(x, y);
           ctx.rotate(rot);
-          ctx.drawImage(SNAKE_BODY_BORDER_IMG, -sprSz / 2, -sprSz / 2, sprSz, sprSz);
+          drawTintedSprite(ctx, SNAKE_BODY_BORDER_IMG, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
           ctx.restore();
         }
       }
@@ -3693,7 +3700,7 @@ class SnakeRogue {
         ctx.save();
         ctx.translate(hx, hy);
         ctx.rotate(rot);
-        ctx.drawImage(SNAKE_HEAD_BORDER_IMG, -sprSz / 2, -sprSz / 2, sprSz, sprSz);
+        drawTintedSprite(ctx, SNAKE_HEAD_BORDER_IMG, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
         ctx.restore();
       }
     };
