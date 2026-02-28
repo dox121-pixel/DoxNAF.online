@@ -71,7 +71,7 @@ const SNAKE_SPRITE_SIZE_MULT  = 3.5;        // multiplier for snake sprite draw 
 const SNAKE_SPRITE_ROT_OFFSET = Math.PI / 2; // sprites face up; offset aligns them with movement direction
 const INIT_SEGS        = 10;    // initial number of body segment points
 const MAX_TURN_SPD     = 4.5;   // radians per second max turn rate
-const APPLE_EAT_DIST   = 0.70;  // grid-cells pickup radius
+const APPLE_EAT_DIST   = 0.85;  // grid-cells pickup radius
 const ENEMY_HIT_DIST   = 0.50;  // grid-cells enemy-head collision radius
 const ENEMY_BODY_DIST  = 0.42;  // grid-cells enemy-body collision radius
 const SELF_HIT_SKIP    = 8;     // skip this many segs near head for self-collision
@@ -2846,7 +2846,11 @@ class SnakeRogue {
           }
         }
       }
-      this._shoot(head.x, head.y, closestAngle);
+      const totalShots = 1 + (state.multishot || 0);
+      // When totalShots is even, the spread has no center bullet; offset by half a
+      // spread angle so the pattern is centered on the aimed direction.
+      const evenOffset = (totalShots > 1 && totalShots % 2 === 0) ? BULLET_SPREAD_ANGLE / 2 : 0;
+      this._shoot(head.x, head.y, closestAngle + evenOffset);
     }
 
     // ── Movement delay: snake doesn't move for first 5 seconds unless input received ──
