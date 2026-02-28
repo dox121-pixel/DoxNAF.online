@@ -41,8 +41,6 @@ SNAKE_BODY_IMGS[0].src = 'sprites/SNAKEBODY.png';
 SNAKE_BODY_IMGS[1].src = 'sprites/SNAKEBODY1.png';
 SNAKE_BODY_IMGS[2].src = 'sprites/SNAKEBODY2.png';
 SNAKE_BODY_IMGS[3].src = 'sprites/SNAKEBODY3.png';
-const SNAKE_TAIL_IMG = new Image();
-SNAKE_TAIL_IMG.src = 'sprites/SNAKETAIL.png';
 const SNAKE_HEAD_BORDER_IMG = new Image();
 SNAKE_HEAD_BORDER_IMG.src = 'sprites/SNAKEHEADBORDER.png';
 const SNAKE_BODY_BORDER_IMG = new Image();
@@ -3895,7 +3893,7 @@ class SnakeRogue {
     document.getElementById('hud-lbl-apples').textContent = '';
     document.getElementById('hud-lbl-timer').textContent  = '';
     const hudStats = document.getElementById('hud-stats');
-    if (hudStats) hudStats.style.display = '';
+    if (hudStats) hudStats.style.display = 'none';
     const perkBar = document.getElementById('hud-perk-bar');
     if (perkBar) { perkBar.style.display = 'none'; perkBar.innerHTML = ''; }
     const livesRow = document.getElementById('hud-lives');
