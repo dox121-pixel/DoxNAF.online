@@ -1398,6 +1398,11 @@ class SnakeRogue {
     catch(_) { this._fxEnabled = true; }
     try { this._autoAim = localStorage.getItem('autoAim') !== 'false'; }
     catch(_) { this._autoAim = true; }
+    try { this._showFpsCounter = localStorage.getItem('showFpsCounter') === 'true'; }
+    catch(_) { this._showFpsCounter = false; }
+    this._fpsFrameCount = 0;
+    this._fpsLastTime   = 0;
+    this._fpsValue      = 0;
     try {
       const h = parseInt(localStorage.getItem('snakeHue'), 10);
       _snakeHue = isNaN(h) ? 120 : Math.min(359, Math.max(0, h));
@@ -1412,6 +1417,7 @@ class SnakeRogue {
     this._adminToken = null;
     this._adminPanelOpen = false;
     this._siteDown   = false;
+    this._siteDownWhenStarted = false;
     this._siteDownTimer = null;
     this._sleepSnakeRaf = null;
     this._siteGoingDown = false;
@@ -1419,7 +1425,6 @@ class SnakeRogue {
     this._siteDownJumpscareTimer = null;
     this._sitePollingInterval = null;
     this._debugUsed = false;
-    this._debugShowEncircle = false;
     this._lastDebugUpdate = 0;
     this._setupAdmin();
     this._setupFeedback();
@@ -1794,9 +1799,8 @@ class SnakeRogue {
     this._deathReplay  = null;
     // Reset debug flags for new run
     this._debugUsed = false;
-    this._debugShowEncircle = false;
-    const encircleBtn = document.getElementById('adm-toggle-encircle');
-    if (encircleBtn) encircleBtn.textContent = '🐍 Show Encircle Zone';
+    // Capture site state at game start so spawn logic isn't affected by later site-down events
+    this._siteDownWhenStarted = this._siteDown;
     document.getElementById('app').classList.remove('nightmare-mode');
     this._resizeCanvas(false);
 
@@ -2259,7 +2263,7 @@ class SnakeRogue {
     state.enemySpawnTimer += dt;
     const targetCount = Math.min(getTargetEnemyCount(elapsedMs, state.nightmareMode), state.waveSpawnCap);
     const spawnInterval = state.nightmareMode ? 400 : (elapsedMs >= 90000 ? 200 : (elapsedMs < 30000 ? 400 : 250));
-    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && (state.waveSpawnedCount || 0) < state.waveSpawnCap && elapsedMs >= 3000 && elapsedMs >= state.waveBreakUntil && !this._siteDown) {
+    if (state.enemySpawnTimer >= spawnInterval && state.enemies.length < targetCount && (state.waveSpawnedCount || 0) < state.waveSpawnCap && elapsedMs >= 3000 && elapsedMs >= state.waveBreakUntil && !this._siteDownWhenStarted) {
       state.enemySpawnTimer = 0;
       state.waveSpawnedCount = (state.waveSpawnedCount || 0) + 1;
       spawnEnemy(state, elapsedMs);
@@ -2865,7 +2869,6 @@ class SnakeRogue {
     drawChests(ctx, state, this.tick);
     drawBullets(ctx, state.bullets);
     drawSnake(ctx, state);
-    if (this._debugShowEncircle) this._drawEncircleOverlay(ctx, state);
     drawEnemies(ctx, state, this.tick);
 
     // Pulse rings
@@ -2931,6 +2934,17 @@ class SnakeRogue {
         state.chestNotif = null;
       }
     }
+
+    // FPS counter overlay
+    if (this._showFpsCounter && this._fpsValue > 0) {
+      ctx.save();
+      ctx.font = '11px Courier New';
+      ctx.fillStyle = 'rgba(0,255,128,0.85)';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`${this._fpsValue} FPS`, W - 6, 6);
+      ctx.restore();
+    }
   }
 
   _drawEnemyIndicators(ctx, state, timestamp) {
@@ -2994,6 +3008,15 @@ class SnakeRogue {
       }
     }
     this._lastRenderTimestamp = timestamp;
+    // Track actual FPS
+    this._fpsFrameCount = (this._fpsFrameCount || 0) + 1;
+    if (!this._fpsLastTime) this._fpsLastTime = timestamp;
+    const fpsDelta = timestamp - this._fpsLastTime;
+    if (fpsDelta >= 1000) {
+      this._fpsValue = Math.round(this._fpsFrameCount * 1000 / fpsDelta);
+      this._fpsFrameCount = 0;
+      this._fpsLastTime = timestamp;
+    }
     this._update(timestamp);
     this._sendMouseDirection();
     this._renderFrame(timestamp);
@@ -3343,6 +3366,7 @@ class SnakeRogue {
     const scaleVal = (this._guiScale || 1.0).toFixed(2);
     const fpsCap = this._fpsCap || 0;
     const fpsLabel = fpsCap === 0 ? '∞ UNLIMITED' : `${fpsCap} FPS`;
+    const showFpsEnabled = this._showFpsCounter === true;
     const particleOptions = [
       { label: '✦ FULL', value: 'full' },
       { label: '◈ REDUCED', value: 'reduced' },
@@ -3430,6 +3454,15 @@ class SnakeRogue {
               </div>
             </div>
 
+            <!-- FPS Counter -->
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+              <span style="font-size:12px;color:#7ab;letter-spacing:1px;">FPS COUNTER</span>
+              <div id="fps-counter-btns" style="display:flex;gap:6px;">
+                <button data-fpscounter="true"  style="${fxBtnStyle(showFpsEnabled)}">✦ ON</button>
+                <button data-fpscounter="false" style="${fxBtnStyle(!showFpsEnabled)}">○ OFF</button>
+              </div>
+            </div>
+
             <!-- Special Effects -->
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
               <span style="font-size:12px;color:#7ab;letter-spacing:1px;">SPECIAL EFFECTS</span>
@@ -3487,6 +3520,21 @@ class SnakeRogue {
       this._fpsCap = val;
       fpsDisplay.textContent = val === 0 ? '∞ UNLIMITED' : `${val} FPS`;
       try { localStorage.setItem('fpsCap', val); } catch(_) {}
+    });
+
+    // FPS counter toggle
+    document.getElementById('fps-counter-btns').addEventListener('click', e => {
+      const btn = e.target.closest('[data-fpscounter]');
+      if (!btn) return;
+      const val = btn.dataset.fpscounter === 'true';
+      this._showFpsCounter = val;
+      try { localStorage.setItem('showFpsCounter', val); } catch(_) {}
+      document.querySelectorAll('#fps-counter-btns [data-fpscounter]').forEach(b => {
+        const active = (b.dataset.fpscounter === 'true') === val;
+        b.style.background = active ? '#1a1a3a' : '#0a0a18';
+        b.style.borderColor = active ? '#89b' : '#334';
+        b.style.color = active ? '#cde' : '#567';
+      });
     });
 
     // Special effects toggle
@@ -4435,16 +4483,6 @@ class SnakeRogue {
         btn.textContent = btn.textContent.replace(/[▸▾]/, opening ? '▾' : '▸');
       });
     });
-
-    // Encircle overlay toggle
-    const encircleBtn = document.getElementById('adm-toggle-encircle');
-    if (encircleBtn) {
-      encircleBtn.addEventListener('click', () => {
-        this._debugShowEncircle = !this._debugShowEncircle;
-        encircleBtn.textContent = this._debugShowEncircle ? '🐍 Hide Encircle Zone' : '🐍 Show Encircle Zone';
-        if (this._debugShowEncircle) this._markDebugUsed();
-      });
-    }
   }
 
   _showAdminOpenBtn() {
@@ -5163,11 +5201,16 @@ class SnakeRogue {
     let cap = 10;
     for (let i = 0; i < waveNum; i++) cap = Math.min(Math.floor(cap * 1.5), 50);
     s.waveSpawnCap = cap;
+    // Estimate elapsed time for this wave (~45 s per wave) so enemy HP and
+    // count are appropriate for the requested wave number.
+    const estimatedMs = waveNum * 45000;
+    const now = performance.now();
+    this.gameStartTime = now - estimatedMs - (this._totalPausedMs || 0);
     // End any active wave so the next one starts fresh
     s.enemies = [];
     s.waveSpawnedCount = 0;
     s.waveHadEnemies = false;
-    s.waveBreakUntil = (s.elapsedMs || 0);
+    s.waveBreakUntil = estimatedMs;
     this._updateHUD();
     this._flashAdminBtn('adm-set-wave', '🌊 Wave Set!');
   }
@@ -5233,73 +5276,6 @@ class SnakeRogue {
     }
     const warnEl = document.getElementById('adm-debug-warn');
     if (warnEl) warnEl.style.display = this._debugUsed ? '' : 'none';
-  }
-
-  _drawEncircleOverlay(ctx, state) {
-    if (!this._debugShowEncircle || !state) return;
-    const head  = state.snake[0];
-    const snake = state.snake;
-
-    // Compute bounding box of all snake segments with 1-cell padding so the
-    // flood-fill area encompasses the entire snake, even when parts of the body
-    // lie outside the visible viewport.
-    let fMinX = Math.round(snake[0].x), fMaxX = fMinX;
-    let fMinY = Math.round(snake[0].y), fMaxY = fMinY;
-    for (const s of snake) {
-      const rx = Math.round(s.x), ry = Math.round(s.y);
-      if (rx < fMinX) fMinX = rx; if (rx > fMaxX) fMaxX = rx;
-      if (ry < fMinY) fMinY = ry; if (ry > fMaxY) fMaxY = ry;
-    }
-    fMinX -= 1; fMaxX += 1; fMinY -= 1; fMaxY += 1;
-
-    // Viewport bounds — used only to limit which cells we actually draw.
-    const halfC = Math.floor(VIEW_COLS / 2);
-    const halfR = Math.floor(VIEW_ROWS / 2);
-    const vMinX = Math.round(head.x) - halfC;
-    const vMaxX = Math.round(head.x) + halfC;
-    const vMinY = Math.round(head.y) - halfR;
-    const vMaxY = Math.round(head.y) + halfR;
-
-    // Discretise snake body into a set of occupied grid cells
-    const snakeSet = new Set(snake.map(s => `${Math.round(s.x)},${Math.round(s.y)}`));
-
-    // Flood-fill from all snake-bbox edge cells to find the reachable (non-encircled) cells.
-    // Using the full snake bounding box (rather than only the viewport) ensures that body
-    // segments outside the viewport still act as walls in the flood-fill.
-    const reachable = new Set();
-    const queue = [];
-    const enqueue = (x, y) => {
-      if (x < fMinX || x > fMaxX || y < fMinY || y > fMaxY) return;
-      const key = `${x},${y}`;
-      if (!snakeSet.has(key) && !reachable.has(key)) {
-        reachable.add(key);
-        queue.push([x, y]);
-      }
-    };
-    for (let x = fMinX; x <= fMaxX; x++) { enqueue(x, fMinY); enqueue(x, fMaxY); }
-    for (let y = fMinY + 1; y < fMaxY; y++) { enqueue(fMinX, y); enqueue(fMaxX, y); }
-    let queueIndex = 0;
-    while (queueIndex < queue.length) {
-      const [cx, cy] = queue[queueIndex++];
-      enqueue(cx + 1, cy); enqueue(cx - 1, cy);
-      enqueue(cx, cy + 1); enqueue(cx, cy - 1);
-    }
-
-    // Highlight cells that are inside the snake's loop (drawing limited to viewport).
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 200, 255, 0.18)';
-    ctx.strokeStyle = 'rgba(0, 200, 255, 0.35)';
-    ctx.lineWidth = 0.5;
-    for (let x = vMinX; x <= vMaxX; x++) {
-      for (let y = vMinY; y <= vMaxY; y++) {
-        const key = `${x},${y}`;
-        if (!snakeSet.has(key) && !reachable.has(key)) {
-          ctx.fillRect(x * GRID, y * GRID, GRID, GRID);
-          ctx.strokeRect(x * GRID, y * GRID, GRID, GRID);
-        }
-      }
-    }
-    ctx.restore();
   }
 
   _triggerUpgradeChoice() {
