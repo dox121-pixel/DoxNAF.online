@@ -741,27 +741,31 @@ function drawGrid(ctx, camX, camY) {
   const endX   = startX + VIEW_COLS + 2;
   const startY = Math.floor((camY || 0) - VIEW_ROWS / 2) - 1;
   const endY   = startY + VIEW_ROWS + 2;
+  ctx.beginPath();
   ctx.strokeStyle = 'rgba(255,255,255,0.025)';
   ctx.lineWidth = 0.5;
   for (let x = startX; x <= endX; x++) {
-    ctx.beginPath(); ctx.moveTo(x * GRID, startY * GRID); ctx.lineTo(x * GRID, endY * GRID); ctx.stroke();
+    ctx.moveTo(x * GRID, startY * GRID); ctx.lineTo(x * GRID, endY * GRID);
   }
   for (let y = startY; y <= endY; y++) {
-    ctx.beginPath(); ctx.moveTo(startX * GRID, y * GRID); ctx.lineTo(endX * GRID, y * GRID); ctx.stroke();
+    ctx.moveTo(startX * GRID, y * GRID); ctx.lineTo(endX * GRID, y * GRID);
   }
+  ctx.stroke();
 }
 
 function drawFixedGrid(ctx, cols, rows, grid) {
   const gW = cols * grid;
   const gH = rows * grid;
+  ctx.beginPath();
   ctx.strokeStyle = 'rgba(255,255,255,0.025)';
   ctx.lineWidth = 0.5;
   for (let x = 0; x <= cols; x++) {
-    ctx.beginPath(); ctx.moveTo(x * grid, 0); ctx.lineTo(x * grid, gH); ctx.stroke();
+    ctx.moveTo(x * grid, 0); ctx.lineTo(x * grid, gH);
   }
   for (let y = 0; y <= rows; y++) {
-    ctx.beginPath(); ctx.moveTo(0, y * grid); ctx.lineTo(gW, y * grid); ctx.stroke();
+    ctx.moveTo(0, y * grid); ctx.lineTo(gW, y * grid);
   }
+  ctx.stroke();
 }
 
 function drawSnake(ctx, state) {
@@ -1178,7 +1182,7 @@ let _snakeBrightness = 55;  // 20-80 percentage
 
 // Offscreen canvas used for per-sprite colour tinting
 const _tintCanvas = document.createElement('canvas');
-const _tintCtx    = _tintCanvas.getContext('2d');
+const _tintCtx    = _tintCanvas.getContext('2d', { willReadFrequently: true });
 
 // Tint a white sprite with the current snake colour.
 // The transform on `ctx` (translate/rotate) is already applied by the caller;
@@ -1339,7 +1343,7 @@ function drawOnlineSnake(ctx, body, playerIdx, prevBody, t, grid = GRID) {
 class SnakeRogue {
   constructor() {
     this.canvas = document.getElementById('canvas');
-    this.ctx = this.canvas.getContext('2d');
+    this.ctx = this.canvas.getContext('2d', { alpha: false });
     this._resizeCanvas(false);
 
     this.state = null;
@@ -1390,6 +1394,8 @@ class SnakeRogue {
     this._playerName = ''; // name comes from account; Anonymous if not logged in
     try { this._guiScale = parseFloat(localStorage.getItem('guiScale')) || 1.0; }
     catch(_) { this._guiScale = 1.0; }
+    try { this._renderScale = parseFloat(localStorage.getItem('renderScale')) || 1.0; }
+    catch(_) { this._renderScale = 1.0; }
     try { this._fpsCap = parseInt(localStorage.getItem('fpsCap'), 10) || 0; }
     catch(_) { this._fpsCap = 0; }
     try { this._particleQuality = localStorage.getItem('particleQuality') || 'full'; }
@@ -1480,17 +1486,20 @@ class SnakeRogue {
       this.canvas.height = H;
       this.canvas.style.width  = '';
       this.canvas.style.height = '';
+      this.canvas.style.imageRendering = '';
       document.getElementById('app').classList.remove('game-fullscreen');
     } else {
       const scale = this._guiScale || 1.0;
+      const rs    = this._renderScale || 1.0;
       VIEW_COLS = Math.max(10, Math.floor(window.innerWidth  / GRID / scale));
       VIEW_ROWS = Math.max(10, Math.floor(window.innerHeight / GRID / scale));
       W = VIEW_COLS * GRID;
       H = VIEW_ROWS * GRID;
-      this.canvas.width  = W;
-      this.canvas.height = H;
+      this.canvas.width  = Math.round(W * rs);
+      this.canvas.height = Math.round(H * rs);
       this.canvas.style.width  = window.innerWidth  + 'px';
       this.canvas.style.height = window.innerHeight + 'px';
+      this.canvas.style.imageRendering = rs < 1.0 ? 'pixelated' : '';
       document.getElementById('app').classList.add('game-fullscreen');
     }
     this._applyGuiScaleToUI();
@@ -2720,6 +2729,10 @@ class SnakeRogue {
     const ctx = this.ctx;
     const state = this.state;
 
+    // Apply render resolution scale so all draw calls use logical W/H coordinates
+    const rs = this._renderScale || 1.0;
+    ctx.setTransform(rs, 0, 0, rs, 0, 0);
+
     // Background
     if (this.flashTimer > 0) {
       ctx.fillStyle = `rgba(100, 200, 255, ${this.flashTimer / 40})`;
@@ -3380,6 +3393,16 @@ class SnakeRogue {
     const fxLabel = fxEnabled ? '✦ ON' : '○ OFF';
     const fxBtnStyle = (active) => `flex:1;padding:5px 2px;font-size:10px;font-family:'Courier New',monospace;letter-spacing:1px;background:${active ? '#1a1a3a' : '#0a0a18'};border:1px solid ${active ? '#89b' : '#334'};color:${active ? '#cde' : '#567'};cursor:pointer;border-radius:3px;transition:all 0.1s;`;
     const autoAimEnabled = this._autoAim === true;
+    const renderScaleOptions = [
+      { label: '🖥 NATIVE', value: 1.0 },
+      { label: '◈ HIGH', value: 0.75 },
+      { label: '○ MEDIUM', value: 0.5 },
+    ];
+    const currentRenderScale = this._renderScale || 1.0;
+    const renderScaleButtons = renderScaleOptions.map(o => {
+      const active = currentRenderScale === o.value;
+      return `<button data-rscale="${o.value}" style="flex:1;padding:5px 2px;font-size:10px;font-family:'Courier New',monospace;letter-spacing:1px;background:${active ? '#1a1a3a' : '#0a0a18'};border:1px solid ${active ? '#89b' : '#334'};color:${active ? '#cde' : '#567'};cursor:pointer;border-radius:3px;transition:all 0.1s;">${o.label}</button>`;
+    }).join('');
 
     overlay.innerHTML = `
       <div style="background:#0e0e1a;border:1px solid #446;border-radius:10px;
@@ -3478,6 +3501,15 @@ class SnakeRogue {
               <div id="particle-btns" style="display:flex;gap:6px;">${particleButtons}</div>
             </div>
 
+            <!-- Render Resolution -->
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:12px;color:#7ab;letter-spacing:1px;">RENDER RESOLUTION</span>
+              </div>
+              <div id="rscale-btns" style="display:flex;gap:6px;">${renderScaleButtons}</div>
+              <div style="font-size:10px;color:#456;letter-spacing:0.5px;line-height:1.5;">Lower = more FPS. MEDIUM = 50% res (75% fewer pixels).</div>
+            </div>
+
           </div>
           <button id="settings-close-btn" class="btn btn-back" style="margin-top:4px;font-size:12px;padding:6px 24px;">✕ CLOSE</button>
           <div style="border-top:1px solid #223;width:100%;"></div>
@@ -3563,6 +3595,22 @@ class SnakeRogue {
       try { localStorage.setItem('particleQuality', val); } catch(_) {}
       document.querySelectorAll('#particle-btns [data-particle]').forEach(b => {
         const active = b.dataset.particle === val;
+        b.style.background = active ? '#1a1a3a' : '#0a0a18';
+        b.style.borderColor = active ? '#89b' : '#334';
+        b.style.color = active ? '#cde' : '#567';
+      });
+    });
+
+    // Render resolution buttons
+    document.getElementById('rscale-btns').addEventListener('click', e => {
+      const btn = e.target.closest('[data-rscale]');
+      if (!btn) return;
+      const val = parseFloat(btn.dataset.rscale);
+      this._renderScale = val;
+      try { localStorage.setItem('renderScale', val); } catch(_) {}
+      this._resizeCanvas(this.state && this.state.nightmareMode);
+      document.querySelectorAll('#rscale-btns [data-rscale]').forEach(b => {
+        const active = parseFloat(b.dataset.rscale) === val;
         b.style.background = active ? '#1a1a3a' : '#0a0a18';
         b.style.borderColor = active ? '#89b' : '#334';
         b.style.color = active ? '#cde' : '#567';
