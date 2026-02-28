@@ -8,7 +8,9 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@pixi/unsafe-eval": "^7.4.3",
     "pg": "^8.18.0",
+    "pixi.js": "^7.4.3",
     "ws": "^8.18.0"
   },
   "devDependencies": {

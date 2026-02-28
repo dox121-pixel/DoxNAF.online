@@ -1385,7 +1385,7 @@ function drawOnlineSnake(ctx, body, playerIdx, prevBody, t, grid = GRID) {
 class SnakeRogue {
   constructor() {
     this.canvas = document.getElementById('canvas');
-    this.ctx = null; // replaced by PixiJS renderer
+    this.ctx = null; // main canvas uses PixiJS renderer; other canvases (spectate/preview/sleeping-snake) still use Canvas 2D locally
     this._initPixi();
     this._resizeCanvas(false);
 
@@ -1707,9 +1707,10 @@ class SnakeRogue {
 
   _borrowBodySpr(idx) {
     if (idx >= this._snakeBodyPool.length) {
-      const spr    = new PIXI.Sprite();
+      // Initialize with default textures so PixiJS doesn't need to re-allocate on first use
+      const spr    = new PIXI.Sprite(PIXI.Texture.WHITE);
       spr.anchor.set(0.5);
-      const border = new PIXI.Sprite();
+      const border = new PIXI.Sprite(PIXI.Texture.EMPTY); // invisible until a border texture is loaded
       border.anchor.set(0.5);
       this._snakeBodyCtr.addChild(spr);
       this._snakeBodyCtr.addChild(border);
@@ -1897,6 +1898,8 @@ class SnakeRogue {
       const borderTex = this._tex.snakeBodyBorder;
 
       const s = this._borrowBodySpr(poolIdx++);
+      // Fallback: WHITE shows a tinted rectangle when body texture hasn't loaded;
+      // EMPTY hides the border overlay until its texture is available (clean fallback).
       s.spr.texture    = bodyTex.valid    ? bodyTex    : PIXI.Texture.WHITE;
       s.border.texture = borderTex.valid  ? borderTex  : PIXI.Texture.EMPTY;
       s.spr.tint    = snakeTint;

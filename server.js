@@ -1446,6 +1446,27 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  // Serve PixiJS from node_modules (no CDN dependency)
+  if (urlPath === '/pixi.min.js') {
+    const pixiPath = path.resolve(__dirname, 'node_modules/pixi.js/dist/pixi.min.js');
+    fs.readFile(pixiPath, (err, data) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+      res.end(data);
+    });
+    return;
+  }
+  // Serve @pixi/unsafe-eval for CSP-compliant WebGL shader compilation
+  if (urlPath === '/pixi-unsafe-eval.min.js') {
+    const unsafeEvalPath = path.resolve(__dirname, 'node_modules/@pixi/unsafe-eval/dist/unsafe-eval.min.js');
+    fs.readFile(unsafeEvalPath, (err, data) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+      res.end(data);
+    });
+    return;
+  }
+
   const file    = urlPath === '/' ? '/index.html' : urlPath;
   // Resolve the full path and ensure it stays inside __dirname
   const full    = path.resolve(__dirname, '.' + file);
