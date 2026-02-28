@@ -974,6 +974,58 @@ canvas {
   color: #fcc;
 }
 
+/* ── Mobile warning modal ─────────────────────── */
+#mobile-warning-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 5, 15, 0.96);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 510;
+}
+
+#mobile-warning-box {
+  background: #0a0a16;
+  border: 1px solid #a60;
+  border-radius: 10px;
+  padding: 30px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: min(380px, calc(100vw - 40px));
+  text-align: center;
+  box-shadow: 0 0 40px rgba(255, 160, 0, 0.15);
+}
+
+#mobile-warning-title {
+  font-size: 20px;
+  color: #fa0;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  text-shadow: 0 0 16px #a60;
+}
+
+#mobile-warning-body {
+  font-size: 13px;
+  color: #8ab;
+  line-height: 1.8;
+  letter-spacing: 0.5px;
+}
+
+#mobile-warning-body p {
+  margin-bottom: 6px;
+}
+
+#mobile-warning-body p:last-child {
+  margin-bottom: 0;
+}
+
+#mobile-warning-body strong {
+  color: #fa0;
+}
+
 /* ── Greeting modal ───────────────────────────── */
 #greeting-modal {
   position: fixed;
