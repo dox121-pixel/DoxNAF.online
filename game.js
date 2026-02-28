@@ -3566,15 +3566,19 @@ class SnakeRogue {
 
     overlay.innerHTML = `
       <div style="background:#0e0e1a;border:1px solid #2a6;border-radius:10px;
-                  min-width:280px;max-width:340px;padding:28px 28px 24px;
+                  min-width:360px;max-width:520px;padding:28px 28px 24px;
                   display:flex;flex-direction:column;align-items:center;gap:18px;">
         <div style="font-size:16px;color:#4f8;letter-spacing:4px;text-transform:uppercase;text-shadow:0 0 12px #2d6;">
           🎨 CUSTOMIZE
         </div>
 
         <!-- Preview + vertical brightness slider -->
-        <div style="display:flex;align-items:center;gap:24px;">
-          <!-- Vertical brightness slider on the left -->
+        <div style="display:flex;align-items:center;gap:14px;">
+          <!-- Preview canvas (large, takes up most of the space) -->
+          <canvas id="cust-preview" width="300" height="200"
+                  style="border:1px solid #234;border-radius:6px;background:#080812;
+                         image-rendering:pixelated;flex:1;"></canvas>
+          <!-- Vertical brightness slider pushed to the right side -->
           <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
             <span style="font-size:10px;color:#aef;letter-spacing:1px;">☀</span>
             <input id="cust-brightness-slider" type="range" orient="vertical"
@@ -3582,13 +3586,9 @@ class SnakeRogue {
                    class="custom-slider"
                    style="-webkit-appearance:slider-vertical;appearance:slider-vertical;
                           writing-mode:vertical-lr;direction:rtl;
-                          height:110px;width:20px;cursor:pointer;padding:0;">
+                          height:170px;width:20px;cursor:pointer;padding:0;">
             <span style="font-size:10px;color:#456;letter-spacing:1px;">◐</span>
           </div>
-          <!-- Preview canvas -->
-          <canvas id="cust-preview" width="160" height="120"
-                  style="border:1px solid #234;border-radius:6px;background:#080812;
-                         image-rendering:pixelated;"></canvas>
         </div>
 
         <!-- Horizontal hue slider -->
@@ -3633,13 +3633,13 @@ class SnakeRogue {
       const color = `hsl(${hue}, 70%, ${bri}%)`;
       // Sprite size and segment spacing mirror the in-game overlap ratio
       // (in-game: spriteSize≈42px, step≈18px → ~2.3× overlap)
-      const sprSz = 38;
-      const step  = 18; // px between segment centres
+      const sprSz = 72;
+      const step  = 34; // px between segment centres
 
-      // 5 segments (4 body + 1 head) centred horizontally in the 160px canvas
-      const segCount = 5;
-      const totalSpan = (segCount - 1) * step; // 72px
-      const startX = Math.round((W - totalSpan) / 2); // 44px
+      // 7 segments (6 body + 1 head) centred horizontally in the 300px canvas
+      const segCount = 7;
+      const totalSpan = (segCount - 1) * step; // 204px
+      const startX = Math.round((W - totalSpan) / 2); // 48px
 
       // Build segment list (left = tail, right = head)
       const segs = [];
