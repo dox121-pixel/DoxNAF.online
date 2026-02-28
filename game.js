@@ -1560,6 +1560,10 @@ class SnakeRogue {
     this._gridGfx = new PIXI.Graphics();
     this._worldCtr.addChild(this._gridGfx);
 
+    // Glow layer — rendered above grid but below all sprites/shapes
+    this._glowGfx = new PIXI.Graphics();
+    this._worldCtr.addChild(this._glowGfx);
+
     // Apple sprites container
     this._appleCtr = new PIXI.Container();
     this._worldCtr.addChild(this._appleCtr);
@@ -1794,6 +1798,12 @@ class SnakeRogue {
       const cx = ax * grid + grid / 2;
       const cy = ay * grid + grid / 2;
       const tex = apple.dropped ? this._tex.appleYellow : this._tex.appleRed;
+      if (_fxEnabled) {
+        const gg = this._glowGfx;
+        const glowHex = apple.dropped ? 0xaa6600 : 0xcc3300;
+        gg.beginFill(glowHex, 0.10); gg.drawCircle(cx, cy, size * 0.65); gg.endFill();
+        gg.beginFill(glowHex, 0.22); gg.drawCircle(cx, cy, size * 0.40); gg.endFill();
+      }
       if (tex.valid) {
         const spr = this._borrowAppleSpr();
         spr.texture = tex;
@@ -1816,6 +1826,11 @@ class SnakeRogue {
       const size  = grid * 1.6 * pulse;
       const cx = tp.x * grid + grid / 2;
       const cy = tp.y * grid + grid / 2;
+      if (_fxEnabled) {
+        const gg = this._glowGfx;
+        gg.beginFill(0x00aaff, 0.10); gg.drawCircle(cx, cy, size * 0.65); gg.endFill();
+        gg.beginFill(0x00aaff, 0.22); gg.drawCircle(cx, cy, size * 0.40); gg.endFill();
+      }
       if (this._tex.teleportPerk.valid) {
         const spr = this._borrowTeleportSpr();
         spr.x = cx; spr.y = cy;
@@ -1835,6 +1850,12 @@ class SnakeRogue {
       const pulse = 0.9 + 0.1 * Math.sin(tick * 0.08);
       const r = grid * 0.85 * pulse;
       const { hex: col } = parseCssColor(rData.color);
+      const { hex: glowHex, alpha: glowAlpha } = parseCssColor(rData.glowColor);
+      // Chest glow
+      if (_fxEnabled) {
+        g.beginFill(glowHex, glowAlpha * 0.18); g.drawCircle(cx, cy - r * 0.45, r * 2.5); g.endFill();
+        g.beginFill(glowHex, glowAlpha * 0.35); g.drawCircle(cx, cy - r * 0.45, r * 1.6); g.endFill();
+      }
       // Chest body
       g.beginFill(col, 1);
       g.drawRect(cx - r, cy - r * 0.2, r * 2, r * 1.1);
@@ -1857,8 +1878,14 @@ class SnakeRogue {
     const g = this._bulletGfx;
     for (const b of bullets) {
       const alpha = b.life / b.maxLife;
+      const bx = b.x * grid + grid / 2;
+      const by = b.y * grid + grid / 2;
+      if (_fxEnabled) {
+        g.beginFill(0xffee00, alpha * 0.15); g.drawCircle(bx, by, grid * 0.38); g.endFill();
+        g.beginFill(0xffee00, alpha * 0.28); g.drawCircle(bx, by, grid * 0.22); g.endFill();
+      }
       g.beginFill(0xffe040, alpha);
-      g.drawCircle(b.x * grid + grid / 2, b.y * grid + grid / 2, grid * 0.12);
+      g.drawCircle(bx, by, grid * 0.12);
       g.endFill();
     }
   }
@@ -1918,6 +1945,14 @@ class SnakeRogue {
     // Head
     const hx = snake[0].x * GRID + GRID / 2;
     const hy = snake[0].y * GRID + GRID / 2;
+    // Head glow (drawn on _glowGfx so it appears behind the head sprite)
+    if (_fxEnabled) {
+      const hr = SNAKE_RADIUS * GRID * 1.25;
+      const headGlowColor = state.shields > 0 ? 0x44aaff : hslToPixiTint(_snakeHue, 70, _snakeBrightness);
+      const gg = this._glowGfx;
+      gg.beginFill(headGlowColor, 0.10); gg.drawCircle(hx, hy, hr * 2.5); gg.endFill();
+      gg.beginFill(headGlowColor, 0.20); gg.drawCircle(hx, hy, hr * 1.6); gg.endFill();
+    }
     if (this._tex.snakeHead.valid) {
       this._snakeHeadSprite.texture  = this._tex.snakeHead;
       this._snakeHeadSprite.tint     = snakeTint;
@@ -1977,13 +2012,19 @@ class SnakeRogue {
       const cy = e.y * GRID + GRID / 2 + bounce;
       const r  = GRID * type.size * 0.45;
       const { hex: col } = parseCssColor(type.color);
+      const { hex: glowHex, alpha: glowAlpha } = parseCssColor(type.glowColor);
 
       if (type.shape === 'bat') {
         const batTex = (Math.floor(tick / 15) % 2 === 0) ? this._tex.bat : this._tex.batFlap;
         if (batTex.valid) {
+          const bSize = GRID * 1.2 * 0.45 * 6.5;
+          if (_fxEnabled) {
+            const gg = this._glowGfx;
+            gg.beginFill(glowHex, glowAlpha * 0.18); gg.drawCircle(cx, cy, bSize * 0.50); gg.endFill();
+            gg.beginFill(glowHex, glowAlpha * 0.35); gg.drawCircle(cx, cy, bSize * 0.30); gg.endFill();
+          }
           const spr = this._borrowEnemySpr();
           spr.texture = batTex;
-          const bSize = GRID * 1.2 * 0.45 * 6.5;
           spr.x = cx; spr.y = cy;
           spr.width = bSize; spr.height = bSize;
           this._pixiDrawHealthBar(g, cx, cy, r, e);
@@ -1992,9 +2033,14 @@ class SnakeRogue {
       } else if (type.shape === 'ghost') {
         const ghostTex = (Math.floor(tick / 20) % 2 === 0) ? this._tex.ghostOpen : this._tex.ghostClose;
         if (ghostTex.valid) {
+          const gSize = GRID * 1.2 * 0.45 * 5.5;
+          if (_fxEnabled) {
+            const gg = this._glowGfx;
+            gg.beginFill(glowHex, glowAlpha * 0.18); gg.drawCircle(cx, cy, gSize * 0.50); gg.endFill();
+            gg.beginFill(glowHex, glowAlpha * 0.35); gg.drawCircle(cx, cy, gSize * 0.30); gg.endFill();
+          }
           const spr = this._borrowEnemySpr();
           spr.texture  = ghostTex;
-          const gSize  = GRID * 1.2 * 0.45 * 5.5;
           spr.x = cx; spr.y = cy;
           spr.width = gSize; spr.height = gSize;
           spr.alpha = 0.70 + 0.12 * Math.sin(tick * 0.07 + e.id * 5);
@@ -2003,7 +2049,11 @@ class SnakeRogue {
         }
       }
 
-      // Shape-based enemies
+      // Shape-based enemies — draw glow circles first, then shape on top
+      if (_fxEnabled) {
+        g.beginFill(glowHex, glowAlpha * 0.18); g.drawCircle(cx, cy, r * 2.5); g.endFill();
+        g.beginFill(glowHex, glowAlpha * 0.35); g.drawCircle(cx, cy, r * 1.6); g.endFill();
+      }
       g.beginFill(col, 1);
       if (type.shape === 'circle') {
         g.drawCircle(cx, cy, r);
@@ -2034,6 +2084,10 @@ class SnakeRogue {
 
       // Charge shield ring
       if (e.chargeShield) {
+        if (_fxEnabled) {
+          g.beginFill(0x8888ff, 0.08 + 0.04 * Math.sin(tick * 0.15 + e.id * 3)); g.drawCircle(cx, cy, r * 2.5); g.endFill();
+          g.beginFill(0x8888ff, 0.15 + 0.08 * Math.sin(tick * 0.15 + e.id * 3)); g.drawCircle(cx, cy, r * 1.8); g.endFill();
+        }
         g.lineStyle(2.5, 0xb4b4ff, 0.7 + 0.3 * Math.sin(tick * 0.15 + e.id * 3));
         g.drawCircle(cx, cy, r * 1.5);
         g.lineStyle(0);
@@ -2107,6 +2161,12 @@ class SnakeRogue {
     const hy = pts[0].y * grid + grid / 2;
     const hr = snakeR * grid * 1.25;
     const headColor = isP1 ? 0x50e678 : 0xff8040;
+    // Head glow
+    if (_fxEnabled) {
+      const glowColor = isP1 ? 0x44ff88 : 0xff8844;
+      g.beginFill(glowColor, 0.10); g.drawCircle(hx, hy, hr * 2.5); g.endFill();
+      g.beginFill(glowColor, 0.20); g.drawCircle(hx, hy, hr * 1.6); g.endFill();
+    }
     g.beginFill(headColor, 1);
     g.drawCircle(hx, hy, hr);
     g.endFill();
@@ -3469,6 +3529,7 @@ class SnakeRogue {
     this._hideAllPoolSprites();
     // Clear all graphics layers
     this._gridGfx.clear();
+    this._glowGfx.clear();
     this._chestGfx.clear();
     this._bulletGfx.clear();
     this._enemyGfx.clear();
