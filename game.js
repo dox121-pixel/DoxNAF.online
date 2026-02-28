@@ -996,7 +996,13 @@ function drawTeleportPerks(ctx, teleportPerks, tick, grid = GRID) {
 }
 
 function drawEnemies(ctx, state, tick) {
+  if (!state.snake || !state.snake.length) return;
+  const camX = state.snake[0].x;
+  const camY = state.snake[0].y;
+  const cullHalfW = VIEW_COLS / 2 + 5;
+  const cullHalfH = VIEW_ROWS / 2 + 5;
   for (const e of state.enemies) {
+    if (Math.abs(e.x - camX) > cullHalfW || Math.abs(e.y - camY) > cullHalfH) continue;
     const type = ENEMY_TYPES[e.type];
     const bounce = Math.sin(tick * 0.12 + e.id * 10) * 1.5;
     const cx = e.x * GRID + GRID / 2;
@@ -2381,6 +2387,22 @@ class SnakeRogue {
       ENEMY_TYPES[e.type].update(e, state, dt);
     }
 
+    // ── Build snake-body spatial hash for O(1) neighbour lookup ──
+    // Cell size of 2 grid-cells keeps each lookup to at most ~3×3 buckets while
+    // limiting the number of buckets a 2000-segment snake populates.
+    const _BCELL = 2;
+    const _bodyGrid = new Map(); // Map<cellX, Map<cellY, si[]>>
+    for (let si = 1; si < state.snake.length; si++) {
+      const s = state.snake[si];
+      const bcx = Math.floor(s.x / _BCELL);
+      const bcy = Math.floor(s.y / _BCELL);
+      let _row = _bodyGrid.get(bcx);
+      if (!_row) { _bodyGrid.set(bcx, _row = new Map()); }
+      let bc = _row.get(bcy);
+      if (!bc) { _row.set(bcy, bc = []); }
+      bc.push(si);
+    }
+
     // ── Enemy collision ───────────────────────────
     for (let i = state.enemies.length - 1; i >= 0; i--) {
       const e = state.enemies[i];
@@ -2447,28 +2469,41 @@ class SnakeRogue {
       const prevY = e._prevY !== undefined ? e._prevY : e.y;
       const movX = e.x - prevX, movY = e.y - prevY;
       const movLen2 = movX * movX + movY * movY;
-      for (let si = 1; si < state.snake.length; si++) {
-        const s = state.snake[si];
-        const bx = e.x - s.x, by = e.y - s.y;
-        const d2 = bx * bx + by * by;
-        if (d2 < bodyR * bodyR) {
-          if (d2 < closestBodyD2) {
-            bodyHit = true;
-            closestBodySeg = s;
-            closestBodyDx = bx; closestBodyDy = by; closestBodyD2 = d2;
-          }
-        } else if (movLen2 > 0) {
-          // Check if the enemy swept through this segment during this frame
-          const t = Math.max(0, Math.min(1, ((s.x - prevX) * movX + (s.y - prevY) * movY) / movLen2));
-          const cx = prevX + movX * t - s.x;
-          const cy = prevY + movY * t - s.y;
-          const sd2 = cx * cx + cy * cy;
-          if (sd2 < bodyR * bodyR && sd2 < closestBodyD2) {
-            bodyHit = true;
-            closestBodySeg = s;
-            // Push direction: away from body segment at the closest approach point
-            closestBodyDx = cx || (e.x - s.x); closestBodyDy = cy || (e.y - s.y);
-            closestBodyD2 = sd2 || 0.0001;
+      // Use the spatial hash to check only nearby snake segments instead of the full body
+      const _bMinCx = Math.floor((Math.min(prevX, e.x) - bodyR) / _BCELL);
+      const _bMaxCx = Math.floor((Math.max(prevX, e.x) + bodyR) / _BCELL);
+      const _bMinCy = Math.floor((Math.min(prevY, e.y) - bodyR) / _BCELL);
+      const _bMaxCy = Math.floor((Math.max(prevY, e.y) + bodyR) / _BCELL);
+      for (let _bcx = _bMinCx; _bcx <= _bMaxCx; _bcx++) {
+        const _row = _bodyGrid.get(_bcx);
+        if (!_row) continue;
+        for (let _bcy = _bMinCy; _bcy <= _bMaxCy; _bcy++) {
+          const _bucket = _row.get(_bcy);
+          if (!_bucket) continue;
+          for (const si of _bucket) {
+            const s = state.snake[si];
+            const bx = e.x - s.x, by = e.y - s.y;
+            const d2 = bx * bx + by * by;
+            if (d2 < bodyR * bodyR) {
+              if (d2 < closestBodyD2) {
+                bodyHit = true;
+                closestBodySeg = s;
+                closestBodyDx = bx; closestBodyDy = by; closestBodyD2 = d2;
+              }
+            } else if (movLen2 > 0) {
+              // Check if the enemy swept through this segment during this frame
+              const t = Math.max(0, Math.min(1, ((s.x - prevX) * movX + (s.y - prevY) * movY) / movLen2));
+              const cx = prevX + movX * t - s.x;
+              const cy = prevY + movY * t - s.y;
+              const sd2 = cx * cx + cy * cy;
+              if (sd2 < bodyR * bodyR && sd2 < closestBodyD2) {
+                bodyHit = true;
+                closestBodySeg = s;
+                // Push direction: away from body segment at the closest approach point
+                closestBodyDx = cx || (e.x - s.x); closestBodyDy = cy || (e.y - s.y);
+                closestBodyD2 = sd2 || 0.0001;
+              }
+            }
           }
         }
       }
