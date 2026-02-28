@@ -675,10 +675,10 @@ function getTargetEnemyCount(elapsedMs, nightmareMode) {
   const s = elapsedMs / 1000;
   let count;
   if      (s < 30)  count = 3;
-  else if (s < 60)  count = 10;
-  else if (s < 90)  count = 20;
-  else if (s < 150) count = 40;
-  else              count = Math.floor(40 + (s - 150) / 30 * 12);
+  else if (s < 60)  count = 8;
+  else if (s < 90)  count = 12;
+  else if (s < 150) count = 18;
+  else              count = Math.floor(18 + (s - 150) / 30 * 4);
   return nightmareMode ? Math.floor(count * 3) : count;
 }
 
@@ -2266,7 +2266,7 @@ class SnakeRogue {
       state.waveHadEnemies = false;
       state.waveCount = (state.waveCount || 0) + 1;
       const currentCap = state.waveSpawnCap;
-      state.waveSpawnCap = Math.min(Math.floor(currentCap * 1.5), 50);
+      state.waveSpawnCap = Math.min(Math.floor(currentCap * 1.5), 20);
       state.waveSpawnedCount = 0; // reset per-wave spawn counter for the next wave
     }
     state.enemySpawnTimer += dt;
@@ -3394,9 +3394,9 @@ class SnakeRogue {
     const fxBtnStyle = (active) => `flex:1;padding:5px 2px;font-size:10px;font-family:'Courier New',monospace;letter-spacing:1px;background:${active ? '#1a1a3a' : '#0a0a18'};border:1px solid ${active ? '#89b' : '#334'};color:${active ? '#cde' : '#567'};cursor:pointer;border-radius:3px;transition:all 0.1s;`;
     const autoAimEnabled = this._autoAim === true;
     const renderScaleOptions = [
+      { label: '○ LOW', value: 0.5 },
       { label: '🖥 NATIVE', value: 1.0 },
-      { label: '◈ HIGH', value: 0.75 },
-      { label: '○ MEDIUM', value: 0.5 },
+      { label: '◈ HIGH', value: 1.5 },
     ];
     const currentRenderScale = this._renderScale || 1.0;
     const renderScaleButtons = renderScaleOptions.map(o => {
@@ -3507,7 +3507,7 @@ class SnakeRogue {
                 <span style="font-size:12px;color:#7ab;letter-spacing:1px;">RENDER RESOLUTION</span>
               </div>
               <div id="rscale-btns" style="display:flex;gap:6px;">${renderScaleButtons}</div>
-              <div style="font-size:10px;color:#456;letter-spacing:0.5px;line-height:1.5;">Lower = more FPS. MEDIUM = 50% res (75% fewer pixels).</div>
+              <div style="font-size:10px;color:#456;letter-spacing:0.5px;line-height:1.5;">LOW = 50% res (more FPS). NATIVE = 100% res (default). HIGH = 150% res (better quality, less FPS).</div>
             </div>
 
           </div>
@@ -5247,7 +5247,7 @@ class SnakeRogue {
     s.waveCount = waveNum;
     // Recompute waveSpawnCap for the target wave (cap starts at 10, ×1.5 per wave)
     let cap = 10;
-    for (let i = 0; i < waveNum; i++) cap = Math.min(Math.floor(cap * 1.5), 50);
+    for (let i = 0; i < waveNum; i++) cap = Math.min(Math.floor(cap * 1.5), 20);
     s.waveSpawnCap = cap;
     // Estimate elapsed time for this wave (~45 s per wave) so enemy HP and
     // count are appropriate for the requested wave number.
