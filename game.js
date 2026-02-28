@@ -2951,7 +2951,7 @@ class SnakeRogue {
     // FPS counter overlay
     if (this._showFpsCounter && this._fpsValue > 0) {
       ctx.save();
-      ctx.font = '11px Courier New';
+      ctx.font = 'bold 18px Courier New';
       ctx.fillStyle = 'rgba(0,255,128,0.85)';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'top';
