@@ -5990,7 +5990,7 @@ class SnakeRogue {
     s.waveCount = waveNum;
     // Recompute waveSpawnCap for the target wave (cap starts at 10, ×1.5 per wave)
     let cap = 10;
-    for (let i = 0; i < waveNum; i++) cap = Math.min(Math.floor(cap * 1.5), 20);
+    for (let i = 0; i < waveNum; i++) cap = Math.floor(cap * 1.5);
     s.waveSpawnCap = cap;
     // Estimate elapsed time for this wave (~45 s per wave) so enemy HP and
     // count are appropriate for the requested wave number.
