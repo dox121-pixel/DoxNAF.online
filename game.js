@@ -1259,6 +1259,18 @@ function parseCssColor(css) {
   return { hex: 0xffffff, alpha: 1 };
 }
 
+// Draw a smooth 5-ring radial glow centred at (cx, cy).
+// maxR  – radius of the outermost (faintest) halo ring.
+// hex   – colour as a 0xRRGGBB number.
+// baseAlpha – alpha at the innermost (brightest) ring; outer rings fade to ~10 % of this.
+function drawPixiGlow(g, cx, cy, maxR, hex, baseAlpha) {
+  g.beginFill(hex, baseAlpha * 0.06); g.drawCircle(cx, cy, maxR);        g.endFill();
+  g.beginFill(hex, baseAlpha * 0.14); g.drawCircle(cx, cy, maxR * 0.72); g.endFill();
+  g.beginFill(hex, baseAlpha * 0.26); g.drawCircle(cx, cy, maxR * 0.50); g.endFill();
+  g.beginFill(hex, baseAlpha * 0.42); g.drawCircle(cx, cy, maxR * 0.32); g.endFill();
+  g.beginFill(hex, baseAlpha * 0.58); g.drawCircle(cx, cy, maxR * 0.17); g.endFill();
+}
+
 // ── Online mode helpers ───────────────────────
 // Must match QUICK_PLAY_WAIT_MS in server.js
 const QUICK_PLAY_WAIT_S = 8;
@@ -1801,8 +1813,7 @@ class SnakeRogue {
       if (_fxEnabled) {
         const gg = this._glowGfx;
         const glowHex = apple.dropped ? 0xaa6600 : 0xcc3300;
-        gg.beginFill(glowHex, 0.10); gg.drawCircle(cx, cy, size * 0.65); gg.endFill();
-        gg.beginFill(glowHex, 0.22); gg.drawCircle(cx, cy, size * 0.40); gg.endFill();
+        drawPixiGlow(gg, cx, cy, size * 0.65, glowHex, 0.22);
       }
       if (tex.valid) {
         const spr = this._borrowAppleSpr();
@@ -1828,8 +1839,7 @@ class SnakeRogue {
       const cy = tp.y * grid + grid / 2;
       if (_fxEnabled) {
         const gg = this._glowGfx;
-        gg.beginFill(0x00aaff, 0.10); gg.drawCircle(cx, cy, size * 0.65); gg.endFill();
-        gg.beginFill(0x00aaff, 0.22); gg.drawCircle(cx, cy, size * 0.40); gg.endFill();
+        drawPixiGlow(gg, cx, cy, size * 0.65, 0x00aaff, 0.22);
       }
       if (this._tex.teleportPerk.valid) {
         const spr = this._borrowTeleportSpr();
@@ -1853,8 +1863,7 @@ class SnakeRogue {
       const { hex: glowHex, alpha: glowAlpha } = parseCssColor(rData.glowColor);
       // Chest glow
       if (_fxEnabled) {
-        g.beginFill(glowHex, glowAlpha * 0.18); g.drawCircle(cx, cy - r * 0.45, r * 2.5); g.endFill();
-        g.beginFill(glowHex, glowAlpha * 0.35); g.drawCircle(cx, cy - r * 0.45, r * 1.6); g.endFill();
+        drawPixiGlow(g, cx, cy - r * 0.45, r * 2.5, glowHex, glowAlpha);
       }
       // Chest body
       g.beginFill(col, 1);
@@ -1950,8 +1959,7 @@ class SnakeRogue {
       const hr = SNAKE_RADIUS * GRID * 1.25;
       const headGlowColor = state.shields > 0 ? 0x44aaff : hslToPixiTint(_snakeHue, 70, _snakeBrightness);
       const gg = this._glowGfx;
-      gg.beginFill(headGlowColor, 0.10); gg.drawCircle(hx, hy, hr * 2.5); gg.endFill();
-      gg.beginFill(headGlowColor, 0.20); gg.drawCircle(hx, hy, hr * 1.6); gg.endFill();
+      drawPixiGlow(gg, hx, hy, hr * 2.5, headGlowColor, 0.20);
     }
     if (this._tex.snakeHead.valid) {
       this._snakeHeadSprite.texture  = this._tex.snakeHead;
@@ -2020,8 +2028,7 @@ class SnakeRogue {
           const bSize = GRID * 1.2 * 0.45 * 6.5;
           if (_fxEnabled) {
             const gg = this._glowGfx;
-            gg.beginFill(glowHex, glowAlpha * 0.18); gg.drawCircle(cx, cy, bSize * 0.50); gg.endFill();
-            gg.beginFill(glowHex, glowAlpha * 0.35); gg.drawCircle(cx, cy, bSize * 0.30); gg.endFill();
+            drawPixiGlow(gg, cx, cy, bSize * 0.90, glowHex, glowAlpha);
           }
           const spr = this._borrowEnemySpr();
           spr.texture = batTex;
@@ -2036,8 +2043,7 @@ class SnakeRogue {
           const gSize = GRID * 1.2 * 0.45 * 5.5;
           if (_fxEnabled) {
             const gg = this._glowGfx;
-            gg.beginFill(glowHex, glowAlpha * 0.18); gg.drawCircle(cx, cy, gSize * 0.50); gg.endFill();
-            gg.beginFill(glowHex, glowAlpha * 0.35); gg.drawCircle(cx, cy, gSize * 0.30); gg.endFill();
+            drawPixiGlow(gg, cx, cy, gSize * 0.90, glowHex, glowAlpha);
           }
           const spr = this._borrowEnemySpr();
           spr.texture  = ghostTex;
@@ -2051,8 +2057,7 @@ class SnakeRogue {
 
       // Shape-based enemies — draw glow circles first, then shape on top
       if (_fxEnabled) {
-        g.beginFill(glowHex, glowAlpha * 0.18); g.drawCircle(cx, cy, r * 2.5); g.endFill();
-        g.beginFill(glowHex, glowAlpha * 0.35); g.drawCircle(cx, cy, r * 1.6); g.endFill();
+        drawPixiGlow(g, cx, cy, r * 2.5, glowHex, glowAlpha);
       }
       g.beginFill(col, 1);
       if (type.shape === 'circle') {
@@ -2164,8 +2169,7 @@ class SnakeRogue {
     // Head glow
     if (_fxEnabled) {
       const glowColor = isP1 ? 0x44ff88 : 0xff8844;
-      g.beginFill(glowColor, 0.10); g.drawCircle(hx, hy, hr * 2.5); g.endFill();
-      g.beginFill(glowColor, 0.20); g.drawCircle(hx, hy, hr * 1.6); g.endFill();
+      drawPixiGlow(g, hx, hy, hr * 2.5, glowColor, 0.20);
     }
     g.beginFill(headColor, 1);
     g.drawCircle(hx, hy, hr);
