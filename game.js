@@ -2,54 +2,48 @@
 //  SNAKE ROGUELIKE — game.js
 // ─────────────────────────────────────────────
 
-// ── Apple sprites ────────────────────────────
-const APPLE_IMG_RED    = new Image();
-const APPLE_IMG_YELLOW = new Image();
-APPLE_IMG_RED.src    = 'sprites/APPLER.png';
-APPLE_IMG_YELLOW.src = 'sprites/APPLEY.png';
+// ── Sprite sheets ─────────────────────────────
+const ENEMIES_SHEET_PATH  = 'sprites/ENEMIES.png';
+const SNAKE_SHEET_PATH    = 'sprites/SNAKE.png';
+const UI_PERKS_SHEET_PATH = 'sprites/UI+PERKS.png';
 
-// ── Teleport perk sprite ──────────────────────
-const TELEPORT_PERK_IMG = new Image();
-TELEPORT_PERK_IMG.src = 'sprites/TELEPORTPERK.png';
+const ENEMIES_SHEET  = new Image();  ENEMIES_SHEET.src  = ENEMIES_SHEET_PATH;
+const SNAKE_SHEET    = new Image();  SNAKE_SHEET.src    = SNAKE_SHEET_PATH;
+const UI_PERKS_SHEET = new Image();  UI_PERKS_SHEET.src = UI_PERKS_SHEET_PATH;
 
-// ── Bat (chaser enemy) sprites ────────────────
-const BAT_IMG = new Image();
-BAT_IMG.src = 'sprites/BAT.png';
-const BAT_FLAP_IMG = new Image();
-BAT_FLAP_IMG.src = 'sprites/BATFLAP.png';
+// ── Sprite frame coordinates ──────────────────
+// Each entry: { sheet, path, sheetW, x, y, w, h }
+const FRAMES = {
+  // UI+PERKS sheet (224×32)
+  APPLER:         { sheet: UI_PERKS_SHEET, path: UI_PERKS_SHEET_PATH, sheetW: 224, x:   0, y: 0, w: 32, h: 32 },
+  APPLEY:         { sheet: UI_PERKS_SHEET, path: UI_PERKS_SHEET_PATH, sheetW: 224, x:  32, y: 0, w: 32, h: 32 },
+  HEART:          { sheet: UI_PERKS_SHEET, path: UI_PERKS_SHEET_PATH, sheetW: 224, x:  96, y: 0, w: 32, h: 32 },
+  HEARTEMPTY:     { sheet: UI_PERKS_SHEET, path: UI_PERKS_SHEET_PATH, sheetW: 224, x: 128, y: 0, w: 32, h: 32 },
+  TELEPORTPERK:   { sheet: UI_PERKS_SHEET, path: UI_PERKS_SHEET_PATH, sheetW: 224, x: 160, y: 0, w: 32, h: 32 },
+  WARD:           { sheet: UI_PERKS_SHEET, path: UI_PERKS_SHEET_PATH, sheetW: 224, x: 192, y: 0, w: 32, h: 32 },
+  // SNAKE sheet (192×32)
+  SNAKEBODY1:     { sheet: SNAKE_SHEET, path: SNAKE_SHEET_PATH, sheetW: 192, x:   0, y: 0, w: 32, h: 32 },
+  SNAKEBODY2:     { sheet: SNAKE_SHEET, path: SNAKE_SHEET_PATH, sheetW: 192, x:  32, y: 0, w: 32, h: 32 },
+  SNAKEBODY3:     { sheet: SNAKE_SHEET, path: SNAKE_SHEET_PATH, sheetW: 192, x:  64, y: 0, w: 32, h: 32 },
+  SNAKEBODYBORDER:{ sheet: SNAKE_SHEET, path: SNAKE_SHEET_PATH, sheetW: 192, x:  96, y: 0, w: 32, h: 32 },
+  SNAKEHEAD:      { sheet: SNAKE_SHEET, path: SNAKE_SHEET_PATH, sheetW: 192, x: 128, y: 0, w: 32, h: 32 },
+  SNAKEHEADBORDER:{ sheet: SNAKE_SHEET, path: SNAKE_SHEET_PATH, sheetW: 192, x: 160, y: 0, w: 32, h: 32 },
+  // ENEMIES sheet (128×32)
+  BAT:            { sheet: ENEMIES_SHEET, path: ENEMIES_SHEET_PATH, sheetW: 128, x:  0, y: 0, w: 32, h: 32 },
+  BATFLAP:        { sheet: ENEMIES_SHEET, path: ENEMIES_SHEET_PATH, sheetW: 128, x: 32, y: 0, w: 32, h: 32 },
+  GHOSTCLOSE:     { sheet: ENEMIES_SHEET, path: ENEMIES_SHEET_PATH, sheetW: 128, x: 64, y: 0, w: 32, h: 32 },
+  GHOSTOPEN:      { sheet: ENEMIES_SHEET, path: ENEMIES_SHEET_PATH, sheetW: 128, x: 96, y: 0, w: 32, h: 32 },
+};
 
-// ── Ghost (phantom enemy) sprites ────────────
-const GHOST_OPEN_IMG = new Image();
-GHOST_OPEN_IMG.src = 'sprites/GHOSTOPEN.png';
-const GHOST_CLOSE_IMG = new Image();
-GHOST_CLOSE_IMG.src = 'sprites/GHOSTCLOSE.png';
+// Body frame array for canvas rendering (indices 0-2 map to SNAKEBODY1-3)
+const SNAKE_BODY_FRAMES = [FRAMES.SNAKEBODY1, FRAMES.SNAKEBODY2, FRAMES.SNAKEBODY3];
 
-// ── Ward / Heart HUD sprites ──────────────────
+// ── Ward / Heart HUD sprite id ────────────────
 const WARD_PERK_ID = 'shield'; // upgrade id for the WARD perk (shown as a health stat, not a perk)
-const WARD_IMG = new Image();
-WARD_IMG.src = 'sprites/WARD.png';
-const HEART_IMG = new Image();
-HEART_IMG.src = 'sprites/HEART.png';
-const HEART_EMPTY_IMG = new Image();
-HEART_EMPTY_IMG.src = 'sprites/HEARTEMPTY.png';
 
-// ── Snake sprites ─────────────────────────────
-const SNAKE_HEAD_IMG = new Image();
-SNAKE_HEAD_IMG.src = 'sprites/SNAKEHEAD.png';
-const SNAKE_BODY_IMGS = [new Image(), new Image(), new Image(), new Image()];
-SNAKE_BODY_IMGS[0].src = 'sprites/SNAKEBODY.png';
-SNAKE_BODY_IMGS[1].src = 'sprites/SNAKEBODY1.png';
-SNAKE_BODY_IMGS[2].src = 'sprites/SNAKEBODY2.png';
-SNAKE_BODY_IMGS[3].src = 'sprites/SNAKEBODY3.png';
-const SNAKE_HEAD_BORDER_IMG = new Image();
-SNAKE_HEAD_BORDER_IMG.src = 'sprites/SNAKEHEADBORDER.png';
-const SNAKE_BODY_BORDER_IMG = new Image();
-SNAKE_BODY_BORDER_IMG.src = 'sprites/SNAKEBODYBORDER.png';
-const SNAKE_TAIL_BORDER_IMG = new Image();
-SNAKE_TAIL_BORDER_IMG.src = 'sprites/SNAKETAILBORDER.png';
-
-// ── Inline red apple img tag for HTML contexts ─
-const APPLE_SPRITE_TAG = '<img src="sprites/APPLER.png" style="width:14px;height:14px;vertical-align:middle;display:inline-block;">';
+// ── Inline red apple span tag for HTML contexts ─
+// APPLER is at x=0 in UI+PERKS.png (224×32). At 14px: sheetW = 224*14/32 = 98px.
+const APPLE_SPRITE_TAG = `<span style="width:14px;height:14px;vertical-align:middle;display:inline-block;image-rendering:pixelated;background:url('sprites/UI+PERKS.png') 0 0/98px 14px"></span>`;
 
 const GRID = 20;          // cell size in pixels
 const NIGHTMARE_COLS = 30;
@@ -136,7 +130,7 @@ const UPGRADES = [
   {
     id: 'shield',
     name: 'WARD',
-    icon: '<img src="sprites/WARD.png" style="width:48px;height:48px;vertical-align:middle;display:inline-block;">',
+    icon: `<span style="width:48px;height:48px;vertical-align:middle;display:inline-block;image-rendering:pixelated;background:url('sprites/UI+PERKS.png') -288px 0/336px 48px"></span>`,
     desc: 'Survive one fatal hit. One stack only.',
     apply(state) { state.shields = Math.min(1, (state.shields || 0) + 1); }
   },
@@ -804,14 +798,14 @@ function drawSnake(ctx, state) {
     const { idx, cx, cy, angle: segAngle } = sampleData[si];
 
     // Body segments cycle through Body1, Body2, Body3 (indices 1-3)
-    const img = SNAKE_BODY_IMGS[1 + (idx % 3)];
+    const bodyFrame = SNAKE_BODY_FRAMES[idx % 3];
 
     const snakeColor = `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`;
-    if (img.complete && img.naturalWidth > 0) {
+    if (frameReady(bodyFrame)) {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(segAngle + SNAKE_SPRITE_ROT_OFFSET);
-      drawTintedSprite(ctx, img, -sprSize / 2, -sprSize / 2, sprSize, sprSize, snakeColor);
+      drawTintedSprite(ctx, bodyFrame, -sprSize / 2, -sprSize / 2, sprSize, sprSize, snakeColor);
       ctx.restore();
     } else {
       // Fallback: coloured circle while sprites load
@@ -822,11 +816,11 @@ function drawSnake(ctx, state) {
       ctx.fill();
     }
 
-    if (SNAKE_BODY_BORDER_IMG.complete && SNAKE_BODY_BORDER_IMG.naturalWidth > 0) {
+    if (frameReady(FRAMES.SNAKEBODYBORDER)) {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(segAngle + SNAKE_SPRITE_ROT_OFFSET);
-      drawTintedSprite(ctx, SNAKE_BODY_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize, snakeColor);
+      drawTintedSprite(ctx, FRAMES.SNAKEBODYBORDER, -sprSize / 2, -sprSize / 2, sprSize, sprSize, snakeColor);
       ctx.restore();
     }
   }
@@ -835,13 +829,13 @@ function drawSnake(ctx, state) {
   {
     const hx = snake[0].x * GRID + GRID / 2;
     const hy = snake[0].y * GRID + GRID / 2;
-    if (SNAKE_HEAD_IMG.complete && SNAKE_HEAD_IMG.naturalWidth > 0) {
+    if (frameReady(FRAMES.SNAKEHEAD)) {
       ctx.save();
       ctx.shadowBlur  = _fxEnabled ? 14 : 0;
       ctx.shadowColor = (state.shields > 0) ? '#4af' : `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`;
       ctx.translate(hx, hy);
       ctx.rotate(ang + SNAKE_SPRITE_ROT_OFFSET);
-      drawTintedSprite(ctx, SNAKE_HEAD_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize, `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`);
+      drawTintedSprite(ctx, FRAMES.SNAKEHEAD, -sprSize / 2, -sprSize / 2, sprSize, sprSize, `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`);
       ctx.shadowBlur = 0;
       ctx.restore();
     } else {
@@ -863,11 +857,11 @@ function drawSnake(ctx, state) {
   {
     const hx = snake[0].x * GRID + GRID / 2;
     const hy = snake[0].y * GRID + GRID / 2;
-    if (SNAKE_HEAD_BORDER_IMG.complete && SNAKE_HEAD_BORDER_IMG.naturalWidth > 0) {
+    if (frameReady(FRAMES.SNAKEHEADBORDER)) {
       ctx.save();
       ctx.translate(hx, hy);
       ctx.rotate(ang + SNAKE_SPRITE_ROT_OFFSET);
-      drawTintedSprite(ctx, SNAKE_HEAD_BORDER_IMG, -sprSize / 2, -sprSize / 2, sprSize, sprSize, `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`);
+      drawTintedSprite(ctx, FRAMES.SNAKEHEADBORDER, -sprSize / 2, -sprSize / 2, sprSize, sprSize, `hsl(${_snakeHue}, 70%, ${_snakeBrightness}%)`);
       ctx.restore();
     }
   }
@@ -910,15 +904,15 @@ function drawApples(ctx, state, tick, grid = GRID) {
     const cx = ax * grid + grid / 2;
     const cy = ay * grid + grid / 2;
 
-    // Choose sprite: dropped apples use yellow, regular apples use red
-    const sprite = apple.dropped ? APPLE_IMG_YELLOW : APPLE_IMG_RED;
+    // Choose frame: dropped apples use yellow, regular apples use red
+    const appleFrame = apple.dropped ? FRAMES.APPLEY : FRAMES.APPLER;
 
-    if (sprite.complete && sprite.naturalWidth > 0) {
+    if (frameReady(appleFrame)) {
       // Draw sprite centred on the apple position
       ctx.save();
       ctx.shadowBlur = _fxEnabled ? 14 : 0;
       ctx.shadowColor = apple.dropped ? '#a60' : '#c30';
-      ctx.drawImage(sprite, cx - size / 2, cy - size / 2, size, size);
+      ctx.drawImage(appleFrame.sheet, appleFrame.x, appleFrame.y, appleFrame.w, appleFrame.h, cx - size / 2, cy - size / 2, size, size);
       ctx.shadowBlur = 0;
       ctx.restore();
     } else {
@@ -968,11 +962,11 @@ function drawTeleportPerks(ctx, teleportPerks, tick, grid = GRID) {
     const cx = tp.x * grid + grid / 2;
     const cy = tp.y * grid + grid / 2;
 
-    if (TELEPORT_PERK_IMG.complete && TELEPORT_PERK_IMG.naturalWidth > 0) {
+    if (frameReady(FRAMES.TELEPORTPERK)) {
       ctx.save();
       ctx.shadowBlur = _fxEnabled ? 18 : 0;
       ctx.shadowColor = '#0af';
-      ctx.drawImage(TELEPORT_PERK_IMG, cx - size / 2, cy - size / 2, size, size);
+      ctx.drawImage(FRAMES.TELEPORTPERK.sheet, FRAMES.TELEPORTPERK.x, FRAMES.TELEPORTPERK.y, FRAMES.TELEPORTPERK.w, FRAMES.TELEPORTPERK.h, cx - size / 2, cy - size / 2, size, size);
       ctx.shadowBlur = 0;
       ctx.restore();
     } else {
@@ -1012,15 +1006,14 @@ function drawEnemies(ctx, state, tick) {
     ctx.fillStyle = type.color;
 
     if (type.shape === 'bat') {
-      const batFrame = Math.floor(tick / 15) % 2 === 0 ? BAT_IMG : BAT_FLAP_IMG;
-      const batImgReady = batFrame.complete && batFrame.naturalWidth > 0;
-      if (batImgReady) {
+      const batFrame = Math.floor(tick / 15) % 2 === 0 ? FRAMES.BAT : FRAMES.BATFLAP;
+      if (frameReady(batFrame)) {
         ctx.save();
         ctx.translate(cx, cy);
         const bSize = GRID * 1.2 * 0.45 * 6.5;
         ctx.shadowBlur = _fxEnabled ? 16 : 0;
         ctx.shadowColor = type.glowColor;
-        ctx.drawImage(batFrame, -bSize / 2, -bSize / 2, bSize, bSize);
+        ctx.drawImage(batFrame.sheet, batFrame.x, batFrame.y, batFrame.w, batFrame.h, -bSize / 2, -bSize / 2, bSize, bSize);
         ctx.restore();
         // Health bar
         const maxHp2 = e.maxHp || 1;
@@ -1071,16 +1064,15 @@ function drawEnemies(ctx, state, tick) {
       ctx.closePath();
       ctx.fill();
     } else if (type.shape === 'ghost') {
-      const ghostFrame = Math.floor(tick / 20) % 2 === 0 ? GHOST_OPEN_IMG : GHOST_CLOSE_IMG;
-      const ghostImgReady = ghostFrame.complete && ghostFrame.naturalWidth > 0;
-      if (ghostImgReady) {
+      const ghostFrame = Math.floor(tick / 20) % 2 === 0 ? FRAMES.GHOSTOPEN : FRAMES.GHOSTCLOSE;
+      if (frameReady(ghostFrame)) {
         ctx.save();
         ctx.translate(cx, cy);
         const gSize = GRID * 1.2 * 0.45 * 5.5; // slightly smaller than bat (bat uses 6.5)
         ctx.globalAlpha = 0.70 + 0.12 * Math.sin(tick * 0.07 + e.id * 5);
         ctx.shadowBlur = _fxEnabled ? 16 : 0;
         ctx.shadowColor = type.glowColor;
-        ctx.drawImage(ghostFrame, -gSize / 2, -gSize / 2, gSize, gSize);
+        ctx.drawImage(ghostFrame.sheet, ghostFrame.x, ghostFrame.y, ghostFrame.w, ghostFrame.h, -gSize / 2, -gSize / 2, gSize, gSize);
         ctx.globalAlpha = 1;
         ctx.restore();
         // Health bar
@@ -1188,20 +1180,44 @@ let _snakeBrightness = 55;  // 20-80 percentage
 const _tintCanvas = document.createElement('canvas');
 const _tintCtx    = _tintCanvas.getContext('2d', { willReadFrequently: true });
 
+// Returns true if a FRAMES entry (sprite sheet frame) is ready to draw.
+function frameReady(f) {
+  return f.sheet.complete && f.sheet.naturalWidth > 0;
+}
+
+// Returns a CSS style string that renders a sprite sheet frame as a background image.
+// Used when displaying frames inside HTML strings (HUD, overlays, tags).
+function spriteFrameStyle(name, displaySize) {
+  const f = FRAMES[name];
+  const scale = displaySize / f.w;
+  return `width:${displaySize}px;height:${displaySize}px;display:inline-block;image-rendering:pixelated;background:url('${f.path}') -${f.x * scale}px 0/${f.sheetW * scale}px ${displaySize}px`;
+}
+
 // Tint a white sprite with the current snake colour.
 // The transform on `ctx` (translate/rotate) is already applied by the caller;
 // x/y/w/h are in that local coordinate space.
-function drawTintedSprite(ctx, img, x, y, w, h, color) {
+// `imgOrFrame` may be a plain HTMLImageElement or a FRAMES entry ({ sheet, x, y, w, h }).
+function drawTintedSprite(ctx, imgOrFrame, x, y, w, h, color) {
   const cw = Math.ceil(w), ch = Math.ceil(h);
   if (_tintCanvas.width  < cw) _tintCanvas.width  = cw;
   if (_tintCanvas.height < ch) _tintCanvas.height = ch;
   _tintCtx.clearRect(0, 0, cw, ch);
-  _tintCtx.drawImage(img, 0, 0, cw, ch);
+  if (imgOrFrame.sheet) {
+    const f = imgOrFrame;
+    _tintCtx.drawImage(f.sheet, f.x, f.y, f.w, f.h, 0, 0, cw, ch);
+  } else {
+    _tintCtx.drawImage(imgOrFrame, 0, 0, cw, ch);
+  }
   _tintCtx.globalCompositeOperation = 'multiply';
   _tintCtx.fillStyle = color;
   _tintCtx.fillRect(0, 0, cw, ch);
   _tintCtx.globalCompositeOperation = 'destination-in';
-  _tintCtx.drawImage(img, 0, 0, cw, ch);
+  if (imgOrFrame.sheet) {
+    const f = imgOrFrame;
+    _tintCtx.drawImage(f.sheet, f.x, f.y, f.w, f.h, 0, 0, cw, ch);
+  } else {
+    _tintCtx.drawImage(imgOrFrame, 0, 0, cw, ch);
+  }
   _tintCtx.globalCompositeOperation = 'source-over';
   ctx.drawImage(_tintCanvas, 0, 0, cw, ch, x, y, w, h);
 }
@@ -1539,24 +1555,27 @@ class SnakeRogue {
     });
     this.app.ticker.stop(); // game loop drives rendering manually
 
-    // ── Textures ────────────────────────────────
+    // ── Textures (loaded from sprite sheets via BaseTexture + Rectangle) ────
+    const _snakeBT    = PIXI.BaseTexture.from(SNAKE_SHEET_PATH);
+    const _uiPerksBT  = PIXI.BaseTexture.from(UI_PERKS_SHEET_PATH);
+    const _enemiesBT  = PIXI.BaseTexture.from(ENEMIES_SHEET_PATH);
     this._tex = {
-      snakeHead:       PIXI.Texture.from('sprites/SNAKEHEAD.png'),
-      snakeHeadBorder: PIXI.Texture.from('sprites/SNAKEHEADBORDER.png'),
+      snakeHead:       new PIXI.Texture(_snakeBT,   new PIXI.Rectangle(128, 0, 32, 32)),
+      snakeHeadBorder: new PIXI.Texture(_snakeBT,   new PIXI.Rectangle(160, 0, 32, 32)),
       snakeBody:  [
-        PIXI.Texture.from('sprites/SNAKEBODY.png'),
-        PIXI.Texture.from('sprites/SNAKEBODY1.png'),
-        PIXI.Texture.from('sprites/SNAKEBODY2.png'),
-        PIXI.Texture.from('sprites/SNAKEBODY3.png'),
+        new PIXI.Texture(_snakeBT, new PIXI.Rectangle(  0, 0, 32, 32)), // index 0: placeholder (engine uses texKey=1+(idx%3), so 0 is never accessed)
+        new PIXI.Texture(_snakeBT, new PIXI.Rectangle(  0, 0, 32, 32)), // index 1: SNAKEBODY1
+        new PIXI.Texture(_snakeBT, new PIXI.Rectangle( 32, 0, 32, 32)), // index 2: SNAKEBODY2
+        new PIXI.Texture(_snakeBT, new PIXI.Rectangle( 64, 0, 32, 32)), // index 3: SNAKEBODY3
       ],
-      snakeBodyBorder: PIXI.Texture.from('sprites/SNAKEBODYBORDER.png'),
-      appleRed:        PIXI.Texture.from('sprites/APPLER.png'),
-      appleYellow:     PIXI.Texture.from('sprites/APPLEY.png'),
-      teleportPerk:    PIXI.Texture.from('sprites/TELEPORTPERK.png'),
-      bat:             PIXI.Texture.from('sprites/BAT.png'),
-      batFlap:         PIXI.Texture.from('sprites/BATFLAP.png'),
-      ghostOpen:       PIXI.Texture.from('sprites/GHOSTOPEN.png'),
-      ghostClose:      PIXI.Texture.from('sprites/GHOSTCLOSE.png'),
+      snakeBodyBorder: new PIXI.Texture(_snakeBT,   new PIXI.Rectangle( 96, 0, 32, 32)),
+      appleRed:        new PIXI.Texture(_uiPerksBT, new PIXI.Rectangle(  0, 0, 32, 32)),
+      appleYellow:     new PIXI.Texture(_uiPerksBT, new PIXI.Rectangle( 32, 0, 32, 32)),
+      teleportPerk:    new PIXI.Texture(_uiPerksBT, new PIXI.Rectangle(160, 0, 32, 32)),
+      bat:             new PIXI.Texture(_enemiesBT, new PIXI.Rectangle(  0, 0, 32, 32)),
+      batFlap:         new PIXI.Texture(_enemiesBT, new PIXI.Rectangle( 32, 0, 32, 32)),
+      ghostOpen:       new PIXI.Texture(_enemiesBT, new PIXI.Rectangle( 96, 0, 32, 32)),
+      ghostClose:      new PIXI.Texture(_enemiesBT, new PIXI.Rectangle( 64, 0, 32, 32)),
     };
 
     // ── Stage hierarchy ─────────────────────────
@@ -3474,15 +3493,15 @@ class SnakeRogue {
       let html = '';
       for (let i = 0; i < maxLives; i++) {
         const filled = i < currentLives;
-        let src;
+        let frameName;
         if (filled && wardActive && i === currentLives - 1) {
-          src = 'sprites/WARD.png';
+          frameName = 'WARD';
         } else if (filled) {
-          src = 'sprites/HEART.png';
+          frameName = 'HEART';
         } else {
-          src = 'sprites/HEARTEMPTY.png';
+          frameName = 'HEARTEMPTY';
         }
-        html += `<img src="${src}" style="width:36px;height:36px;vertical-align:middle;image-rendering:pixelated;">`;
+        html += `<span style="${spriteFrameStyle(frameName, 36)};vertical-align:middle;"></span>`;
       }
       livesRow.innerHTML = html;
       livesRow.style.display = 'flex';
@@ -4155,10 +4174,9 @@ class SnakeRogue {
       <div style="background:#0e0e1a;border:1px solid #446;border-radius:10px;
                   min-width:300px;max-width:360px;max-height:90vh;
                   position:relative;display:flex;flex-direction:column;">
-        <img id="settings-bat-img" src="sprites/BAT.png"
-             style="position:absolute;top:-22px;right:-22px;width:44px;height:44px;z-index:10;
-                    filter:drop-shadow(0 0 8px rgba(153,51,255,0.9));transform:rotate(25deg);pointer-events:none;"
-             alt="bat">
+        <div id="settings-bat-img" style="position:absolute;top:-22px;right:-22px;width:44px;height:44px;z-index:10;
+                     image-rendering:pixelated;background:url('sprites/ENEMIES.png') 0 0/176px 44px;
+                     filter:drop-shadow(0 0 8px rgba(153,51,255,0.9));transform:rotate(25deg);pointer-events:none;"></div>
         <div style="padding:28px 32px 0 32px;display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0;">
           <div style="font-size:16px;color:#89b;letter-spacing:4px;text-transform:uppercase;margin-bottom:18px;">⚙ SETTINGS</div>
         </div>
@@ -4496,12 +4514,12 @@ class SnakeRogue {
       // Draw body fills (tail → neck)
       for (let i = 0; i < segs.length - 1; i++) {
         const { x, y, bodyIdx } = segs[i];
-        const img = SNAKE_BODY_IMGS[bodyIdx];
-        if (img.complete && img.naturalWidth > 0) {
+        const bodyFrame = SNAKE_BODY_FRAMES[(bodyIdx - 1) % 3];
+        if (frameReady(bodyFrame)) {
           ctx.save();
           ctx.translate(x, y);
           ctx.rotate(rot);
-          drawTintedSprite(ctx, img, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
+          drawTintedSprite(ctx, bodyFrame, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
           ctx.restore();
         } else {
           ctx.fillStyle = color;
@@ -4514,22 +4532,22 @@ class SnakeRogue {
       // Draw body borders
       for (let i = 0; i < segs.length - 1; i++) {
         const { x, y } = segs[i];
-        if (SNAKE_BODY_BORDER_IMG.complete && SNAKE_BODY_BORDER_IMG.naturalWidth > 0) {
+        if (frameReady(FRAMES.SNAKEBODYBORDER)) {
           ctx.save();
           ctx.translate(x, y);
           ctx.rotate(rot);
-          drawTintedSprite(ctx, SNAKE_BODY_BORDER_IMG, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
+          drawTintedSprite(ctx, FRAMES.SNAKEBODYBORDER, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
           ctx.restore();
         }
       }
 
       // Draw head fill
       const { x: hx, y: hy } = segs[segs.length - 1];
-      if (SNAKE_HEAD_IMG.complete && SNAKE_HEAD_IMG.naturalWidth > 0) {
+      if (frameReady(FRAMES.SNAKEHEAD)) {
         ctx.save();
         ctx.translate(hx, hy);
         ctx.rotate(rot);
-        drawTintedSprite(ctx, SNAKE_HEAD_IMG, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
+        drawTintedSprite(ctx, FRAMES.SNAKEHEAD, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
         ctx.restore();
       } else {
         ctx.fillStyle = color;
@@ -4539,11 +4557,11 @@ class SnakeRogue {
       }
 
       // Draw head border
-      if (SNAKE_HEAD_BORDER_IMG.complete && SNAKE_HEAD_BORDER_IMG.naturalWidth > 0) {
+      if (frameReady(FRAMES.SNAKEHEADBORDER)) {
         ctx.save();
         ctx.translate(hx, hy);
         ctx.rotate(rot);
-        drawTintedSprite(ctx, SNAKE_HEAD_BORDER_IMG, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
+        drawTintedSprite(ctx, FRAMES.SNAKEHEADBORDER, -sprSz / 2, -sprSz / 2, sprSz, sprSz, color);
         ctx.restore();
       }
     };

@@ -35,7 +35,7 @@
 "meta": {
 	"app": "https://www.codeandweb.com/texturepacker",
 	"version": "1.1",
-	"image": "UI+PERKS.png",
+	"image": "ENEMIES.png",
 	"format": "RGBA8888",
 	"size": {"w":128,"h":32},
 	"scale": "1",
