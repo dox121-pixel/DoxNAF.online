@@ -2323,6 +2323,7 @@ class SnakeRogue {
       // Allow skipping the death replay back to the death screen
       if (this.phase === 'death_replay' && (e.key === 'Enter' || e.key === 'r' || e.key === ' ')) {
         this.phase = 'gameover';
+        this._updateCursor();
         document.getElementById('overlay').style.display = '';
       }
       // ESC: toggle pause menu in solo mode only (not online, not nightmare)
@@ -2650,6 +2651,7 @@ class SnakeRogue {
     this._hideOverlay();
     this._hideUpgradePanel();
     this._updateHUD();
+    this._updateCursor();
     // Show pause button for solo mode
     const pauseBtn = document.getElementById('pause-btn');
     if (pauseBtn) pauseBtn.style.display = '';
@@ -3436,6 +3438,7 @@ class SnakeRogue {
       this._replayBuffer = [];
     }
     this.phase = 'gameover';
+    this._updateCursor();
     this._showOverlay('gameover', reason);
   }
 
@@ -3457,6 +3460,11 @@ class SnakeRogue {
     this._hideUpgradePanel();
     this.phase = 'playing';
     this._updateHUD();
+  }
+
+  _updateCursor() {
+    const inGame = this.phase === 'playing' || this.phase === 'online_playing';
+    this.canvas.classList.toggle('in-game', inGame);
   }
 
   _updateHUD() {
@@ -3817,6 +3825,7 @@ class SnakeRogue {
     if (!this._deathReplay || this._deathReplay.length === 0) return;
     this._deathReplayStart = performance.now();
     this.phase = 'death_replay';
+    this._updateCursor();
     document.getElementById('overlay').style.display = 'none';
   }
 
@@ -4911,6 +4920,7 @@ class SnakeRogue {
         this._hideOverlay();
         this._showMobileTeleportBtn();
         this._updateOnlineHUD();
+        this._updateCursor();
         break;
 
       case 'game_tick': {
@@ -4941,6 +4951,7 @@ class SnakeRogue {
       case 'game_over':
         this.onlineState = msg.state || this.onlineState;
         this.phase       = 'online_over';
+        this._updateCursor();
         this._showOnlineGameOver(msg.winner, msg.scores);
         break;
 
@@ -5014,6 +5025,7 @@ class SnakeRogue {
 
   _showOnlineDisconnected() {
     this.phase = 'online_over';
+    this._updateCursor();
     this._hideMobileTeleportBtn();
     const el = document.getElementById('overlay');
     el.className = 'online-lose';
