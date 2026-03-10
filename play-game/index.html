@@ -20,6 +20,11 @@
   </script>
   <!-- JSZip for ZIP archive support (loaded lazily) -->
   <script>var JSZIP_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';</script>
+  <!-- CheerpX for running native Unity builds (Windows/Linux) in browser -->
+  <script>
+    var CHEERPX_CDN = 'https://cxrtnc.leaningtech.com/1.0.0/cx.esm.js';
+    var CHEERPX_EXT2 = 'https://cxrtnc.leaningtech.com/1.0.0/debian.ext2';
+  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -259,6 +264,45 @@
       box-shadow: 0 0 8px #4ff4;
     }
 
+    /* ── CheerpX emulation container ─────────────── */
+    #cheerpx-wrap {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 960px;
+      margin-top: 24px;
+    }
+    #cheerpx-wrap.visible { display: flex; }
+
+    #cheerpx-display {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border: 1px solid #1a3a3a;
+      box-shadow: 0 0 40px #0af2;
+      background: #000;
+      display: block;
+      position: relative;
+      overflow: hidden;
+      min-height: 200px;
+    }
+
+    /* CheerpX injects its own canvas — make it fill the container */
+    #cheerpx-display canvas {
+      width: 100% !important;
+      height: 100% !important;
+      object-fit: contain;
+      display: block;
+    }
+
+    .cx-loading-hint {
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: #335;
+      text-align: center;
+      margin-top: 8px;
+    }
+
     /* ── "Cannot run" panel ───────────────────── */
     #no-run-panel {
       display: none;
@@ -347,14 +391,14 @@
   <div class="divider"></div>
 
   <div class="page-title">Play Any Unity Game</div>
-  <div class="page-subtitle">Drop your WebGL build — runs entirely in your browser, nothing uploaded</div>
+  <div class="page-subtitle">Drop any Unity build — WebGL or standalone executable — runs in your browser, nothing uploaded</div>
 
   <!-- Drop zone -->
   <div id="drop-zone" role="region" aria-label="Game drop zone">
     <div class="drop-icon">🎮</div>
     <div class="drop-label">Drop your Unity game here</div>
     <div class="drop-hint">
-      Drop a <em>WebGL build folder</em>, individual files, or a <em>.zip</em> of the build<br>
+      Drop a <em>WebGL build</em>, <em>standalone build</em> (.exe / .x86_64), or a <em>.zip</em><br>
       Files never leave your device — all processing is local
     </div>
     <span class="drop-browse" id="browse-btn">or click to browse files / folder</span>
@@ -378,16 +422,27 @@
     </div>
   </div>
 
-  <!-- "Cannot run native builds" panel -->
+  <!-- CheerpX emulation container (shown for native standalone builds) -->
+  <div id="cheerpx-wrap">
+    <div class="game-name" id="cheerpx-name">Running…</div>
+    <div id="cheerpx-display"></div>
+    <p class="cx-loading-hint">Native build running via CheerpX browser compatibility layer</p>
+    <div class="game-controls">
+      <button class="btn-eject" id="btn-cx-eject">✕ stop game</button>
+      <button class="btn-fullscreen" id="btn-cx-fullscreen">⛶ fullscreen</button>
+    </div>
+  </div>
+
+  <!-- Fallback panel shown when CheerpX emulation fails for native builds -->
   <div id="no-run-panel">
-    <div class="no-run-title">⚠ Native Build Detected</div>
+    <div class="no-run-title">⚠ Could Not Run Native Build</div>
     <p class="no-run-body">
       This appears to be a <strong>native desktop Unity build</strong> (e.g. a Windows <code>.exe</code>,
-      Linux <code>.x86_64</code>, or macOS <code>.app</code>).<br>
-      Native executables cannot run directly in a web browser.
+      Linux <code>.x86_64</code>, or macOS <code>.app</code>), and the browser compatibility layer
+      could not launch it.
     </p>
     <p class="no-run-body">
-      To play your game here, export it from Unity as a <strong>WebGL build</strong>:
+      For guaranteed browser playback, export from Unity as a <strong>WebGL build</strong>:
     </p>
     <ol class="no-run-steps">
       <li>Open your project in Unity Editor</li>
@@ -402,9 +457,9 @@
   <div id="how-to">
     <div class="how-to-title">How to use</div>
     <ol class="how-to-steps">
-      <li data-n="1">Export your Unity game as a <strong>WebGL</strong> build (File → Build Settings → WebGL → Build)</li>
-      <li data-n="2">Drag the entire output folder (or a ZIP of it) onto the drop zone above</li>
-      <li data-n="3">The game loads instantly — no upload, no server, 100% local</li>
+      <li data-n="1">Drop a <strong>WebGL build folder/zip</strong> <em>or</em> a <strong>standalone build</strong> (.exe / .x86_64) onto the drop zone</li>
+      <li data-n="2">WebGL builds load instantly in an iframe — no upload, no server, 100% local</li>
+      <li data-n="3">Standalone executables are run via <strong>CheerpX</strong> (browser x86 compatibility layer — ~80 MB download on first use)</li>
       <li data-n="4">Use fullscreen for the best experience</li>
     </ol>
   </div>
@@ -440,6 +495,12 @@
     var btnFullscreen= document.getElementById('btn-fullscreen');
     var noRunPanel   = document.getElementById('no-run-panel');
     var howTo        = document.getElementById('how-to');
+    var cheerpxWrap  = document.getElementById('cheerpx-wrap');
+    var cheerpxDisplay = document.getElementById('cheerpx-display');
+    var cheerpxName  = document.getElementById('cheerpx-name');
+    var btnCxEject   = document.getElementById('btn-cx-eject');
+    var btnCxFull    = document.getElementById('btn-cx-fullscreen');
+    var cheerpxInstance = null;
 
     // ── Service Worker registration ─────────────────────────────────
     var swRegistered = false;
@@ -807,13 +868,12 @@
 
       addStatus('Detected: ' + (
         type === 'webgl'   ? 'Unity WebGL build ✓' :
-        type === 'native'  ? 'Native desktop build (cannot run in browser)' :
+        type === 'native'  ? 'Native desktop build — launching via CheerpX' :
                              'Unknown build type — trying as WebGL'
       ), type === 'native' ? 'warn' : 'ok');
 
       if (type === 'native') {
-        setProgress(null);
-        showNoRun();
+        runWithCheerpX(files);
         return;
       }
 
@@ -885,11 +945,13 @@
 
       gameWrap.classList.add('visible');
       noRunPanel.classList.remove('visible');
+      cheerpxWrap.classList.remove('visible');
     }
 
     function showNoRun() {
       noRunPanel.classList.add('visible');
       gameWrap.classList.remove('visible');
+      cheerpxWrap.classList.remove('visible');
       howTo.style.display = '';
     }
 
@@ -912,6 +974,179 @@
       if (el.requestFullscreen)            el.requestFullscreen();
       else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
     });
+
+    // ── CheerpX wrap controls ────────────────────────────────────────
+    btnCxEject.addEventListener('click', function () {
+      cheerpxWrap.classList.remove('visible');
+      cheerpxInstance = null;
+      howTo.style.display = '';
+      clearStatus();
+      setProgress(null);
+    });
+
+    btnCxFull.addEventListener('click', function () {
+      var el = cheerpxDisplay;
+      if (el.requestFullscreen)            el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    });
+
+    // ── CheerpX: native build support ───────────────────────────────
+    // Identifies the main game executable from the file list.
+    function findExecutable(files) {
+      // Patterns that identify Unity crash-reporter helpers (not the game itself)
+      var CRASH_PATTERNS = ['crashhandler', 'unitycrash'];
+
+      function isCrashHelper(p) {
+        var lp = p.toLowerCase();
+        return CRASH_PATTERNS.some(function (pat) { return lp.indexOf(pat) !== -1; });
+      }
+
+      var lower = files.map(function (f) {
+        return { file: f, lp: f.path.toLowerCase() };
+      });
+
+      // Prefer Linux binary (direct ELF, no Wine needed)
+      var linux = lower.find(function (f) {
+        return (f.lp.endsWith('.x86_64') || f.lp.endsWith('.x86')) && !isCrashHelper(f.lp);
+      });
+      if (linux) return { file: linux.file, type: 'linux' };
+
+      // Windows EXE (skip crash-handler helpers)
+      var win = lower.find(function (f) {
+        return f.lp.endsWith('.exe') && !isCrashHelper(f.lp);
+      });
+      if (win) return { file: win.file, type: 'windows' };
+
+      return null;
+    }
+
+    // Launches a native Unity build inside CheerpX.
+    function runWithCheerpX(files) {
+      var exeInfo = findExecutable(files);
+      if (!exeInfo) {
+        addStatus('No executable found in the dropped files.', 'error');
+        showNoRun();
+        return;
+      }
+
+      // Show CheerpX panel, hide others
+      cheerpxWrap.classList.add('visible');
+      gameWrap.classList.remove('visible');
+      noRunPanel.classList.remove('visible');
+      howTo.style.display = 'none';
+
+      var execName = exeInfo.file.path.split('/').pop().replace(/\.[^.]+$/, '');
+      cheerpxName.textContent = execName.toUpperCase().replace(/[-_]/g, ' ');
+
+      var buildKind = exeInfo.type === 'windows' ? 'Windows' : 'Linux';
+      addStatus('Detected: ' + buildKind + ' build — loading CheerpX compatibility layer', 'ok');
+      addStatus('Downloading system image (~80 MB on first use). Please wait…', 'warn');
+      setProgress(5);
+
+      // CheerpX is an ES module — load it via dynamic import()
+      import(CHEERPX_CDN).then(function (mod) {
+        var CheerpX = mod.CheerpX || mod.default;
+        if (!CheerpX || !CheerpX.Linux) {
+          throw new Error('CheerpX module not found at CDN URL');
+        }
+
+        addStatus('Building virtual filesystem…');
+        setProgress(20);
+
+        // Map every dropped file at its relative path under /game
+        var fileMap = {};
+        files.forEach(function (f) { fileMap[f.path] = f.buffer; });
+
+        addStatus('Creating virtual machine…');
+        setProgress(30);
+
+        return CheerpX.Linux.create({
+          mounts: [
+            { type: 'ext2', url: CHEERPX_EXT2, mountPoint: '/' },
+            { type: 'dir',  files: fileMap,    mountPoint: '/game' },
+          ],
+          printStdout: function () { /* suppress Unity stdout spam */ },
+          printStderr: function (s) {
+            s = (s || '').trim();
+            // Max 120 chars per line to keep the status bar readable
+            var MAX_STATUS_LEN = 120;
+            // Show meaningful stderr, skip Wine fixme/trace noise
+            if (s && s.indexOf('fixme:') === -1 && s.indexOf('trace:') === -1) {
+              addStatus('[!] ' + s.slice(0, MAX_STATUS_LEN), 'warn');
+            }
+          },
+        });
+
+      }).then(function (cx) {
+        cheerpxInstance = cx;
+        setProgress(70);
+        addStatus('Virtual machine ready.', 'ok');
+
+        // Hook CheerpX display to our container div.
+        // CheerpX v1 injects its own canvas/element — try each known API.
+        if (typeof cx.setDisplay === 'function') {
+          cx.setDisplay(cheerpxDisplay);
+        } else if (typeof cx.setCustomConsole === 'function') {
+          cx.setCustomConsole(cheerpxDisplay);
+        } else if (typeof cx.registerCallback === 'function') {
+          // Framebuffer callback: manually blit to a canvas we create
+          var canvas = document.createElement('canvas');
+          cheerpxDisplay.appendChild(canvas);
+          var ctx2d = canvas.getContext('2d');
+          // Reuse the ImageData object when dimensions stay constant between frames
+          var cachedImageData = null;
+          cx.registerCallback('displayBuffer', function (buf, w, h) {
+            if (canvas.width !== w || canvas.height !== h) {
+              canvas.width  = w;
+              canvas.height = h;
+              cachedImageData = null;
+            }
+            if (!cachedImageData) {
+              cachedImageData = new ImageData(w, h);
+            }
+            cachedImageData.data.set(new Uint8ClampedArray(buf));
+            ctx2d.putImageData(cachedImageData, 0, 0);
+          });
+        }
+
+        var exePath = '/game/' + exeInfo.file.path;
+        setProgress(85);
+
+        // Common environment for both Linux and Windows runs
+        var baseEnv = { DISPLAY: ':0', HOME: '/root' };
+
+        var runPromise;
+        if (exeInfo.type === 'linux') {
+          addStatus('Starting Linux game…', 'ok');
+          // chmod first so CheerpX can execute it, then launch
+          runPromise = cx.run('chmod', ['+x', exePath]).then(function () {
+            return cx.run(exePath, [], {
+              env: Object.assign({}, baseEnv, { LD_LIBRARY_PATH: '/game' }),
+            });
+          });
+        } else {
+          addStatus('Starting Windows game via Wine…', 'ok');
+          runPromise = cx.run('wine', [exePath], {
+            env: Object.assign({}, baseEnv, { WINEPREFIX: '/tmp/.wine' }),
+          });
+        }
+
+        runPromise.catch(function (e) {
+          addStatus('Game process exited: ' + (e && e.message ? e.message : String(e)), 'warn');
+        });
+
+        setProgress(100);
+        setTimeout(function () { setProgress(null); }, 600);
+        addStatus('Game launched — interact with the display above.', 'ok');
+
+      }).catch(function (err) {
+        cheerpxWrap.classList.remove('visible');
+        addStatus('CheerpX error: ' + (err && err.message ? err.message : String(err)), 'error');
+        addStatus('For guaranteed browser playback, export from Unity as a WebGL build.', 'warn');
+        showNoRun();
+        setProgress(null);
+      });
+    }
 
     // Listen for 'files-ready' from SW (belt-and-suspenders)
     function onFilesReady(count) {
