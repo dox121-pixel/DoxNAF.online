@@ -1490,7 +1490,7 @@ const httpServer = http.createServer((req, res) => {
   }
 
   const file    = (urlPath === '/' || urlPath === '/index.html') ? '/index.html'
-                : (urlPath === '/game' || urlPath === '/game/') ? '/game/index.html'
+                : (urlPath === '/VIPER.exe' || urlPath === '/VIPER.exe/') ? '/VIPER.exe/index.html'
                 : (urlPath === '/unity-game' || urlPath === '/unity-game/') ? '/unity-game/index.html'
                 : (urlPath === '/play-game' || urlPath === '/play-game/') ? '/play-game/index.html'
                 : urlPath;

@@ -391,14 +391,14 @@
   <div class="divider"></div>
 
   <div class="page-title">Play Any Unity Game</div>
-  <div class="page-subtitle">Drop any Unity build — WebGL or standalone executable — runs in your browser, nothing uploaded</div>
+  <div class="page-subtitle">Drop any Unity build — WebGL, zipped game archive, or standalone executable (.exe / .x86_64) — runs in your browser, nothing uploaded</div>
 
   <!-- Drop zone -->
   <div id="drop-zone" role="region" aria-label="Game drop zone">
     <div class="drop-icon">🎮</div>
     <div class="drop-label">Drop your Unity game here</div>
     <div class="drop-hint">
-      Drop a <em>WebGL build</em>, <em>standalone build</em> (.exe / .x86_64), or a <em>.zip</em><br>
+      Drop a <em>WebGL build folder or .zip</em>, a <em>zipped standalone build</em>, or a <em>standalone executable</em> (.exe / .x86_64)<br>
       Files never leave your device — all processing is local
     </div>
     <span class="drop-browse" id="browse-btn">or click to browse files / folder</span>
@@ -457,9 +457,9 @@
   <div id="how-to">
     <div class="how-to-title">How to use</div>
     <ol class="how-to-steps">
-      <li data-n="1">Drop a <strong>WebGL build folder/zip</strong> <em>or</em> a <strong>standalone build</strong> (.exe / .x86_64) onto the drop zone</li>
+      <li data-n="1">Drop a <strong>WebGL build folder or .zip</strong>, a <strong>zipped standalone build</strong>, or a <strong>standalone executable</strong> (.exe — Windows, .x86_64 — Linux) onto the drop zone</li>
       <li data-n="2">WebGL builds load instantly in an iframe — no upload, no server, 100% local</li>
-      <li data-n="3">Standalone executables are run via <strong>CheerpX</strong> (browser x86 compatibility layer — ~80 MB download on first use)</li>
+      <li data-n="3">Standalone executables (.exe / .x86_64) are run via <strong>CheerpX</strong> (browser x86/x64 compatibility layer — ~80 MB download on first use)</li>
       <li data-n="4">Use fullscreen for the best experience</li>
     </ol>
   </div>
@@ -806,12 +806,34 @@
 
       addStatus('Processing ' + raw.length + ' file(s)…');
 
-      // Check if a single ZIP was dropped
-      if (raw.length === 1 && isZipFile(raw[0])) {
-        addStatus('ZIP archive detected — extracting…');
-        extractZip(raw[0].buffer).then(function (extracted) {
-          addStatus('Extracted ' + extracted.length + ' files.');
-          sendAndDetect(normalisePaths(extracted));
+      // If all dropped items are ZIPs, extract them all and merge
+      var zips = raw.filter(function (item) { return isZipFile(item); });
+      var nonZips = raw.filter(function (item) { return !isZipFile(item); });
+
+      if (zips.length > 0 && nonZips.length === 0) {
+        // Pure ZIP drop — extract all ZIPs and merge their contents
+        addStatus('ZIP archive' + (zips.length > 1 ? 's' : '') + ' detected — extracting…');
+        var extractPromises = zips.map(function (z) { return extractZip(z.buffer); });
+        Promise.all(extractPromises).then(function (results) {
+          var merged = [].concat.apply([], results);
+          addStatus('Extracted ' + merged.length + ' files.');
+          sendAndDetect(normalisePaths(merged));
+        }).catch(function (err) {
+          addStatus('ZIP extraction failed: ' + err.message, 'error');
+          setProgress(null);
+        });
+        return;
+      }
+
+      if (zips.length > 0 && nonZips.length > 0) {
+        // Mixed drop — extract ZIPs and combine with non-ZIP files
+        addStatus('Mixed drop detected — extracting ' + zips.length + ' ZIP archive(s)…');
+        var mixedPromises = zips.map(function (z) { return extractZip(z.buffer); });
+        Promise.all(mixedPromises).then(function (results) {
+          var extracted = [].concat.apply([], results);
+          var combined = nonZips.concat(extracted);
+          addStatus('Combined ' + combined.length + ' files.');
+          sendAndDetect(normalisePaths(combined));
         }).catch(function (err) {
           addStatus('ZIP extraction failed: ' + err.message, 'error');
           setProgress(null);
