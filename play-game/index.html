@@ -503,6 +503,10 @@
     var btnCxFull    = document.getElementById('btn-cx-fullscreen');
     var cheerpxInstance = null;
 
+    // ── Constants ───────────────────────────────────────────────────
+    // Must match RUNTIME_PREFIX in sw.js
+    var RUNTIME_BASE = '/play-game/runtime/';
+
     // ── Service Worker registration ─────────────────────────────────
     var swRegistered = false;
     var swController = null;
@@ -944,8 +948,7 @@
     }
 
     function loadGame(entryPath, type) {
-      var runtimeBase = '/play-game/runtime/';
-      var src = runtimeBase + entryPath;
+      var src = RUNTIME_BASE + entryPath;
 
       // Determine display name: use the parent directory of index.html, or
       // the file stem if index.html is at the root (entryPath === 'index.html').
@@ -1068,12 +1071,34 @@
       addStatus('Downloading system image (~80 MB on first use). Please wait…', 'warn');
       setProgress(5);
 
+      // Step 1: Register game files with the service worker so they can be
+      // served over HTTP.  This lets CheerpX use HttpDevice (a plain HTTP
+      // read-only mount) instead of DataDevice, which has a CheerpX 1.2.2
+      // bug where it references the undefined global `CheerpJDataFolder`.
+      var total = files.length;
+      var swFilesReady = navigator.serviceWorker.ready.then(function (reg) {
+        var ctrl = reg.active;
+        ctrl.postMessage({ action: 'clear' });
+        files.forEach(function (f, i) {
+          // Transfer ArrayBuffer ownership to the SW for speed — f.buffer is
+          // detached after this, but the CheerpX path only needs f.path hereafter.
+          ctrl.postMessage({ action: 'add-file', path: f.path, buffer: f.buffer }, [f.buffer]);
+          setProgress(Math.round(5 + 5 * (i + 1) / total));
+        });
+        ctrl.postMessage({ action: 'ready' });
+      });
+
+      // Step 2: Load CheerpX in parallel with the SW setup.
       // CheerpX is an ES module — load it via dynamic import()
-      import(CHEERPX_CDN).then(function (mod) {
+      Promise.all([swFilesReady, import(CHEERPX_CDN)]).then(function (results) {
+        var mod = results[1];
         // 1.2.2 exports the namespace directly; fall back to .default or .CheerpX for older builds
         var CheerpX = mod.CheerpX || mod.default || mod;
         if (!CheerpX || !CheerpX.Linux) {
           throw new Error('CheerpX module not found at CDN URL');
+        }
+        if (!CheerpX.HttpDevice) {
+          throw new Error('CheerpX.HttpDevice is not available — please use a WebGL build instead');
         }
 
         addStatus('Setting up virtual filesystem…');
@@ -1088,57 +1113,43 @@
 
         setProgress(20);
 
-        // CheerpX 1.2.2 API: create devices first, then Linux.create
-        var _overlayDev, _dataDev;
+        // CheerpX 1.2.2 API: create devices first, then Linux.create.
+        // Use HttpDevice to serve game files directly from the service worker
+        // (mounted at /play-game/runtime/) — avoids the DataDevice bug where
+        // CheerpX 1.2.2 internally references the undefined `CheerpJDataFolder`.
+        var _overlayDev;
+        var runtimeBase = window.location.origin + RUNTIME_BASE;
         return Promise.all([
           CheerpX.CloudDevice.create(CHEERPX_EXT2),
           CheerpX.IDBDevice.create('cx-overlay'),
-          CheerpX.DataDevice.create(),
+          CheerpX.HttpDevice.create({ url: runtimeBase }),
         ]).then(function (devices) {
           var cloudDev = devices[0];
           var idbDev   = devices[1];
-          _dataDev     = devices[2];
-          return CheerpX.OverlayDevice.create(cloudDev, idbDev);
-        }).then(function (od) {
-          _overlayDev = od;
-          addStatus('Loading game files into virtual machine…');
-          setProgress(25);
-          // Write every dropped file into the DataDevice (mounted at /game).
-          // The path passed to writeFile is relative to the device root, so
-          // /foo.exe → accessible at /game/foo.exe inside the Linux env.
-          // Paths are normalised to prevent directory traversal.
-          var writePromises = files.map(function (f) {
-            var segments = f.path.replace(/\\/g, '/').split('/').reduce(function (acc, seg) {
-              if (seg && seg !== '.') {
-                if (seg === '..') { acc.pop(); } else { acc.push(seg); }
-              }
-              return acc;
-            }, []);
-            var vpath = '/' + segments.join('/');
-            return _dataDev.writeFile(vpath, new Uint8Array(f.buffer));
-          });
-          return Promise.all(writePromises);
-        }).then(function () {
-          addStatus('Creating virtual machine…');
-          setProgress(30);
-          return CheerpX.Linux.create({
-            mounts: [
-              { type: 'ext2', path: '/',     dev: _overlayDev },
-              { type: 'dir',  path: '/game', dev: _dataDev    },
-              { type: 'devs', path: '/dev'                    },
-              { type: 'proc', path: '/proc'                   },
-            ],
-            displayCanvas: displayCanvas,
-            printStdout: function () { /* suppress Unity stdout spam */ },
-            printStderr: function (s) {
-              s = (s || '').trim();
-              // Max 120 chars per line to keep the status bar readable
-              var MAX_STATUS_LEN = 120;
-              // Show meaningful stderr, skip Wine fixme/trace noise
-              if (s && s.indexOf('fixme:') === -1 && s.indexOf('trace:') === -1) {
-                addStatus('[!] ' + s.slice(0, MAX_STATUS_LEN), 'warn');
-              }
-            },
+          var httpDev  = devices[2];
+          return CheerpX.OverlayDevice.create(cloudDev, idbDev).then(function (od) {
+            _overlayDev = od;
+            addStatus('Creating virtual machine…');
+            setProgress(30);
+            return CheerpX.Linux.create({
+              mounts: [
+                { type: 'ext2', path: '/',     dev: _overlayDev },
+                { type: 'dir',  path: '/game', dev: httpDev     },
+                { type: 'devs', path: '/dev'                    },
+                { type: 'proc', path: '/proc'                   },
+              ],
+              displayCanvas: displayCanvas,
+              printStdout: function () { /* suppress Unity stdout spam */ },
+              printStderr: function (s) {
+                s = (s || '').trim();
+                // Max 120 chars per line to keep the status bar readable
+                var MAX_STATUS_LEN = 120;
+                // Show meaningful stderr, skip Wine fixme/trace noise
+                if (s && s.indexOf('fixme:') === -1 && s.indexOf('trace:') === -1) {
+                  addStatus('[!] ' + s.slice(0, MAX_STATUS_LEN), 'warn');
+                }
+              },
+            });
           });
         });
 
