@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>VIPER.exe — Snake Roguelike</title>
+  <meta name="description" content="VIPER.exe is a fast-paced Snake Roguelike with upgrades, enemies, and online multiplayer. Play free in your browser — no download required!" />
+  <!-- Open Graph / Discord embed -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://doxnaf.online" />
+  <meta property="og:title" content="VIPER.exe — Snake Roguelike" />
+  <meta property="og:description" content="VIPER.exe is a fast-paced Snake Roguelike with upgrades, enemies, and online multiplayer. Play free in your browser — no download required!" />
+  <meta property="og:image" content="https://doxnaf.online/sprites/SNAKEHEAD.png" />
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="VIPER.exe — Snake Roguelike" />
+  <meta name="twitter:description" content="VIPER.exe is a fast-paced Snake Roguelike with upgrades, enemies, and online multiplayer. Play free in your browser — no download required!" />
+  <meta name="twitter:image" content="https://doxnaf.online/sprites/SNAKEHEAD.png" />
+  <link rel="canonical" href="https://doxnaf.online" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:,">
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-LTSJ5GKL0C"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-LTSJ5GKL0C');
+  </script>
+</head>
+<body>
+  <div id="app">
+    <div id="hud">
+      <div id="hud-stats">
+        <span class="label" id="hud-lbl-apples">APPLES</span>&nbsp;<span id="hud-apples">0</span>
+        &nbsp;·&nbsp;
+        <span class="label" id="hud-lbl-timer">TIME</span>&nbsp;<span id="hud-timer">0:00</span>
+        &nbsp;·&nbsp;
+        <span id="hud-upgrades"></span>
+      </div>
+      <span id="hud-perk-bar" style="display:none;align-items:center;gap:6px;"></span>
+      <span id="hud-lives" style="display:none;align-items:center;gap:4px;"></span>
+    </div>
+
+    <div style="position:relative;">
+      <canvas id="canvas"></canvas>
+
+      <!-- Pause button (solo mode only) -->
+      <button id="pause-btn" style="display:none;">⏸</button>
+
+      <!-- Upgrade chooser (shown after each apple) -->
+      <div id="upgrade-panel" style="display:none;"></div>
+
+      <!-- Pause menu overlay -->
+      <div id="pause-menu" style="display:none;"></div>
+
+      <!-- Start / Game Over overlay -->
+      <div id="overlay"></div>
+    </div>
+
+    <!-- Mobile joystick control -->
+    <div id="mobile-controls">
+      <div id="joystick-area">
+        <div id="joystick-base">
+          <div id="joystick-knob"></div>
+        </div>
+      </div>
+      <div id="gun-joystick-area">
+        <div id="gun-joystick-base">
+          <div id="gun-joystick-knob"></div>
+          <span id="gun-joystick-label">🔫</span>
+        </div>
+      </div>
+      <div id="mobile-teleport-wrap" style="display:none;margin-top:10px;">
+        <button id="mobile-teleport-btn" class="btn btn-online">⌁ TELEPORT (0)</button>
+      </div>
+    </div>
+
+    <!-- Feedback modal -->
+    <div id="feedback-modal" style="display:none;">
+      <div id="feedback-modal-box">
+        <div id="feedback-modal-title">💬 FEEDBACK</div>
+        <textarea id="feedback-input" class="room-input"
+                  placeholder="Tell us what you think…" autocomplete="off" spellcheck="true"
+                  style="width:220px;height:80px;resize:vertical;letter-spacing:0;line-height:1.4;padding:6px 8px;"></textarea>
+        <div id="feedback-error" style="font-size:10px;color:#f55;min-height:14px;"></div>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <button class="btn btn-settings" id="feedback-submit-btn">SEND</button>
+          <button class="btn btn-back" id="feedback-cancel-btn">CANCEL</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Account / Auth modal -->
+    <div id="auth-modal" style="display:none;">
+      <div id="auth-modal-box">
+        <div id="auth-modal-title">👤 ACCOUNT</div>
+        <div id="auth-tab-row">
+          <button class="auth-tab active" id="auth-tab-login">SIGN IN</button>
+          <button class="auth-tab" id="auth-tab-register">CREATE ACCOUNT</button>
+        </div>
+        <input id="auth-username-input" class="room-input" maxlength="20"
+               placeholder="USERNAME" autocomplete="username" spellcheck="false"
+               style="width:180px;font-size:16px;letter-spacing:2px;text-transform:none;" />
+        <input id="auth-password-input" type="password" class="room-input"
+               placeholder="PASSWORD" autocomplete="current-password" spellcheck="false"
+               style="width:180px;letter-spacing:4px;" />
+        <div id="auth-register-note" style="display:none;font-size:10px;color:#f80;text-align:center;max-width:220px;line-height:1.6;">
+          ⚠ Do not lose your password.<br>There is <strong>no</strong> password recovery!
+        </div>
+        <div id="auth-error" style="font-size:10px;color:#f55;min-height:14px;"></div>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <button class="btn btn-online" id="auth-submit-btn">SIGN IN</button>
+          <button class="btn btn-back" id="auth-cancel-btn">CANCEL</button>
+        </div>
+        <div style="font-size:10px;color:#456;margin-top:2px;text-align:center;line-height:1.6;">
+          All modes are playable without an account.<br>Without an account your name will be Anonymous.
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaderboard removal notification -->
+    <div id="removal-notice" style="display:none;">
+      <div id="removal-notice-box">
+        <div style="font-size:13px;color:#f64;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;">⚠ LEADERBOARD NOTICE</div>
+        <div style="font-size:12px;color:#aaa;line-height:1.6;">Your leaderboard ranking was removed<br>due to an inappropriate name.</div>
+        <button class="btn btn-back" id="removal-notice-ok" style="font-size:10px;padding:4px 14px;margin-top:10px;">OK</button>
+      </div>
+    </div>
+
+    <!-- Spectate overlay (shown when admin spectates an SP session) -->
+    <div id="spectate-overlay" style="display:none;">
+      <div id="spectate-box">
+        <div id="spectate-title">👁 SPECTATING: <span id="spectate-player-name"></span></div>
+        <canvas id="spectate-canvas" width="180" height="180"></canvas>
+        <div id="spectate-stats"></div>
+        <button class="btn btn-back" id="spectate-close" style="font-size:10px;padding:4px 12px;margin-top:6px;">CLOSE</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Admin password modal -->
+  <div id="admin-modal" style="display:none;">
+    <div id="admin-modal-box">
+      <div id="admin-modal-title">⚙ ADMIN ACCESS</div>
+      <input id="admin-pw-input" type="password" class="room-input"
+             placeholder="PASSWORD" autocomplete="off" spellcheck="false"
+             style="width:180px;letter-spacing:4px;" />
+      <div id="admin-pw-error" style="font-size:10px;color:#f55;min-height:14px;"></div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button class="btn btn-settings" id="admin-login-btn">ENTER</button>
+        <button class="btn btn-back" id="admin-cancel-btn">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin panel (shown during any gamemode when admin mode is active) -->
+  <div id="admin-panel" style="display:none;">
+    <div id="admin-panel-title">⚙ ADMIN</div>
+    <div id="admin-panel-body">
+
+      <!-- ── Moderation group ── -->
+      <button class="adm-group-btn" data-group="moderation">🛡 MODERATION ▸</button>
+      <div class="adm-group-content" id="adm-group-moderation" style="display:none;">
+        <button class="admin-action-btn adm-site-toggle-btn" id="adm-site-toggle">🔴 Site Down</button>
+        <div style="margin-top:6px;width:100%;">
+          <div style="font-size:10px;color:#567;letter-spacing:1px;margin-bottom:4px;">🏆 LEADERBOARD</div>
+          <div id="adm-leaderboard-list" style="font-size:10px;color:#7ab;"></div>
+        </div>
+        <div style="margin-top:6px;width:100%;">
+          <div style="font-size:10px;color:#933;letter-spacing:1px;margin-bottom:4px;">☠ NIGHTMARE LEADERBOARD</div>
+          <div id="adm-nm-leaderboard-list" style="font-size:10px;color:#c77;"></div>
+        </div>
+      </div>
+
+      <!-- ── Debug group ── -->
+      <button class="adm-group-btn" data-group="debug">🔧 DEBUG ▸</button>
+      <div class="adm-group-content" id="adm-group-debug" style="display:none;">
+        <button class="admin-action-btn" id="adm-godmode">👻 God Mode</button>
+        <button class="admin-action-btn" id="adm-shield">🛡 +1 Shield</button>
+        <button class="admin-action-btn" id="adm-apple"><img src="sprites/APPLER.png" style="width:14px;height:14px;vertical-align:middle;"> +5 Apples</button>
+        <button class="admin-action-btn" id="adm-score">⭐ +500 Score</button>
+        <button class="admin-action-btn" id="adm-speed">⚡ Speed Up</button>
+        <button class="admin-action-btn" id="adm-slow">🕰 Slow Down</button>
+        <button class="admin-action-btn" id="adm-clear">💀 Clear Enemies</button>
+        <button class="admin-action-btn" id="adm-upgrade">🎁 Force Upgrade</button>
+        <button class="admin-action-btn" id="adm-nightmare-toggle">☠ Toggle Nightmare</button>
+        <div style="margin-top:6px;width:100%;">
+          <div style="font-size:10px;color:#47a;letter-spacing:1px;margin-bottom:4px;">⏱ SET TIME (MM:SS)</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input id="adm-time-input" type="text" placeholder="3:00" maxlength="5"
+                   style="background:#0a0a1a;border:1px solid #246;color:#7cf;font-family:'Courier New',monospace;font-size:11px;padding:2px 6px;width:56px;border-radius:3px;" />
+            <button class="admin-action-btn" id="adm-set-time" style="margin:0;flex:1;">⏱ Set Time</button>
+          </div>
+        </div>
+        <div style="margin-top:6px;width:100%;">
+          <div style="font-size:10px;color:#47a;letter-spacing:1px;margin-bottom:4px;">🌊 SET WAVE</div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input id="adm-wave-input" type="number" placeholder="1" min="0" max="999"
+                   style="background:#0a0a1a;border:1px solid #246;color:#7cf;font-family:'Courier New',monospace;font-size:11px;padding:2px 6px;width:56px;border-radius:3px;" />
+            <button class="admin-action-btn" id="adm-set-wave" style="margin:0;flex:1;">🌊 Set Wave</button>
+          </div>
+        </div>
+        <div style="margin-top:8px;width:100%;border-top:1px solid #234;padding-top:6px;">
+          <div style="font-size:10px;color:#47a;letter-spacing:1px;margin-bottom:4px;">📊 LIVE COUNTERS</div>
+          <div id="adm-debug-enemies" style="font-size:10px;color:#7ab;margin-bottom:2px;">Enemies: —</div>
+          <div id="adm-debug-wave" style="font-size:10px;color:#7ab;"></div>
+        </div>
+        <div id="adm-debug-warn" style="font-size:9px;color:#f84;text-align:center;margin-top:4px;display:none;">⚠ DEBUG ACTIVE — RUN WON'T UPLOAD</div>
+      </div>
+
+      <!-- ── Fun group ── -->
+      <button class="adm-group-btn" data-group="fun">🎮 FUN ▸</button>
+      <div class="adm-group-content" id="adm-group-fun" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div style="font-size:10px;color:#47a;letter-spacing:1px;">🎮 SP SESSIONS</div>
+          <button id="adm-sp-refresh" style="background:#0a0a1a;border:1px solid #246;color:#47a;font-family:'Courier New',monospace;font-size:9px;padding:1px 6px;cursor:pointer;border-radius:3px;">↻ Refresh</button>
+        </div>
+        <div id="adm-sp-sessions-list" style="font-size:10px;color:#7ab;"></div>
+      </div>
+
+    </div>
+    <button class="btn btn-back" id="admin-panel-close" style="font-size:10px;padding:4px 12px;">CLOSE</button>
+  </div>
+
+    <!-- Mobile warning modal (shown on every visit for mobile users) -->
+    <div id="mobile-warning-modal" style="display:none;">
+      <div id="mobile-warning-box">
+        <div id="mobile-warning-title">⚠ MOBILE DETECTED</div>
+        <div id="mobile-warning-body">
+          <p>VIPER.exe is designed for <strong>PC / Desktop</strong> browsers.</p>
+          <p>On mobile devices the game may be <strong>broken or unplayable</strong>.</p>
+          <p>For the best experience, please switch to a <strong>PC</strong>.</p>
+        </div>
+        <button class="btn btn-back" id="mobile-warning-continue-btn">CONTINUE ANYWAY</button>
+      </div>
+    </div>
+
+    <!-- Greeting modal (shown on first visit) -->
+    <div id="greeting-modal" style="display:none;">
+      <div id="greeting-modal-box">
+        <div id="greeting-title">👋 WELCOME!</div>
+        <div id="greeting-body">
+          <p>You're checking out the <strong>public indev build</strong> of <strong>VIPER.exe</strong>!</p>
+          <p>The game is still in early development — expect rough edges and the occasional bug.</p>
+          <p>We'd love to hear what you think! Hit the <strong>💬 FEEDBACK</strong> button after playing to share your thoughts. Every bit helps!</p>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+          <button class="btn btn-back" id="greeting-tos-btn" style="font-size:10px;padding:5px 14px;margin-top:0;">📄 TERMS OF SERVICE</button>
+          <button class="btn btn-back" id="greeting-pp-btn" style="font-size:10px;padding:5px 14px;margin-top:0;">🔒 PRIVACY POLICY</button>
+        </div>
+        <div style="font-size:10px;color:#456;text-align:center;line-height:1.6;">
+          By continuing you agree to our<br>Terms of Service and Privacy Policy.
+        </div>
+        <button class="btn btn-online" id="greeting-enter-btn">▶ ENTER THE GAME</button>
+      </div>
+    </div>
+
+    <!-- Legal viewer modal -->
+    <div id="legal-modal" style="display:none;">
+      <div id="legal-modal-box">
+        <div id="legal-modal-title"></div>
+        <pre id="legal-modal-content"></pre>
+        <button class="btn btn-back" id="legal-modal-close" style="font-size:11px;padding:5px 18px;margin-top:4px;">✕ CLOSE</button>
+      </div>
+    </div>
+
+    <!-- Site-down overlay (shown when admin puts site in maintenance mode) -->
+    <div id="site-down-overlay" style="display:none;">
+      <div id="site-down-box">
+        <div id="site-down-title">🔧 SITE DOWN</div>
+        <div id="site-down-subtitle">Down for maintenance — we'll be back soon!</div>
+        <div id="site-down-timer">00:00:00</div>
+        <div id="site-down-pets">
+          <div class="sleeping-pet">
+            <canvas id="sleeping-snake-canvas" class="sleeping-snake-canvas" width="120" height="28"></canvas>
+            <div class="zzz-float zzz-snake zzz-delayed">z z z</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- In-game shutdown warning (shown to players actively playing when site goes down) -->
+  <div id="shutdown-warning" style="display:none;"></div>
+
+  <script src="/pixi.min.js"></script>
+  <script src="/pixi-unsafe-eval.min.js"></script>
+  <script src="game.js"></script>
+  <!-- Admin open button: shown on main menu; remains visible during gameplay when admin is authenticated -->
+  <button id="admin-open-btn" style="display:none;">⚙ ADMIN</button>
+  <!-- Feedback button: shown on main menu -->
+  <button id="feedback-open-btn" style="display:none;">💬 FEEDBACK</button>
+</body>
+</html>
