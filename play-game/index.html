@@ -22,8 +22,8 @@
   <script>var JSZIP_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';</script>
   <!-- CheerpX for running native Unity builds (Windows/Linux) in browser -->
   <script>
-    var CHEERPX_CDN = 'https://cxrtnc.leaningtech.com/1.0.0/cx.esm.js';
-    var CHEERPX_EXT2 = 'https://cxrtnc.leaningtech.com/1.0.0/debian.ext2';
+    var CHEERPX_CDN  = 'https://cxrtnc.leaningtech.com/1.2.2/cx.esm.js';
+    var CHEERPX_EXT2 = 'wss://disks.webvm.io/debian_large_20230522_5044875331.ext2';
   </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1070,17 +1070,14 @@
 
       // CheerpX is an ES module — load it via dynamic import()
       import(CHEERPX_CDN).then(function (mod) {
-        var CheerpX = mod.CheerpX || mod.default;
+        // 1.2.2 exports the namespace directly; fall back to .default or .CheerpX for older builds
+        var CheerpX = mod.CheerpX || mod.default || mod;
         if (!CheerpX || !CheerpX.Linux) {
           throw new Error('CheerpX module not found at CDN URL');
         }
 
-        addStatus('Building virtual filesystem…');
-        setProgress(20);
-
-        // Map every dropped file at its relative path under /game
-        var fileMap = {};
-        files.forEach(function (f) { fileMap[f.path] = f.buffer; });
+        addStatus('Setting up virtual filesystem…');
+        setProgress(15);
 
         // Create a display canvas BEFORE initializing CheerpX so that it
         // can be passed as `displayCanvas` and render the game from the start.
@@ -1089,25 +1086,60 @@
         displayCanvas.height = 720;
         cheerpxDisplay.appendChild(displayCanvas);
 
-        addStatus('Creating virtual machine…');
-        setProgress(30);
+        setProgress(20);
 
-        return CheerpX.Linux.create({
-          mounts: [
-            { type: 'ext2', url: CHEERPX_EXT2, mountPoint: '/' },
-            { type: 'dir',  files: fileMap,    mountPoint: '/game' },
-          ],
-          displayCanvas: displayCanvas,
-          printStdout: function () { /* suppress Unity stdout spam */ },
-          printStderr: function (s) {
-            s = (s || '').trim();
-            // Max 120 chars per line to keep the status bar readable
-            var MAX_STATUS_LEN = 120;
-            // Show meaningful stderr, skip Wine fixme/trace noise
-            if (s && s.indexOf('fixme:') === -1 && s.indexOf('trace:') === -1) {
-              addStatus('[!] ' + s.slice(0, MAX_STATUS_LEN), 'warn');
-            }
-          },
+        // CheerpX 1.2.2 API: create devices first, then Linux.create
+        var _overlayDev, _dataDev;
+        return Promise.all([
+          CheerpX.CloudDevice.create(CHEERPX_EXT2),
+          CheerpX.IDBDevice.create('cx-overlay'),
+          CheerpX.DataDevice.create(),
+        ]).then(function (devices) {
+          var cloudDev = devices[0];
+          var idbDev   = devices[1];
+          _dataDev     = devices[2];
+          return CheerpX.OverlayDevice.create(cloudDev, idbDev);
+        }).then(function (od) {
+          _overlayDev = od;
+          addStatus('Loading game files into virtual machine…');
+          setProgress(25);
+          // Write every dropped file into the DataDevice (mounted at /game).
+          // The path passed to writeFile is relative to the device root, so
+          // /foo.exe → accessible at /game/foo.exe inside the Linux env.
+          // Paths are normalised to prevent directory traversal.
+          var writePromises = files.map(function (f) {
+            var segments = f.path.replace(/\\/g, '/').split('/').reduce(function (acc, seg) {
+              if (seg && seg !== '.') {
+                if (seg === '..') { acc.pop(); } else { acc.push(seg); }
+              }
+              return acc;
+            }, []);
+            var vpath = '/' + segments.join('/');
+            return _dataDev.writeFile(vpath, new Uint8Array(f.buffer));
+          });
+          return Promise.all(writePromises);
+        }).then(function () {
+          addStatus('Creating virtual machine…');
+          setProgress(30);
+          return CheerpX.Linux.create({
+            mounts: [
+              { type: 'ext2', path: '/',     dev: _overlayDev },
+              { type: 'dir',  path: '/game', dev: _dataDev    },
+              { type: 'devs', path: '/dev'                    },
+              { type: 'proc', path: '/proc'                   },
+            ],
+            displayCanvas: displayCanvas,
+            printStdout: function () { /* suppress Unity stdout spam */ },
+            printStderr: function (s) {
+              s = (s || '').trim();
+              // Max 120 chars per line to keep the status bar readable
+              var MAX_STATUS_LEN = 120;
+              // Show meaningful stderr, skip Wine fixme/trace noise
+              if (s && s.indexOf('fixme:') === -1 && s.indexOf('trace:') === -1) {
+                addStatus('[!] ' + s.slice(0, MAX_STATUS_LEN), 'warn');
+              }
+            },
+          });
         });
 
       }).then(function (cx) {
@@ -1148,7 +1180,11 @@
         var exePath = '/game/' + exeInfo.file.path;
         setProgress(85);
 
-        // Common environment for both Linux and Windows runs
+        // Common environment for both Linux and Windows runs.
+        // CheerpX 1.2.2 expects env as an array of "KEY=VALUE" strings.
+        function envToArray(obj) {
+          return Object.keys(obj).map(function (k) { return k + '=' + obj[k]; });
+        }
         var baseEnv = { DISPLAY: ':0', HOME: '/root' };
 
         var runPromise;
@@ -1157,13 +1193,13 @@
           // chmod first so CheerpX can execute it, then launch
           runPromise = cx.run('chmod', ['+x', exePath]).then(function () {
             return cx.run(exePath, [], {
-              env: Object.assign({}, baseEnv, { LD_LIBRARY_PATH: '/game' }),
+              env: envToArray(Object.assign({}, baseEnv, { LD_LIBRARY_PATH: '/game' })),
             });
           });
         } else {
           addStatus('Starting Windows game via Wine…', 'ok');
           runPromise = cx.run('wine', [exePath], {
-            env: Object.assign({}, baseEnv, { WINEPREFIX: '/tmp/.wine' }),
+            env: envToArray(Object.assign({}, baseEnv, { WINEPREFIX: '/tmp/.wine' })),
           });
         }
 
