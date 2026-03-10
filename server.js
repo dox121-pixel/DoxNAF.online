@@ -1467,7 +1467,9 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
-  const file    = urlPath === '/' ? '/index.html' : urlPath;
+  const file    = (urlPath === '/' || urlPath === '/index.html') ? '/index.html'
+                : (urlPath === '/game' || urlPath === '/game/') ? '/game/index.html'
+                : urlPath;
   // Resolve the full path and ensure it stays inside __dirname
   const full    = path.resolve(__dirname, '.' + file);
   if (!full.startsWith(path.resolve(__dirname) + path.sep) &&
