@@ -158,6 +158,34 @@
       transform: translateY(0);
     }
 
+    .btn-drop {
+      display: inline-block;
+      margin-top: 28px;
+      padding: 12px 32px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 14px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: #4ff;
+      background: none;
+      border: 1px solid #2a5a5a;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.1s;
+      box-shadow: 0 0 10px #4ff2;
+    }
+
+    .btn-drop:hover {
+      border-color: #4ff;
+      color: #7ef;
+      box-shadow: 0 0 20px #4ff4;
+      transform: translateY(-1px);
+    }
+
+    .btn-drop:active {
+      transform: translateY(0);
+    }
+
     .footer {
       margin-top: 40px;
       font-size: 10px;
@@ -200,6 +228,15 @@
     </p>
 
     <a class="btn-new" href="/unity-game/">▶ PLAY NEW GAME</a>
+
+    <div class="divider"></div>
+
+    <p class="projects-note">
+      Got your own Unity game? Drop any <strong>WebGL build</strong> and play it
+      instantly — no upload, no install, 100% local.
+    </p>
+
+    <a class="btn-drop" href="/play-game/">🎮 PLAY YOUR OWN GAME</a>
 
     <div class="footer">doxnaf.online &nbsp;·&nbsp; all rights reserved</div>
   </div>
