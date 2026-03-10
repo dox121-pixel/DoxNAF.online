@@ -29,8 +29,9 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0a0a0f;
-      color: #c8d8e8;
+      background: #0d0b16;
+      background-image: radial-gradient(ellipse at 50% 0%, rgba(100, 40, 180, 0.18) 0%, transparent 65%);
+      color: #d4c4e8;
       font-family: 'Courier New', Courier, monospace;
       min-height: 100vh;
       display: flex;
@@ -52,28 +53,28 @@
     .site-title {
       font-size: clamp(14px, 3vw, 20px);
       letter-spacing: 4px;
-      color: #4ff;
-      text-shadow: 0 0 10px #4ff8;
+      color: #b06aff;
+      text-shadow: 0 0 12px #b06aff88;
       text-transform: uppercase;
       text-decoration: none;
     }
-    .site-title:hover { color: #7ef; }
+    .site-title:hover { color: #d4a0ff; }
 
     .back-link {
       font-size: 11px;
       letter-spacing: 2px;
-      color: #445;
+      color: #4a3660;
       text-decoration: none;
       text-transform: uppercase;
       transition: color 0.15s;
     }
-    .back-link:hover { color: #7ef; }
+    .back-link:hover { color: #d4a0ff; }
 
     .divider {
       width: 100%;
       max-width: 960px;
       height: 1px;
-      background: linear-gradient(to right, transparent, #2af6, transparent);
+      background: linear-gradient(to right, transparent, #7b2fca66, transparent);
       margin-bottom: 24px;
     }
 
@@ -81,9 +82,9 @@
     .page-title {
       font-size: clamp(16px, 3.5vw, 24px);
       letter-spacing: 4px;
-      color: #4ff;
+      color: #b06aff;
       text-transform: uppercase;
-      text-shadow: 0 0 10px #4ff8;
+      text-shadow: 0 0 12px #b06aff88;
       margin-bottom: 8px;
       text-align: center;
     }
@@ -91,7 +92,7 @@
     .page-subtitle {
       font-size: 11px;
       letter-spacing: 2px;
-      color: #556;
+      color: #5c4878;
       text-align: center;
       margin-bottom: 28px;
       text-transform: uppercase;
@@ -102,7 +103,7 @@
       width: 100%;
       max-width: 960px;
       min-height: 260px;
-      border: 2px dashed #2a4a4a;
+      border: 2px dashed #2e1850;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -115,15 +116,15 @@
     }
 
     #drop-zone.drag-over {
-      border-color: #4ff;
-      background: #0d1a1a;
-      box-shadow: 0 0 40px #4ff2, inset 0 0 60px #4ff1;
+      border-color: #b06aff;
+      background: #130a24;
+      box-shadow: 0 0 40px #b06aff22, inset 0 0 60px #b06aff11;
     }
 
     .drop-icon {
       font-size: 48px;
       line-height: 1;
-      filter: drop-shadow(0 0 10px #4ff8);
+      filter: drop-shadow(0 0 10px #b06aff88);
       transition: transform 0.2s;
     }
     #drop-zone.drag-over .drop-icon { transform: scale(1.15); }
@@ -131,7 +132,7 @@
     .drop-label {
       font-size: 13px;
       letter-spacing: 3px;
-      color: #4ff;
+      color: #b06aff;
       text-transform: uppercase;
       text-align: center;
     }
@@ -139,24 +140,24 @@
     .drop-hint {
       font-size: 10px;
       letter-spacing: 2px;
-      color: #334;
+      color: #3a2858;
       text-transform: uppercase;
       text-align: center;
       line-height: 1.8;
     }
-    .drop-hint em { color: #445; font-style: normal; }
+    .drop-hint em { color: #4e3870; font-style: normal; }
 
     .drop-browse {
       margin-top: 4px;
       font-size: 10px;
       letter-spacing: 2px;
-      color: #2a5a5a;
+      color: #4a2870;
       text-transform: uppercase;
       text-decoration: underline;
       cursor: pointer;
       transition: color 0.15s;
     }
-    .drop-browse:hover { color: #4ff; }
+    .drop-browse:hover { color: #b06aff; }
 
     /* Hidden inputs for file/directory picking */
     #file-input { display: none; }
@@ -177,7 +178,7 @@
     .status-line {
       font-size: 11px;
       letter-spacing: 2px;
-      color: #445;
+      color: #4e3870;
       text-transform: uppercase;
     }
 
@@ -189,15 +190,15 @@
       width: 100%;
       max-width: 960px;
       height: 2px;
-      background: #111;
+      background: #1a1228;
       display: none;
     }
     .progress-track.visible { display: block; }
     .progress-bar {
       height: 100%;
       width: 0%;
-      background: #4ff;
-      box-shadow: 0 0 8px #4ff;
+      background: #b06aff;
+      box-shadow: 0 0 8px #b06aff;
       transition: width 0.1s;
     }
 
@@ -215,17 +216,17 @@
     .game-name {
       font-size: clamp(13px, 2.5vw, 18px);
       letter-spacing: 4px;
-      color: #4ff;
+      color: #b06aff;
       text-transform: uppercase;
-      text-shadow: 0 0 8px #4ff8;
+      text-shadow: 0 0 8px #b06aff88;
       margin-bottom: 12px;
     }
 
     #game-frame {
       width: 100%;
       aspect-ratio: 16 / 9;
-      border: 1px solid #1a3a3a;
-      box-shadow: 0 0 40px #0af2;
+      border: 1px solid #1e0a38;
+      box-shadow: 0 0 40px #7b2fca22;
       background: #000;
       display: block;
     }
@@ -245,8 +246,8 @@
       letter-spacing: 2px;
       text-transform: uppercase;
       background: none;
-      border: 1px solid #2a4a4a;
-      color: #4ff;
+      border: 1px solid #2e1850;
+      color: #b06aff;
       padding: 6px 16px;
       cursor: pointer;
       transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
@@ -260,8 +261,8 @@
       box-shadow: 0 0 8px #f644;
     }
     .btn-fullscreen:hover {
-      border-color: #4ff;
-      box-shadow: 0 0 8px #4ff4;
+      border-color: #b06aff;
+      box-shadow: 0 0 8px #b06aff44;
     }
 
     /* ── CheerpX emulation container ─────────────── */
@@ -278,8 +279,8 @@
     #cheerpx-display {
       width: 100%;
       aspect-ratio: 16 / 9;
-      border: 1px solid #1a3a3a;
-      box-shadow: 0 0 40px #0af2;
+      border: 1px solid #1e0a38;
+      box-shadow: 0 0 40px #7b2fca22;
       background: #000;
       display: block;
       position: relative;
@@ -298,7 +299,7 @@
     .cx-loading-hint {
       font-size: 10px;
       letter-spacing: 1px;
-      color: #335;
+      color: #4a3060;
       text-align: center;
       margin-top: 8px;
     }
@@ -311,7 +312,7 @@
       width: 100%;
       max-width: 720px;
       margin-top: 24px;
-      border: 1px solid #2a1a1a;
+      border: 1px solid #2a1a3a;
       padding: 32px 24px;
       gap: 14px;
       text-align: center;
@@ -327,36 +328,36 @@
 
     .no-run-body {
       font-size: 11px;
-      color: #556;
+      color: #5c4878;
       line-height: 2;
       letter-spacing: 1px;
     }
-    .no-run-body strong { color: #4ff; }
+    .no-run-body strong { color: #b06aff; }
 
     .no-run-steps {
       list-style: none;
       text-align: left;
       font-size: 11px;
-      color: #445;
+      color: #4e3870;
       line-height: 2.2;
       letter-spacing: 1px;
       width: 100%;
     }
-    .no-run-steps li::before { content: '→ '; color: #4ff; }
+    .no-run-steps li::before { content: '→ '; color: #b06aff; }
 
     /* ── How-to panel ─────────────────────────── */
     #how-to {
       width: 100%;
       max-width: 720px;
       margin-top: 36px;
-      border-top: 1px solid #1a2a2a;
+      border-top: 1px solid #1e1030;
       padding-top: 28px;
     }
 
     .how-to-title {
       font-size: 11px;
       letter-spacing: 4px;
-      color: #4ff;
+      color: #b06aff;
       text-transform: uppercase;
       margin-bottom: 16px;
       text-align: center;
@@ -365,17 +366,17 @@
     .how-to-steps {
       list-style: none;
       font-size: 11px;
-      color: #445;
+      color: #4e3870;
       line-height: 2.4;
       letter-spacing: 1px;
     }
     .how-to-steps li { display: flex; gap: 10px; }
-    .how-to-steps li::before { content: attr(data-n); color: #4ff; min-width: 20px; }
+    .how-to-steps li::before { content: attr(data-n); color: #b06aff; min-width: 20px; }
 
     .footer {
       margin-top: 40px;
       font-size: 10px;
-      color: #334;
+      color: #3a2850;
       letter-spacing: 1px;
       text-align: center;
     }
@@ -1001,6 +1002,8 @@
     btnCxEject.addEventListener('click', function () {
       cheerpxWrap.classList.remove('visible');
       cheerpxInstance = null;
+      // Remove any canvas injected by CheerpX so the next run starts fresh
+      cheerpxDisplay.innerHTML = '';
       howTo.style.display = '';
       clearStatus();
       setProgress(null);
@@ -1079,6 +1082,13 @@
         var fileMap = {};
         files.forEach(function (f) { fileMap[f.path] = f.buffer; });
 
+        // Create a display canvas BEFORE initializing CheerpX so that it
+        // can be passed as `displayCanvas` and render the game from the start.
+        var displayCanvas = document.createElement('canvas');
+        displayCanvas.width  = 1280;
+        displayCanvas.height = 720;
+        cheerpxDisplay.appendChild(displayCanvas);
+
         addStatus('Creating virtual machine…');
         setProgress(30);
 
@@ -1087,6 +1097,7 @@
             { type: 'ext2', url: CHEERPX_EXT2, mountPoint: '/' },
             { type: 'dir',  files: fileMap,    mountPoint: '/game' },
           ],
+          displayCanvas: displayCanvas,
           printStdout: function () { /* suppress Unity stdout spam */ },
           printStderr: function (s) {
             s = (s || '').trim();
@@ -1104,16 +1115,19 @@
         setProgress(70);
         addStatus('Virtual machine ready.', 'ok');
 
-        // Hook CheerpX display to our container div.
-        // CheerpX v1 injects its own canvas/element — try each known API.
+        // Hook CheerpX display to our container div using fallback APIs
+        // for older CheerpX versions that don't use `displayCanvas`.
         if (typeof cx.setDisplay === 'function') {
           cx.setDisplay(cheerpxDisplay);
         } else if (typeof cx.setCustomConsole === 'function') {
           cx.setCustomConsole(cheerpxDisplay);
         } else if (typeof cx.registerCallback === 'function') {
-          // Framebuffer callback: manually blit to a canvas we create
-          var canvas = document.createElement('canvas');
-          cheerpxDisplay.appendChild(canvas);
+          // Framebuffer callback: manually blit frames into the pre-created canvas
+          var canvas = cheerpxDisplay.querySelector('canvas') || (function () {
+            var c = document.createElement('canvas');
+            cheerpxDisplay.appendChild(c);
+            return c;
+          }());
           var ctx2d = canvas.getContext('2d');
           // Reuse the ImageData object when dimensions stay constant between frames
           var cachedImageData = null;

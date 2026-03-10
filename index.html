@@ -22,8 +22,9 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0a0a0f;
-      color: #c8d8e8;
+      background: #0d0b16;
+      background-image: radial-gradient(ellipse at 50% 0%, rgba(100, 40, 180, 0.18) 0%, transparent 65%);
+      color: #d4c4e8;
       font-family: 'Courier New', Courier, monospace;
       min-height: 100vh;
       display: flex;
@@ -42,8 +43,8 @@
     .site-title {
       font-size: clamp(22px, 5vw, 32px);
       letter-spacing: 4px;
-      color: #4ff;
-      text-shadow: 0 0 12px #4ff8;
+      color: #b06aff;
+      text-shadow: 0 0 18px #b06aff88;
       text-transform: uppercase;
       margin-bottom: 8px;
     }
@@ -51,7 +52,7 @@
     .divider {
       width: 100%;
       height: 1px;
-      background: linear-gradient(to right, transparent, #2af6, transparent);
+      background: linear-gradient(to right, transparent, #7b2fca66, transparent);
       margin: 20px 0;
     }
 
@@ -78,23 +79,23 @@
     .body-text {
       font-size: 13px;
       line-height: 1.9;
-      color: #899aaa;
+      color: #8878a0;
       margin-bottom: 10px;
     }
 
     .body-text strong {
-      color: #c8d8e8;
+      color: #d4c4e8;
     }
 
     .projects-note {
       font-size: 13px;
       line-height: 1.9;
-      color: #7ef;
+      color: #c4a4e4;
       margin-bottom: 6px;
     }
 
     .projects-note strong {
-      color: #4ff;
+      color: #b06aff;
     }
 
     .btn-drop {
@@ -106,18 +107,18 @@
       letter-spacing: 3px;
       text-transform: uppercase;
       text-decoration: none;
-      color: #4ff;
+      color: #b06aff;
       background: none;
-      border: 1px solid #2a5a5a;
+      border: 1px solid #3e2260;
       cursor: pointer;
       transition: border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.1s;
-      box-shadow: 0 0 10px #4ff2;
+      box-shadow: 0 0 12px #b06aff22;
     }
 
     .btn-drop:hover {
-      border-color: #4ff;
-      color: #7ef;
-      box-shadow: 0 0 20px #4ff4;
+      border-color: #b06aff;
+      color: #d4a0ff;
+      box-shadow: 0 0 24px #b06aff44;
       transform: translateY(-1px);
     }
 
@@ -128,7 +129,7 @@
     .footer {
       margin-top: 40px;
       font-size: 10px;
-      color: #334;
+      color: #3a2850;
       letter-spacing: 1px;
     }
   </style>
