@@ -131,6 +131,33 @@
       letter-spacing: 1px;
     }
 
+    .btn-new {
+      display: inline-block;
+      margin-top: 28px;
+      padding: 12px 32px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 14px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: #0a0a0f;
+      background: #4ff;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+      box-shadow: 0 0 16px #4ff4;
+    }
+
+    .btn-new:hover {
+      background: #7ef;
+      box-shadow: 0 0 24px #7ef8;
+      transform: translateY(-1px);
+    }
+
+    .btn-new:active {
+      transform: translateY(0);
+    }
+
     .footer {
       margin-top: 40px;
       font-size: 10px;
@@ -164,6 +191,15 @@
 
     <a class="btn-play" href="/game/">▶ PLAY VIPER.exe ANYWAY</a>
     <div class="btn-play-note">archived build · may contain bugs</div>
+
+    <div class="divider"></div>
+
+    <p class="projects-note">
+      A new Unity-built browser game is now hosted here.
+      No download required — play directly in your browser.
+    </p>
+
+    <a class="btn-new" href="/unity-game/">▶ PLAY NEW GAME</a>
 
     <div class="footer">doxnaf.online &nbsp;·&nbsp; all rights reserved</div>
   </div>

@@ -671,9 +671,31 @@ const GROW_PER_APPLE = Math.max(1, Math.round(2 / SEG_SPACING)); // ≈ 4 segmen
 
 // ── Static file serving ───────────────────────
 const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js':   'application/javascript; charset=utf-8',
-  '.css':  'text/css; charset=utf-8',
+  '.html':  'text/html; charset=utf-8',
+  '.js':    'application/javascript; charset=utf-8',
+  '.css':   'text/css; charset=utf-8',
+  // Unity WebGL build artefacts
+  '.wasm':  'application/wasm',
+  '.data':  'application/octet-stream',
+  '.unityweb': 'application/octet-stream',
+  // Images
+  '.png':   'image/png',
+  '.jpg':   'image/jpeg',
+  '.jpeg':  'image/jpeg',
+  '.gif':   'image/gif',
+  '.ico':   'image/x-icon',
+  '.svg':   'image/svg+xml',
+  '.webp':  'image/webp',
+  // Fonts
+  '.woff':  'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf':   'font/ttf',
+  // Data
+  '.json':  'application/json',
+  // Audio
+  '.mp3':   'audio/mpeg',
+  '.ogg':   'audio/ogg',
+  '.wav':   'audio/wav',
 };
 
 const httpServer = http.createServer((req, res) => {
@@ -1469,6 +1491,7 @@ const httpServer = http.createServer((req, res) => {
 
   const file    = (urlPath === '/' || urlPath === '/index.html') ? '/index.html'
                 : (urlPath === '/game' || urlPath === '/game/') ? '/game/index.html'
+                : (urlPath === '/unity-game' || urlPath === '/unity-game/') ? '/unity-game/index.html'
                 : urlPath;
   // Resolve the full path and ensure it stays inside __dirname
   const full    = path.resolve(__dirname, '.' + file);
@@ -1479,20 +1502,48 @@ const httpServer = http.createServer((req, res) => {
 
   fs.readFile(full, (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
-    const mime = MIME[path.extname(full)] || 'text/plain; charset=utf-8';
+
+    // Detect compressed Unity build files (.gz / .br suffixes) and set
+    // Content-Encoding so the browser decompresses them transparently.
+    const encoding = full.endsWith('.gz') ? 'gzip'
+                   : full.endsWith('.br') ? 'br'
+                   : null;
+    // Strip the compression suffix when looking up the MIME type so that
+    // e.g. "game.wasm.gz" is served as application/wasm (not text/plain).
+    const innerExt = encoding && full.lastIndexOf('.', full.lastIndexOf('.') - 1) !== -1
+      ? path.extname(full.slice(0, full.lastIndexOf('.')))
+      : null;
+    const mimeExt = innerExt || path.extname(full);
+    // Default to application/octet-stream (safe binary download) for any
+    // unknown extension; all text/script/asset types are listed in MIME above.
+    const mime = MIME[mimeExt] || 'application/octet-stream';
+
     const headers = { 'Content-Type': mime };
+    if (encoding) headers['Content-Encoding'] = encoding;
+
+    // Unity game page needs a more permissive CSP to run WebAssembly.
+    const isUnityPage = file.startsWith('/unity-game/') && mime.startsWith('text/html');
     if (mime.startsWith('text/html')) {
       headers['X-Content-Type-Options'] = 'nosniff';
       headers['X-Frame-Options'] = 'SAMEORIGIN';
-      headers['Content-Security-Policy'] =
-        "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; " +
-        "style-src 'self' 'unsafe-inline'; " +
-        "img-src 'self' data: https:; " +
-        "connect-src 'self' wss: https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; " +
-        "object-src 'none'; " +
-        "base-uri 'self'; " +
-        "form-action 'self';";
+      headers['Content-Security-Policy'] = isUnityPage
+        ? "default-src 'self'; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com; " +
+          "style-src 'self' 'unsafe-inline'; " +
+          "img-src 'self' data: blob: https:; " +
+          "connect-src 'self' wss: https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; " +
+          "worker-src 'self' blob:; " +
+          "object-src 'none'; " +
+          "base-uri 'self'; " +
+          "form-action 'self';"
+        : "default-src 'self'; " +
+          "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; " +
+          "style-src 'self' 'unsafe-inline'; " +
+          "img-src 'self' data: https:; " +
+          "connect-src 'self' wss: https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; " +
+          "object-src 'none'; " +
+          "base-uri 'self'; " +
+          "form-action 'self';";
     }
     res.writeHead(200, headers);
     res.end(data);
