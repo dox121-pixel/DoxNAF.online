@@ -19,22 +19,41 @@
     gtag('config', 'G-LTSJ5GKL0C');
   </script>
   <style>
+    :root {
+      --bg:          #1e1528;
+      --surface:     rgba(255, 235, 202, 0.044);
+      --border:      rgba(200, 165, 122, 0.20);
+      --text:        #ede0cc;
+      --text-2:      #c4b09c;
+      --text-3:      #9e8e7c;
+      --text-faint:  #6c5e50;
+      --purple:      #c0a0f0;
+      --purple-btn:  #8864be;
+      --amber:       #d4a46c;
+      --rose:        #d09098;
+      --shadow:      rgba(0, 0, 0, 0.48);
+      --r-sm:        8px;
+      --r-pill:      50px;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #16101f;
+      background-color: var(--bg);
       background-image:
-        radial-gradient(ellipse at 50% 0%,   rgba(140, 70, 220, 0.22) 0%, transparent 55%),
-        radial-gradient(ellipse at 85% 85%,  rgba(210, 160, 80,  0.10) 0%, transparent 50%),
-        radial-gradient(ellipse at 12% 75%,  rgba(180, 100, 140, 0.08) 0%, transparent 40%);
-      color: #e8dcc8;
-      font-family: 'Courier New', Courier, monospace;
+        radial-gradient(ellipse at 18% 18%, rgba(190, 130, 60,  0.13) 0%, transparent 44%),
+        radial-gradient(ellipse at 82% 82%, rgba(130, 80,  200, 0.14) 0%, transparent 44%),
+        radial-gradient(ellipse at 55%  5%, rgba(210, 165, 90,  0.09) 0%, transparent 36%);
+      color: var(--text);
+      font-family: Georgia, 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
+      font-size: 15px;
+      line-height: 1.75;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      padding: 24px 16px 48px;
+      padding: 32px 20px 52px;
     }
 
     header {
@@ -48,55 +67,50 @@
 
     .site-title {
       font-size: clamp(14px, 3vw, 20px);
-      letter-spacing: 4px;
-      color: #c49aff;
-      text-shadow: 0 0 14px #9b6dff55;
-      text-transform: uppercase;
+      font-weight: normal;
+      color: var(--purple);
+      text-shadow: 0 1px 12px rgba(170, 120, 250, 0.22);
       text-decoration: none;
-      transition: color 0.15s;
+      transition: color 0.2s;
     }
-
-    .site-title:hover { color: #dfc0ff; }
+    .site-title:hover { color: #d4bcff; }
 
     .back-link {
-      font-size: 11px;
-      letter-spacing: 2px;
-      color: #5a4475;
+      font-size: 13px;
+      color: var(--text-3);
       text-decoration: none;
-      text-transform: uppercase;
-      transition: color 0.15s;
+      font-style: italic;
+      transition: color 0.2s;
     }
-
-    .back-link:hover { color: #c49aff; }
+    .back-link:hover { color: var(--amber); }
 
     .divider {
       width: 100%;
       max-width: 960px;
       height: 1px;
-      background: linear-gradient(to right, transparent, #9b6dff44, #d4a84333, transparent);
+      background: linear-gradient(to right, transparent, var(--border), transparent);
       margin-bottom: 24px;
     }
 
     .game-title {
-      font-size: clamp(16px, 3.5vw, 24px);
-      letter-spacing: 4px;
-      color: #c49aff;
-      text-transform: uppercase;
-      text-shadow: 0 0 14px #9b6dff55;
+      font-size: clamp(18px, 3.5vw, 26px);
+      font-weight: normal;
+      color: var(--purple);
+      text-shadow: 0 1px 16px rgba(170, 120, 250, 0.22);
       margin-bottom: 20px;
       text-align: center;
     }
 
-    /* ── Unity container ───────────────────────── */
+    /* Unity container */
     #unity-container {
       position: relative;
       width: 100%;
       max-width: 960px;
       aspect-ratio: 16 / 9;
       background: #000;
-      border: 1px solid #2e1850;
-      box-shadow: 0 0 44px #9b6dff18, 0 6px 40px rgba(0,0,0,0.55);
-      border-radius: 5px;
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      box-shadow: 0 12px 52px var(--shadow), 0 0 80px rgba(130, 80, 200, 0.07);
       overflow: hidden;
     }
 
@@ -107,7 +121,7 @@
       background: #000;
     }
 
-    /* ── Loading overlay ───────────────────────── */
+    /* Loading overlay */
     #loading-overlay {
       position: absolute;
       inset: 0;
@@ -115,11 +129,10 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #16101f;
+      background: var(--bg);
       gap: 18px;
       transition: opacity 0.4s;
     }
-
     #loading-overlay.hidden {
       opacity: 0;
       pointer-events: none;
@@ -127,36 +140,33 @@
 
     .loading-logo {
       font-size: clamp(22px, 5vw, 32px);
-      letter-spacing: 5px;
-      color: #c49aff;
-      text-shadow: 0 0 16px #9b6dff66;
-      text-transform: uppercase;
+      font-weight: normal;
+      color: var(--purple);
+      text-shadow: 0 2px 20px rgba(170, 120, 250, 0.26);
     }
 
     .loading-status {
-      font-size: 11px;
-      letter-spacing: 3px;
-      color: #5a4475;
-      text-transform: uppercase;
+      font-size: 13px;
+      color: var(--text-3);
+      font-style: italic;
     }
 
     .progress-track {
       width: 260px;
       height: 3px;
-      background: #2a1840;
-      border-radius: 2px;
+      background: rgba(200, 165, 122, 0.15);
+      border-radius: 3px;
     }
 
     .progress-bar {
       height: 100%;
       width: 0%;
-      background: linear-gradient(to right, #9b6dff, #d4a843);
-      box-shadow: 0 0 8px #c49aff88;
+      background: linear-gradient(to right, var(--purple-btn), var(--amber));
+      border-radius: 3px;
       transition: width 0.2s;
-      border-radius: 2px;
     }
 
-    /* ── Error overlay ─────────────────────────── */
+    /* Error overlay */
     #error-overlay {
       position: absolute;
       inset: 0;
@@ -164,30 +174,28 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #16101f;
+      background: var(--bg);
       gap: 12px;
       padding: 32px;
       text-align: center;
     }
-
     #error-overlay.visible { display: flex; }
 
     .error-title {
-      font-size: 14px;
-      letter-spacing: 3px;
-      color: #e88878;
-      text-transform: uppercase;
-      text-shadow: 0 0 10px #e8887844;
+      font-size: 16px;
+      font-weight: normal;
+      color: var(--rose);
     }
 
     .error-msg {
-      font-size: 11px;
-      color: #7a6090;
+      font-size: 13px;
+      color: var(--text-2);
       line-height: 1.9;
       max-width: 480px;
+      font-style: italic;
     }
 
-    /* ── Controls bar ──────────────────────────── */
+    /* Controls bar */
     .controls {
       display: flex;
       align-items: center;
@@ -199,29 +207,26 @@
     }
 
     .btn-fullscreen {
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 11px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
+      font-family: Georgia, serif;
+      font-size: 13px;
       background: none;
-      border: 1px solid #3a2660;
-      color: #c49aff;
-      padding: 7px 18px;
+      border: 1px solid var(--border);
+      color: var(--purple);
+      padding: 8px 22px;
       cursor: pointer;
-      border-radius: 3px;
-      transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+      border-radius: var(--r-pill);
+      transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
     }
-
     .btn-fullscreen:hover {
-      border-color: #c49aff;
-      box-shadow: 0 0 10px #9b6dff44;
+      border-color: var(--purple);
+      box-shadow: 0 2px 14px rgba(130, 80, 200, 0.25);
     }
 
     .footer {
       margin-top: 44px;
-      font-size: 10px;
-      color: #3e2e58;
-      letter-spacing: 2px;
+      font-size: 12px;
+      color: var(--text-faint);
+      font-style: italic;
       text-align: center;
     }
   </style>

@@ -26,22 +26,47 @@
     var CHEERPX_EXT2 = 'wss://disks.webvm.io/debian_large_20230522_5044875331.ext2';
   </script>
   <style>
+    :root {
+      --bg:          #1e1528;
+      --surface:     rgba(255, 235, 202, 0.044);
+      --surface-2:   rgba(255, 235, 202, 0.026);
+      --border:      rgba(200, 165, 122, 0.20);
+      --border-2:    rgba(200, 165, 122, 0.12);
+      --text:        #ede0cc;
+      --text-2:      #c4b09c;
+      --text-3:      #9e8e7c;
+      --text-faint:  #6c5e50;
+      --purple:      #c0a0f0;
+      --purple-btn:  #8864be;
+      --purple-btn2: #7052a8;
+      --amber:       #d4a46c;
+      --amber-lt:    #e4bc88;
+      --rose:        #d09098;
+      --green:       #88c09a;
+      --shadow:      rgba(0, 0, 0, 0.48);
+      --r-lg:        16px;
+      --r-pill:      50px;
+      --r-sm:        8px;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #16101f;
+      background-color: var(--bg);
       background-image:
-        radial-gradient(ellipse at 50% 0%,   rgba(140, 70, 220, 0.22) 0%, transparent 55%),
-        radial-gradient(ellipse at 85% 85%,  rgba(210, 160, 80,  0.10) 0%, transparent 50%),
-        radial-gradient(ellipse at 12% 75%,  rgba(180, 100, 140, 0.08) 0%, transparent 40%);
-      color: #e8dcc8;
-      font-family: 'Courier New', Courier, monospace;
+        radial-gradient(ellipse at 18% 18%, rgba(190, 130, 60,  0.13) 0%, transparent 44%),
+        radial-gradient(ellipse at 82% 82%, rgba(130, 80,  200, 0.14) 0%, transparent 44%),
+        radial-gradient(ellipse at 55%  5%, rgba(210, 165, 90,  0.09) 0%, transparent 36%);
+      color: var(--text);
+      font-family: Georgia, 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
+      font-size: 15px;
+      line-height: 1.75;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      padding: 24px 16px 48px;
+      padding: 32px 20px 52px;
     }
 
     header {
@@ -55,163 +80,153 @@
 
     .site-title {
       font-size: clamp(14px, 3vw, 20px);
-      letter-spacing: 4px;
-      color: #c49aff;
-      text-shadow: 0 0 14px #9b6dff55;
-      text-transform: uppercase;
+      font-weight: normal;
+      color: var(--purple);
+      text-shadow: 0 1px 12px rgba(170, 120, 250, 0.22);
       text-decoration: none;
-      transition: color 0.15s;
+      transition: color 0.2s;
     }
-    .site-title:hover { color: #dfc0ff; }
+    .site-title:hover { color: #d4bcff; }
 
     .back-link {
-      font-size: 11px;
-      letter-spacing: 2px;
-      color: #5a4475;
+      font-size: 13px;
+      color: var(--text-3);
       text-decoration: none;
-      text-transform: uppercase;
-      transition: color 0.15s;
+      font-style: italic;
+      transition: color 0.2s;
     }
-    .back-link:hover { color: #c49aff; }
+    .back-link:hover { color: var(--amber); }
 
     .divider {
       width: 100%;
       max-width: 960px;
       height: 1px;
-      background: linear-gradient(to right, transparent, #9b6dff44, #d4a84333, transparent);
+      background: linear-gradient(to right, transparent, var(--border), transparent);
       margin-bottom: 24px;
     }
 
-    /* ── Page heading ─────────────────────────── */
+    /* Page heading */
     .page-title {
-      font-size: clamp(16px, 3.5vw, 24px);
-      letter-spacing: 4px;
-      color: #c49aff;
-      text-transform: uppercase;
-      text-shadow: 0 0 14px #9b6dff55;
+      font-size: clamp(20px, 4vw, 28px);
+      font-weight: normal;
+      color: var(--purple);
+      text-shadow: 0 1px 16px rgba(170, 120, 250, 0.22);
       margin-bottom: 8px;
       text-align: center;
     }
 
     .page-subtitle {
-      font-size: 11px;
-      letter-spacing: 2px;
-      color: #7a5e90;
+      font-size: 13px;
+      color: var(--text-3);
       text-align: center;
-      margin-bottom: 28px;
-      text-transform: uppercase;
+      margin-bottom: 30px;
       line-height: 1.8;
+      max-width: 640px;
+      font-style: italic;
     }
 
-    /* ── Drop zone ────────────────────────────── */
+    /* Drop zone */
     #drop-zone {
       width: 100%;
       max-width: 960px;
       min-height: 260px;
-      border: 2px dashed #3a2660;
-      background: rgba(30, 18, 50, 0.45);
+      border: 2px dashed rgba(200, 165, 122, 0.30);
+      background: var(--surface-2);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 16px;
+      gap: 14px;
       cursor: pointer;
-      border-radius: 6px;
-      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+      border-radius: var(--r-lg);
+      transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
       position: relative;
-      padding: 44px 24px;
+      padding: 48px 28px;
     }
 
+    #drop-zone:hover,
     #drop-zone.drag-over {
-      border-color: #c49aff;
-      background: rgba(36, 20, 60, 0.7);
-      box-shadow: 0 0 48px #9b6dff22, inset 0 0 60px #9b6dff0e;
+      border-color: rgba(190, 155, 240, 0.55);
+      background: rgba(140, 90, 210, 0.06);
+      box-shadow: 0 0 40px rgba(130, 80, 200, 0.10), inset 0 0 50px rgba(130, 80, 200, 0.05);
     }
 
     .drop-icon {
       font-size: 52px;
       line-height: 1;
-      filter: drop-shadow(0 0 12px #c49aff66);
       transition: transform 0.25s;
+      filter: drop-shadow(0 4px 10px rgba(180, 120, 60, 0.35));
     }
     #drop-zone.drag-over .drop-icon { transform: scale(1.18); }
 
     .drop-label {
-      font-size: 13px;
-      letter-spacing: 3px;
-      color: #c49aff;
-      text-transform: uppercase;
-      text-align: center;
+      font-size: 15px;
+      color: var(--text);
     }
 
     .drop-hint {
-      font-size: 10px;
-      letter-spacing: 2px;
-      color: #5a4475;
-      text-transform: uppercase;
+      font-size: 12px;
+      color: var(--text-3);
       text-align: center;
-      line-height: 2;
+      line-height: 1.9;
+      font-style: italic;
+      max-width: 500px;
     }
-    .drop-hint em { color: #7a5e90; font-style: normal; }
+    .drop-hint em { color: var(--text-2); font-style: normal; }
 
     .drop-browse {
       margin-top: 4px;
-      font-size: 10px;
-      letter-spacing: 2px;
-      color: #6a4c88;
-      text-transform: uppercase;
-      text-decoration: underline;
+      font-size: 12px;
+      color: var(--purple);
       cursor: pointer;
-      transition: color 0.15s;
+      text-decoration: underline;
+      transition: color 0.2s;
     }
-    .drop-browse:hover { color: #c49aff; }
+    .drop-browse:hover { color: #d4bcff; }
 
-    /* Hidden inputs for file/directory picking */
     #file-input { display: none; }
     #dir-input  { display: none; }
 
-    /* ── Status bar ───────────────────────────── */
+    /* Status bar */
     #status-bar {
       width: 100%;
       max-width: 960px;
-      margin-top: 16px;
-      min-height: 40px;
+      margin-top: 14px;
+      min-height: 36px;
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 6px;
+      gap: 5px;
     }
 
     .status-line {
-      font-size: 11px;
-      letter-spacing: 2px;
-      color: #6a4c88;
-      text-transform: uppercase;
+      font-size: 13px;
+      color: var(--text-faint);
+      font-style: italic;
     }
-
-    .status-line.ok    { color: #8ed68e; }
-    .status-line.warn  { color: #e8c97a; }
-    .status-line.error { color: #e88878; }
+    .status-line.ok    { color: var(--green);    font-style: normal; }
+    .status-line.warn  { color: var(--amber-lt); font-style: normal; }
+    .status-line.error { color: var(--rose);     font-style: normal; }
 
     .progress-track {
       width: 100%;
       max-width: 960px;
-      height: 2px;
-      background: #221630;
+      height: 3px;
+      background: rgba(200, 165, 122, 0.12);
+      border-radius: 3px;
       display: none;
-      border-radius: 2px;
+      margin-top: 8px;
     }
     .progress-track.visible { display: block; }
     .progress-bar {
       height: 100%;
       width: 0%;
-      background: linear-gradient(to right, #9b6dff, #d4a843);
-      box-shadow: 0 0 8px #c49aff88;
+      background: linear-gradient(to right, var(--purple-btn), var(--amber));
+      border-radius: 3px;
       transition: width 0.1s;
-      border-radius: 2px;
     }
 
-    /* ── Game container (iframe) ──────────────── */
+    /* Game container */
     #game-wrap {
       display: none;
       flex-direction: column;
@@ -223,22 +238,21 @@
     #game-wrap.visible { display: flex; }
 
     .game-name {
-      font-size: clamp(13px, 2.5vw, 18px);
-      letter-spacing: 4px;
-      color: #c49aff;
-      text-transform: uppercase;
-      text-shadow: 0 0 10px #9b6dff55;
+      font-size: clamp(14px, 2.5vw, 20px);
+      font-weight: normal;
+      color: var(--purple);
       margin-bottom: 12px;
+      text-shadow: 0 1px 14px rgba(170, 120, 250, 0.22);
     }
 
     #game-frame {
       width: 100%;
       aspect-ratio: 16 / 9;
-      border: 1px solid #2e1850;
-      box-shadow: 0 0 40px #9b6dff18, 0 4px 32px rgba(0,0,0,0.5);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      box-shadow: 0 10px 44px var(--shadow), 0 0 60px rgba(130, 80, 200, 0.07);
       background: #000;
       display: block;
-      border-radius: 4px;
     }
 
     .game-controls {
@@ -246,37 +260,35 @@
       align-items: center;
       justify-content: space-between;
       width: 100%;
-      margin-top: 10px;
+      margin-top: 12px;
       gap: 12px;
     }
 
     .btn-eject, .btn-fullscreen {
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 11px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
+      font-family: Georgia, serif;
+      font-size: 13px;
       background: none;
-      border: 1px solid #3a2660;
-      color: #c49aff;
-      padding: 7px 18px;
+      border: 1px solid var(--border);
+      color: var(--purple);
+      padding: 8px 22px;
       cursor: pointer;
-      border-radius: 3px;
-      transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+      border-radius: var(--r-pill);
+      transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
     }
     .btn-eject {
-      color: #e88878;
-      border-color: #4a2e2e;
+      color: var(--rose);
+      border-color: rgba(200, 130, 140, 0.30);
     }
     .btn-eject:hover {
-      border-color: #e88878;
-      box-shadow: 0 0 10px #e8887840;
+      border-color: var(--rose);
+      box-shadow: 0 2px 14px rgba(200, 130, 140, 0.25);
     }
     .btn-fullscreen:hover {
-      border-color: #c49aff;
-      box-shadow: 0 0 10px #9b6dff44;
+      border-color: var(--purple);
+      box-shadow: 0 2px 14px rgba(130, 80, 200, 0.25);
     }
 
-    /* ── CheerpX emulation container ─────────────── */
+    /* CheerpX container */
     #cheerpx-wrap {
       display: none;
       flex-direction: column;
@@ -290,17 +302,16 @@
     #cheerpx-display {
       width: 100%;
       aspect-ratio: 16 / 9;
-      border: 1px solid #2e1850;
-      box-shadow: 0 0 40px #9b6dff18, 0 4px 32px rgba(0,0,0,0.5);
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      box-shadow: 0 10px 44px var(--shadow), 0 0 60px rgba(130, 80, 200, 0.07);
       background: #000;
       display: block;
       position: relative;
       overflow: hidden;
       min-height: 200px;
-      border-radius: 4px;
     }
 
-    /* CheerpX injects its own canvas — make it fill the container */
     #cheerpx-display canvas {
       width: 100% !important;
       height: 100% !important;
@@ -309,14 +320,14 @@
     }
 
     .cx-loading-hint {
-      font-size: 10px;
-      letter-spacing: 1px;
-      color: #5a4475;
+      font-size: 12px;
+      color: var(--text-faint);
       text-align: center;
       margin-top: 8px;
+      font-style: italic;
     }
 
-    /* ── "Cannot run" panel ───────────────────── */
+    /* Cannot-run panel */
     #no-run-panel {
       display: none;
       flex-direction: column;
@@ -324,74 +335,73 @@
       width: 100%;
       max-width: 720px;
       margin-top: 24px;
-      border: 1px solid #2e1e44;
-      background: rgba(26, 16, 40, 0.5);
-      padding: 32px 28px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      padding: 34px 30px;
       gap: 14px;
       text-align: center;
-      border-radius: 5px;
     }
     #no-run-panel.visible { display: flex; }
 
     .no-run-title {
-      font-size: 13px;
-      letter-spacing: 3px;
-      color: #e8c97a;
-      text-transform: uppercase;
+      font-size: 15px;
+      font-weight: normal;
+      color: var(--amber-lt);
     }
 
     .no-run-body {
-      font-size: 11px;
-      color: #7a6090;
-      line-height: 2.1;
-      letter-spacing: 1px;
+      font-size: 13px;
+      color: var(--text-2);
+      line-height: 1.9;
+      font-style: italic;
     }
-    .no-run-body strong { color: #c49aff; }
+    .no-run-body strong { color: var(--purple); font-style: normal; font-weight: 600; }
 
     .no-run-steps {
       list-style: none;
       text-align: left;
-      font-size: 11px;
-      color: #6a4c88;
-      line-height: 2.4;
-      letter-spacing: 1px;
+      font-size: 13px;
+      color: var(--text-3);
+      line-height: 2.3;
       width: 100%;
     }
-    .no-run-steps li::before { content: '→ '; color: #d4a843; }
+    .no-run-steps li::before { content: '\2192 '; color: var(--amber); }
 
-    /* ── How-to panel ─────────────────────────── */
+    /* How-to panel */
     #how-to {
       width: 100%;
       max-width: 720px;
       margin-top: 40px;
-      border-top: 1px solid #2e1e44;
-      padding-top: 30px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: var(--r-lg);
+      padding: 28px 30px 32px;
     }
 
     .how-to-title {
-      font-size: 11px;
-      letter-spacing: 4px;
-      color: #d4a843;
-      text-transform: uppercase;
-      margin-bottom: 18px;
+      font-size: 14px;
+      font-weight: normal;
+      color: var(--amber);
+      margin-bottom: 16px;
       text-align: center;
+      font-style: italic;
     }
 
     .how-to-steps {
       list-style: none;
-      font-size: 11px;
-      color: #7a6090;
-      line-height: 2.5;
-      letter-spacing: 1px;
+      font-size: 13px;
+      color: var(--text-2);
+      line-height: 2.3;
     }
     .how-to-steps li { display: flex; gap: 12px; }
-    .how-to-steps li::before { content: attr(data-n); color: #d4a843; min-width: 20px; }
+    .how-to-steps li::before { content: attr(data-n); color: var(--amber); min-width: 20px; }
 
     .footer {
       margin-top: 44px;
-      font-size: 10px;
-      color: #3e2e58;
-      letter-spacing: 2px;
+      font-size: 12px;
+      color: var(--text-faint);
+      font-style: italic;
       text-align: center;
     }
   </style>
