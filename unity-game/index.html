@@ -22,15 +22,19 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0a0a0f;
-      color: #c8d8e8;
+      background: #16101f;
+      background-image:
+        radial-gradient(ellipse at 50% 0%,   rgba(140, 70, 220, 0.22) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 85%,  rgba(210, 160, 80,  0.10) 0%, transparent 50%),
+        radial-gradient(ellipse at 12% 75%,  rgba(180, 100, 140, 0.08) 0%, transparent 40%);
+      color: #e8dcc8;
       font-family: 'Courier New', Courier, monospace;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      padding: 24px 16px 40px;
+      padding: 24px 16px 48px;
     }
 
     header {
@@ -45,39 +49,40 @@
     .site-title {
       font-size: clamp(14px, 3vw, 20px);
       letter-spacing: 4px;
-      color: #4ff;
-      text-shadow: 0 0 10px #4ff8;
+      color: #c49aff;
+      text-shadow: 0 0 14px #9b6dff55;
       text-transform: uppercase;
       text-decoration: none;
+      transition: color 0.15s;
     }
 
-    .site-title:hover { color: #7ef; }
+    .site-title:hover { color: #dfc0ff; }
 
     .back-link {
       font-size: 11px;
       letter-spacing: 2px;
-      color: #445;
+      color: #5a4475;
       text-decoration: none;
       text-transform: uppercase;
       transition: color 0.15s;
     }
 
-    .back-link:hover { color: #7ef; }
+    .back-link:hover { color: #c49aff; }
 
     .divider {
       width: 100%;
       max-width: 960px;
       height: 1px;
-      background: linear-gradient(to right, transparent, #2af6, transparent);
+      background: linear-gradient(to right, transparent, #9b6dff44, #d4a84333, transparent);
       margin-bottom: 24px;
     }
 
     .game-title {
       font-size: clamp(16px, 3.5vw, 24px);
       letter-spacing: 4px;
-      color: #4ff;
+      color: #c49aff;
       text-transform: uppercase;
-      text-shadow: 0 0 10px #4ff8;
+      text-shadow: 0 0 14px #9b6dff55;
       margin-bottom: 20px;
       text-align: center;
     }
@@ -89,8 +94,10 @@
       max-width: 960px;
       aspect-ratio: 16 / 9;
       background: #000;
-      border: 1px solid #1a3a3a;
-      box-shadow: 0 0 40px #0af2;
+      border: 1px solid #2e1850;
+      box-shadow: 0 0 44px #9b6dff18, 0 6px 40px rgba(0,0,0,0.55);
+      border-radius: 5px;
+      overflow: hidden;
     }
 
     #unity-canvas {
@@ -108,7 +115,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #0a0a0f;
+      background: #16101f;
       gap: 18px;
       transition: opacity 0.4s;
     }
@@ -121,30 +128,32 @@
     .loading-logo {
       font-size: clamp(22px, 5vw, 32px);
       letter-spacing: 5px;
-      color: #4ff;
-      text-shadow: 0 0 14px #4ff8;
+      color: #c49aff;
+      text-shadow: 0 0 16px #9b6dff66;
       text-transform: uppercase;
     }
 
     .loading-status {
       font-size: 11px;
       letter-spacing: 3px;
-      color: #445;
+      color: #5a4475;
       text-transform: uppercase;
     }
 
     .progress-track {
       width: 260px;
       height: 3px;
-      background: #1a2a3a;
+      background: #2a1840;
+      border-radius: 2px;
     }
 
     .progress-bar {
       height: 100%;
       width: 0%;
-      background: #4ff;
-      box-shadow: 0 0 8px #4ff;
+      background: linear-gradient(to right, #9b6dff, #d4a843);
+      box-shadow: 0 0 8px #c49aff88;
       transition: width 0.2s;
+      border-radius: 2px;
     }
 
     /* ── Error overlay ─────────────────────────── */
@@ -155,7 +164,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #0a0a0f;
+      background: #16101f;
       gap: 12px;
       padding: 32px;
       text-align: center;
@@ -166,15 +175,15 @@
     .error-title {
       font-size: 14px;
       letter-spacing: 3px;
-      color: #f64;
+      color: #e88878;
       text-transform: uppercase;
-      text-shadow: 0 0 8px #f644;
+      text-shadow: 0 0 10px #e8887844;
     }
 
     .error-msg {
       font-size: 11px;
-      color: #667;
-      line-height: 1.8;
+      color: #7a6090;
+      line-height: 1.9;
       max-width: 480px;
     }
 
@@ -195,23 +204,24 @@
       letter-spacing: 2px;
       text-transform: uppercase;
       background: none;
-      border: 1px solid #2a4a4a;
-      color: #4ff;
-      padding: 6px 16px;
+      border: 1px solid #3a2660;
+      color: #c49aff;
+      padding: 7px 18px;
       cursor: pointer;
+      border-radius: 3px;
       transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
     }
 
     .btn-fullscreen:hover {
-      border-color: #4ff;
-      box-shadow: 0 0 8px #4ff4;
+      border-color: #c49aff;
+      box-shadow: 0 0 10px #9b6dff44;
     }
 
     .footer {
-      margin-top: 40px;
+      margin-top: 44px;
       font-size: 10px;
-      color: #334;
-      letter-spacing: 1px;
+      color: #3e2e58;
+      letter-spacing: 2px;
       text-align: center;
     }
   </style>

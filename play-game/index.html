@@ -29,16 +29,19 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0d0b16;
-      background-image: radial-gradient(ellipse at 50% 0%, rgba(100, 40, 180, 0.18) 0%, transparent 65%);
-      color: #d4c4e8;
+      background: #16101f;
+      background-image:
+        radial-gradient(ellipse at 50% 0%,   rgba(140, 70, 220, 0.22) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 85%,  rgba(210, 160, 80,  0.10) 0%, transparent 50%),
+        radial-gradient(ellipse at 12% 75%,  rgba(180, 100, 140, 0.08) 0%, transparent 40%);
+      color: #e8dcc8;
       font-family: 'Courier New', Courier, monospace;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      padding: 24px 16px 40px;
+      padding: 24px 16px 48px;
     }
 
     header {
@@ -53,28 +56,29 @@
     .site-title {
       font-size: clamp(14px, 3vw, 20px);
       letter-spacing: 4px;
-      color: #b06aff;
-      text-shadow: 0 0 12px #b06aff88;
+      color: #c49aff;
+      text-shadow: 0 0 14px #9b6dff55;
       text-transform: uppercase;
       text-decoration: none;
+      transition: color 0.15s;
     }
-    .site-title:hover { color: #d4a0ff; }
+    .site-title:hover { color: #dfc0ff; }
 
     .back-link {
       font-size: 11px;
       letter-spacing: 2px;
-      color: #4a3660;
+      color: #5a4475;
       text-decoration: none;
       text-transform: uppercase;
       transition: color 0.15s;
     }
-    .back-link:hover { color: #d4a0ff; }
+    .back-link:hover { color: #c49aff; }
 
     .divider {
       width: 100%;
       max-width: 960px;
       height: 1px;
-      background: linear-gradient(to right, transparent, #7b2fca66, transparent);
+      background: linear-gradient(to right, transparent, #9b6dff44, #d4a84333, transparent);
       margin-bottom: 24px;
     }
 
@@ -82,9 +86,9 @@
     .page-title {
       font-size: clamp(16px, 3.5vw, 24px);
       letter-spacing: 4px;
-      color: #b06aff;
+      color: #c49aff;
       text-transform: uppercase;
-      text-shadow: 0 0 12px #b06aff88;
+      text-shadow: 0 0 14px #9b6dff55;
       margin-bottom: 8px;
       text-align: center;
     }
@@ -92,10 +96,11 @@
     .page-subtitle {
       font-size: 11px;
       letter-spacing: 2px;
-      color: #5c4878;
+      color: #7a5e90;
       text-align: center;
       margin-bottom: 28px;
       text-transform: uppercase;
+      line-height: 1.8;
     }
 
     /* ── Drop zone ────────────────────────────── */
@@ -103,36 +108,38 @@
       width: 100%;
       max-width: 960px;
       min-height: 260px;
-      border: 2px dashed #2e1850;
+      border: 2px dashed #3a2660;
+      background: rgba(30, 18, 50, 0.45);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 16px;
       cursor: pointer;
+      border-radius: 6px;
       transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
       position: relative;
-      padding: 40px 24px;
+      padding: 44px 24px;
     }
 
     #drop-zone.drag-over {
-      border-color: #b06aff;
-      background: #130a24;
-      box-shadow: 0 0 40px #b06aff22, inset 0 0 60px #b06aff11;
+      border-color: #c49aff;
+      background: rgba(36, 20, 60, 0.7);
+      box-shadow: 0 0 48px #9b6dff22, inset 0 0 60px #9b6dff0e;
     }
 
     .drop-icon {
-      font-size: 48px;
+      font-size: 52px;
       line-height: 1;
-      filter: drop-shadow(0 0 10px #b06aff88);
-      transition: transform 0.2s;
+      filter: drop-shadow(0 0 12px #c49aff66);
+      transition: transform 0.25s;
     }
-    #drop-zone.drag-over .drop-icon { transform: scale(1.15); }
+    #drop-zone.drag-over .drop-icon { transform: scale(1.18); }
 
     .drop-label {
       font-size: 13px;
       letter-spacing: 3px;
-      color: #b06aff;
+      color: #c49aff;
       text-transform: uppercase;
       text-align: center;
     }
@@ -140,24 +147,24 @@
     .drop-hint {
       font-size: 10px;
       letter-spacing: 2px;
-      color: #3a2858;
+      color: #5a4475;
       text-transform: uppercase;
       text-align: center;
-      line-height: 1.8;
+      line-height: 2;
     }
-    .drop-hint em { color: #4e3870; font-style: normal; }
+    .drop-hint em { color: #7a5e90; font-style: normal; }
 
     .drop-browse {
       margin-top: 4px;
       font-size: 10px;
       letter-spacing: 2px;
-      color: #4a2870;
+      color: #6a4c88;
       text-transform: uppercase;
       text-decoration: underline;
       cursor: pointer;
       transition: color 0.15s;
     }
-    .drop-browse:hover { color: #b06aff; }
+    .drop-browse:hover { color: #c49aff; }
 
     /* Hidden inputs for file/directory picking */
     #file-input { display: none; }
@@ -178,28 +185,30 @@
     .status-line {
       font-size: 11px;
       letter-spacing: 2px;
-      color: #4e3870;
+      color: #6a4c88;
       text-transform: uppercase;
     }
 
-    .status-line.ok    { color: #4f8; }
-    .status-line.warn  { color: #fa4; }
-    .status-line.error { color: #f64; }
+    .status-line.ok    { color: #8ed68e; }
+    .status-line.warn  { color: #e8c97a; }
+    .status-line.error { color: #e88878; }
 
     .progress-track {
       width: 100%;
       max-width: 960px;
       height: 2px;
-      background: #1a1228;
+      background: #221630;
       display: none;
+      border-radius: 2px;
     }
     .progress-track.visible { display: block; }
     .progress-bar {
       height: 100%;
       width: 0%;
-      background: #b06aff;
-      box-shadow: 0 0 8px #b06aff;
+      background: linear-gradient(to right, #9b6dff, #d4a843);
+      box-shadow: 0 0 8px #c49aff88;
       transition: width 0.1s;
+      border-radius: 2px;
     }
 
     /* ── Game container (iframe) ──────────────── */
@@ -216,19 +225,20 @@
     .game-name {
       font-size: clamp(13px, 2.5vw, 18px);
       letter-spacing: 4px;
-      color: #b06aff;
+      color: #c49aff;
       text-transform: uppercase;
-      text-shadow: 0 0 8px #b06aff88;
+      text-shadow: 0 0 10px #9b6dff55;
       margin-bottom: 12px;
     }
 
     #game-frame {
       width: 100%;
       aspect-ratio: 16 / 9;
-      border: 1px solid #1e0a38;
-      box-shadow: 0 0 40px #7b2fca22;
+      border: 1px solid #2e1850;
+      box-shadow: 0 0 40px #9b6dff18, 0 4px 32px rgba(0,0,0,0.5);
       background: #000;
       display: block;
+      border-radius: 4px;
     }
 
     .game-controls {
@@ -246,23 +256,24 @@
       letter-spacing: 2px;
       text-transform: uppercase;
       background: none;
-      border: 1px solid #2e1850;
-      color: #b06aff;
-      padding: 6px 16px;
+      border: 1px solid #3a2660;
+      color: #c49aff;
+      padding: 7px 18px;
       cursor: pointer;
+      border-radius: 3px;
       transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
     }
     .btn-eject {
-      color: #f64;
-      border-color: #4a2a2a;
+      color: #e88878;
+      border-color: #4a2e2e;
     }
     .btn-eject:hover {
-      border-color: #f64;
-      box-shadow: 0 0 8px #f644;
+      border-color: #e88878;
+      box-shadow: 0 0 10px #e8887840;
     }
     .btn-fullscreen:hover {
-      border-color: #b06aff;
-      box-shadow: 0 0 8px #b06aff44;
+      border-color: #c49aff;
+      box-shadow: 0 0 10px #9b6dff44;
     }
 
     /* ── CheerpX emulation container ─────────────── */
@@ -279,13 +290,14 @@
     #cheerpx-display {
       width: 100%;
       aspect-ratio: 16 / 9;
-      border: 1px solid #1e0a38;
-      box-shadow: 0 0 40px #7b2fca22;
+      border: 1px solid #2e1850;
+      box-shadow: 0 0 40px #9b6dff18, 0 4px 32px rgba(0,0,0,0.5);
       background: #000;
       display: block;
       position: relative;
       overflow: hidden;
       min-height: 200px;
+      border-radius: 4px;
     }
 
     /* CheerpX injects its own canvas — make it fill the container */
@@ -299,7 +311,7 @@
     .cx-loading-hint {
       font-size: 10px;
       letter-spacing: 1px;
-      color: #4a3060;
+      color: #5a4475;
       text-align: center;
       margin-top: 8px;
     }
@@ -312,72 +324,74 @@
       width: 100%;
       max-width: 720px;
       margin-top: 24px;
-      border: 1px solid #2a1a3a;
-      padding: 32px 24px;
+      border: 1px solid #2e1e44;
+      background: rgba(26, 16, 40, 0.5);
+      padding: 32px 28px;
       gap: 14px;
       text-align: center;
+      border-radius: 5px;
     }
     #no-run-panel.visible { display: flex; }
 
     .no-run-title {
       font-size: 13px;
       letter-spacing: 3px;
-      color: #fa4;
+      color: #e8c97a;
       text-transform: uppercase;
     }
 
     .no-run-body {
       font-size: 11px;
-      color: #5c4878;
-      line-height: 2;
+      color: #7a6090;
+      line-height: 2.1;
       letter-spacing: 1px;
     }
-    .no-run-body strong { color: #b06aff; }
+    .no-run-body strong { color: #c49aff; }
 
     .no-run-steps {
       list-style: none;
       text-align: left;
       font-size: 11px;
-      color: #4e3870;
-      line-height: 2.2;
+      color: #6a4c88;
+      line-height: 2.4;
       letter-spacing: 1px;
       width: 100%;
     }
-    .no-run-steps li::before { content: '→ '; color: #b06aff; }
+    .no-run-steps li::before { content: '→ '; color: #d4a843; }
 
     /* ── How-to panel ─────────────────────────── */
     #how-to {
       width: 100%;
       max-width: 720px;
-      margin-top: 36px;
-      border-top: 1px solid #1e1030;
-      padding-top: 28px;
+      margin-top: 40px;
+      border-top: 1px solid #2e1e44;
+      padding-top: 30px;
     }
 
     .how-to-title {
       font-size: 11px;
       letter-spacing: 4px;
-      color: #b06aff;
+      color: #d4a843;
       text-transform: uppercase;
-      margin-bottom: 16px;
+      margin-bottom: 18px;
       text-align: center;
     }
 
     .how-to-steps {
       list-style: none;
       font-size: 11px;
-      color: #4e3870;
-      line-height: 2.4;
+      color: #7a6090;
+      line-height: 2.5;
       letter-spacing: 1px;
     }
-    .how-to-steps li { display: flex; gap: 10px; }
-    .how-to-steps li::before { content: attr(data-n); color: #b06aff; min-width: 20px; }
+    .how-to-steps li { display: flex; gap: 12px; }
+    .how-to-steps li::before { content: attr(data-n); color: #d4a843; min-width: 20px; }
 
     .footer {
-      margin-top: 40px;
+      margin-top: 44px;
       font-size: 10px;
-      color: #3a2850;
-      letter-spacing: 1px;
+      color: #3e2e58;
+      letter-spacing: 2px;
       text-align: center;
     }
   </style>

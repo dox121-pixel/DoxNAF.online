@@ -22,9 +22,12 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0d0b16;
-      background-image: radial-gradient(ellipse at 50% 0%, rgba(100, 40, 180, 0.18) 0%, transparent 65%);
-      color: #d4c4e8;
+      background: #16101f;
+      background-image:
+        radial-gradient(ellipse at 50% 0%,   rgba(140, 70, 220, 0.22) 0%, transparent 55%),
+        radial-gradient(ellipse at 80% 90%,  rgba(210, 160, 80,  0.10) 0%, transparent 50%),
+        radial-gradient(ellipse at 10% 80%,  rgba(180, 100, 140, 0.08) 0%, transparent 40%);
+      color: #e8dcc8;
       font-family: 'Courier New', Courier, monospace;
       min-height: 100vh;
       display: flex;
@@ -35,91 +38,102 @@
     }
 
     .container {
-      max-width: 560px;
+      max-width: 580px;
       width: 100%;
       text-align: center;
     }
 
     .site-title {
-      font-size: clamp(22px, 5vw, 32px);
-      letter-spacing: 4px;
-      color: #b06aff;
-      text-shadow: 0 0 18px #b06aff88;
+      font-size: clamp(22px, 5vw, 34px);
+      letter-spacing: 5px;
+      color: #c49aff;
+      text-shadow: 0 0 22px #9b6dff66, 0 0 8px #c49aff44;
       text-transform: uppercase;
       margin-bottom: 8px;
+    }
+
+    .tagline {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: #8a6fa0;
+      text-transform: uppercase;
+      margin-bottom: 4px;
     }
 
     .divider {
       width: 100%;
       height: 1px;
-      background: linear-gradient(to right, transparent, #7b2fca66, transparent);
-      margin: 20px 0;
+      background: linear-gradient(to right, transparent, #9b6dff44, #d4a84344, transparent);
+      margin: 22px 0;
     }
 
     .notice-badge {
       display: inline-block;
       font-size: 11px;
       letter-spacing: 3px;
-      color: #f64;
-      border: 1px solid #f644;
-      padding: 4px 12px;
+      color: #e8a87c;
+      border: 1px solid #e8a87c55;
+      padding: 4px 14px;
       margin-bottom: 18px;
       text-transform: uppercase;
+      border-radius: 2px;
     }
 
     .headline {
       font-size: clamp(18px, 4vw, 26px);
       letter-spacing: 3px;
-      color: #f64;
+      color: #e8a87c;
       text-transform: uppercase;
       margin-bottom: 16px;
-      text-shadow: 0 0 10px #f644;
+      text-shadow: 0 0 12px #e8a87c55;
     }
 
     .body-text {
       font-size: 13px;
-      line-height: 1.9;
-      color: #8878a0;
+      line-height: 2;
+      color: #a090b8;
       margin-bottom: 10px;
     }
 
     .body-text strong {
-      color: #d4c4e8;
+      color: #e8dcc8;
     }
 
     .projects-note {
       font-size: 13px;
-      line-height: 1.9;
-      color: #c4a4e4;
+      line-height: 2;
+      color: #c4b4d8;
       margin-bottom: 6px;
     }
 
     .projects-note strong {
-      color: #b06aff;
+      color: #c49aff;
     }
 
     .btn-drop {
       display: inline-block;
       margin-top: 28px;
-      padding: 12px 32px;
+      padding: 13px 36px;
       font-family: 'Courier New', Courier, monospace;
       font-size: 14px;
       letter-spacing: 3px;
       text-transform: uppercase;
       text-decoration: none;
-      color: #b06aff;
-      background: none;
-      border: 1px solid #3e2260;
+      color: #d4a843;
+      background: rgba(212, 168, 67, 0.05);
+      border: 1px solid #d4a84360;
       cursor: pointer;
-      transition: border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.1s;
-      box-shadow: 0 0 12px #b06aff22;
+      border-radius: 3px;
+      transition: border-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.1s, background 0.2s;
+      box-shadow: 0 0 14px #d4a84318;
     }
 
     .btn-drop:hover {
-      border-color: #b06aff;
-      color: #d4a0ff;
-      box-shadow: 0 0 24px #b06aff44;
-      transform: translateY(-1px);
+      border-color: #d4a843;
+      color: #f0c870;
+      background: rgba(212, 168, 67, 0.10);
+      box-shadow: 0 0 28px #d4a84340, 0 0 6px #d4a84320;
+      transform: translateY(-2px);
     }
 
     .btn-drop:active {
@@ -127,16 +141,17 @@
     }
 
     .footer {
-      margin-top: 40px;
+      margin-top: 44px;
       font-size: 10px;
-      color: #3a2850;
-      letter-spacing: 1px;
+      color: #3e2e58;
+      letter-spacing: 2px;
     }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="site-title">DoxNAF.online</div>
+    <div class="tagline">a cozy corner of the internet</div>
     <div class="divider"></div>
 
     <div class="notice-badge">⚠ NOTICE</div>
