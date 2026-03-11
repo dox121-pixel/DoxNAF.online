@@ -1492,7 +1492,6 @@ const httpServer = http.createServer((req, res) => {
   const file    = (urlPath === '/' || urlPath === '/index.html') ? '/index.html'
                 : (urlPath === '/VIPER.exe' || urlPath === '/VIPER.exe/') ? '/VIPER.exe/index.html'
                 : (urlPath === '/unity-game' || urlPath === '/unity-game/') ? '/unity-game/index.html'
-                : (urlPath === '/play-game' || urlPath === '/play-game/') ? '/play-game/index.html'
                 : urlPath;
   // Resolve the full path and ensure it stays inside __dirname
   const full    = path.resolve(__dirname, '.' + file);
@@ -1524,8 +1523,6 @@ const httpServer = http.createServer((req, res) => {
 
     // Unity game page needs a more permissive CSP to run WebAssembly.
     const isUnityPage    = file.startsWith('/unity-game/') && mime.startsWith('text/html');
-    // Play-game page uses a Service Worker and loads JSZip from a CDN.
-    const isPlayGamePage = file.startsWith('/play-game/')  && mime.startsWith('text/html');
     if (mime.startsWith('text/html')) {
       headers['X-Content-Type-Options'] = 'nosniff';
       headers['X-Frame-Options'] = 'SAMEORIGIN';
@@ -1538,20 +1535,6 @@ const httpServer = http.createServer((req, res) => {
           "img-src 'self' data: blob: https:; " +
           "connect-src 'self' wss: https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com; " +
           "worker-src 'self' blob:; " +
-          "object-src 'none'; " +
-          "base-uri 'self'; " +
-          "form-action 'self';"
-        : isPlayGamePage
-        // 'unsafe-eval' is required because Unity WebGL builds dropped by the user
-        // use new Function() in their loaders. JSZip (loaded from cdnjs CDN) also
-        // needs eval() for its inflate implementation.
-        ? "default-src 'self'; " +
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com https://cdnjs.cloudflare.com; " +
-          "style-src 'self' 'unsafe-inline'; " +
-          "img-src 'self' data: blob: https:; " +
-          "connect-src 'self' wss: https://www.google-analytics.com https://analytics.google.com https://region1.google-analytics.com https://cdnjs.cloudflare.com; " +
-          "worker-src 'self' blob:; " +
-          "frame-src 'self'; " +
           "object-src 'none'; " +
           "base-uri 'self'; " +
           "form-action 'self';"
