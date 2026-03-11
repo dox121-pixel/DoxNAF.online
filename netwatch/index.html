@@ -430,6 +430,7 @@
       justify-content: space-between;
     }
     .aw-dot { color: var(--green); }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
 
     /* ── Responsive ── */
     @media (max-width: 640px) {
@@ -460,11 +461,11 @@
       Just click and go.
     </p>
     <div class="btn-row">
-      <a href="/netwatch/netwatch_app.py" download="netwatch_app.py" class="btn-download">
-        <span class="icon">⬇️</span> Download NetWatch App (Python)
+      <a href="/netwatch/NetWatch.exe" download="NetWatch.exe" class="btn-download">
+        <span class="icon">⬇️</span> Download NetWatch.exe — Free
       </a>
-      <a href="/netwatch/netwatch.py" download="netwatch.py" class="btn-download-outline">
-        CLI version (advanced)
+      <a href="/netwatch/netwatch_app.py" download="netwatch_app.py" class="btn-download-outline">
+        Python source
       </a>
     </div>
   </section>
@@ -476,11 +477,11 @@
 
       <div class="feat-card">
         <span class="feat-icon">🖱️</span>
-        <div class="feat-title">No terminal needed</div>
+        <div class="feat-title">True .exe — no setup</div>
         <div class="feat-body">
-          A real <strong>point-and-click app</strong> window — just
-          double-click the file and it opens. No commands to type,
-          no scary black boxes.
+          <strong>Download, double-click, done.</strong> NetWatch is a
+          self-contained Windows EXE — no Python, no terminal,
+          no install wizard.
         </div>
       </div>
 
@@ -526,11 +527,11 @@
 
       <div class="feat-card">
         <span class="feat-icon">🌍</span>
-        <div class="feat-title">Works on Windows, Mac &amp; Linux</div>
+        <div class="feat-title">Windows EXE + Python source</div>
         <div class="feat-body">
-          Because it's written in Python, it runs on
-          <strong>any operating system</strong> that has Python
-          installed — no extra setup needed beyond one command.
+          The <strong>NetWatch.exe</strong> is built for Windows.
+          Mac &amp; Linux users can grab the Python source —
+          dependencies install themselves automatically on first run.
         </div>
       </div>
 
@@ -554,6 +555,8 @@
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(124,77,255,0.18);">
             <span style="color:var(--accent-lt);font-weight:700;font-size:13px;">DoxNAF.online</span>
             <span style="color:var(--faint);font-size:12px;">✦  NetWatch</span>
+            <span style="color:var(--faint);font-size:10px;background:rgba(124,77,255,0.15);border-radius:4px;padding:1px 6px;">v2.0</span>
+            <span style="margin-left:auto;color:var(--muted);font-size:10px;">🖥  DESKTOP-XYZ</span>
           </div>
 
           <!-- Hero -->
@@ -562,31 +565,101 @@
             <div class="aw-sub">Live network monitor · updates every second</div>
           </div>
 
-          <!-- Speed cards -->
+          <!-- Speed cards with sparklines -->
           <div class="aw-cards">
             <div class="aw-card">
-              <div class="aw-card-lbl">⬇️  Download speed</div>
+              <div class="aw-card-lbl">⬇   Download</div>
               <div class="aw-card-val green">4.2 MB/s</div>
+              <!-- sparkline bars -->
+              <div style="display:flex;align-items:flex-end;gap:2px;height:28px;padding:0 2px 4px;">
+                <div style="width:4px;background:var(--green);opacity:0.3;height:8px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--green);opacity:0.4;height:12px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--green);opacity:0.4;height:10px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--green);opacity:0.5;height:15px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--green);opacity:0.6;height:18px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--green);opacity:0.5;height:14px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--green);opacity:0.7;height:20px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--green);opacity:0.9;height:24px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--green);height:28px;border-radius:1px;"></div>
+              </div>
             </div>
             <div class="aw-card">
-              <div class="aw-card-lbl">⬆️  Upload speed</div>
+              <div class="aw-card-lbl">⬆   Upload</div>
               <div class="aw-card-val purple">120.5 KB/s</div>
+              <div style="display:flex;align-items:flex-end;gap:2px;height:28px;padding:0 2px 4px;">
+                <div style="width:4px;background:var(--accent-lt);opacity:0.3;height:6px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--accent-lt);opacity:0.4;height:9px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--accent-lt);opacity:0.5;height:14px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--accent-lt);opacity:0.4;height:10px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--accent-lt);opacity:0.6;height:16px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--accent-lt);opacity:0.5;height:11px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--accent-lt);opacity:0.7;height:18px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--accent-lt);opacity:0.8;height:22px;border-radius:1px;"></div>
+                <div style="width:4px;background:var(--accent-lt);height:28px;border-radius:1px;"></div>
+              </div>
             </div>
           </div>
 
-          <!-- App list -->
-          <div class="aw-list-hdr">📋  Apps connected to the internet &nbsp;<span class="aw-dot">● Live</span></div>
+          <!-- App list header with search -->
+          <div class="aw-list-hdr" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>📋  Apps connected to the internet &nbsp;<span class="aw-dot" style="animation:pulse 1.4s infinite;">●</span> LIVE</span>
+            <span style="display:flex;gap:6px;align-items:center;">
+              <span style="font-size:10px;background:var(--accent);color:#fff;border-radius:4px;padding:2px 7px;cursor:default;">Sort: # Conns</span>
+              <span style="font-size:10px;background:rgba(124,77,255,0.12);color:var(--muted);border-radius:4px;padding:2px 7px;cursor:default;">Name</span>
+              <span style="font-size:10px;background:rgba(124,77,255,0.12);color:var(--muted);border-radius:4px;padding:2px 7px;">🔍 Search…</span>
+            </span>
+          </div>
+          <!-- Column header -->
+          <div style="display:flex;justify-content:space-between;padding:4px 10px;background:rgba(14,5,32,0.6);font-size:10px;color:var(--faint);font-weight:700;letter-spacing:.04em;">
+            <span>App / Process</span><span>Conns&nbsp;&nbsp;Ports</span>
+          </div>
           <div class="aw-list">
-            <div class="aw-row"><span>🔥  chrome.exe</span><span class="aw-row-conn hot">14 connections</span></div>
-            <div class="aw-row"><span>📶  Discord.exe</span><span class="aw-row-conn hot">7 connections</span></div>
-            <div class="aw-row"><span>🌐  Spotify.exe</span><span class="aw-row-conn">3 connections</span></div>
-            <div class="aw-row"><span>🔌  OneDrive.exe</span><span class="aw-row-conn">1 connection</span></div>
-            <div class="aw-row"><span>🔌  steam.exe</span><span class="aw-row-conn">1 connection</span></div>
+            <div class="aw-row">
+              <span>🔥  chrome.exe</span>
+              <span style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:9px;color:var(--faint);">443, 80</span>
+                <span style="display:inline-block;width:60px;height:5px;background:rgba(255,82,82,0.15);border-radius:2px;overflow:hidden;"><span style="display:block;width:90%;height:100%;background:#ff5252;border-radius:2px;"></span></span>
+                <span class="aw-row-conn hot" style="color:#ff5252;font-weight:700;">14 conns</span>
+              </span>
+            </div>
+            <div class="aw-row">
+              <span>📶  Discord.exe</span>
+              <span style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:9px;color:var(--faint);">443</span>
+                <span style="display:inline-block;width:60px;height:5px;background:rgba(255,183,77,0.15);border-radius:2px;overflow:hidden;"><span style="display:block;width:47%;height:100%;background:var(--amber);border-radius:2px;"></span></span>
+                <span class="aw-row-conn hot" style="color:var(--amber);font-weight:700;">7 conns</span>
+              </span>
+            </div>
+            <div class="aw-row">
+              <span>🌐  Spotify.exe</span>
+              <span style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:9px;color:var(--faint);">4070</span>
+                <span style="display:inline-block;width:60px;height:5px;background:rgba(61,220,132,0.15);border-radius:2px;overflow:hidden;"><span style="display:block;width:20%;height:100%;background:var(--green);border-radius:2px;"></span></span>
+                <span class="aw-row-conn" style="color:var(--green);font-weight:700;">3 conns</span>
+              </span>
+            </div>
+            <div class="aw-row">
+              <span>🔌  OneDrive.exe</span>
+              <span style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:9px;color:var(--faint);">443</span>
+                <span style="display:inline-block;width:60px;height:5px;background:rgba(196,174,208,0.15);border-radius:2px;overflow:hidden;"><span style="display:block;width:7%;height:100%;background:var(--muted);border-radius:2px;"></span></span>
+                <span class="aw-row-conn">1 conn</span>
+              </span>
+            </div>
+            <div class="aw-row">
+              <span>🔌  steam.exe</span>
+              <span style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:9px;color:var(--faint);">27015</span>
+                <span style="display:inline-block;width:60px;height:5px;background:rgba(196,174,208,0.15);border-radius:2px;overflow:hidden;"><span style="display:block;width:7%;height:100%;background:var(--muted);border-radius:2px;"></span></span>
+                <span class="aw-row-conn">1 conn</span>
+              </span>
+            </div>
           </div>
 
           <!-- Status bar -->
-          <div class="aw-status">
-            <span>📊  Total since boot:  Downloaded: 18.4 GB  |  Uploaded: 2.1 GB</span>
+          <div class="aw-status" style="display:flex;justify-content:space-between;">
+            <span>📊  Since boot:  ⬇ 18.4 GB  ·  ⬆ 2.1 GB</span>
+            <span style="color:var(--faint);">🕐  14:23:07</span>
           </div>
 
         </div>
@@ -598,10 +671,10 @@
   <section class="section">
     <div class="section-label">✦ &nbsp; What you need</div>
     <div class="req-box">
-      <div class="req-box-title">⚠️ Before you run NetWatch, make sure you have:</div>
+      <div class="req-box-title">✅ NetWatch.exe is completely self-contained — no extra setup required!</div>
       <ul class="req-list">
-        <li><strong>Python 3.7 or newer</strong> — free at <a href="https://python.org" target="_blank" rel="noopener" style="color:var(--amber-lt)">python.org</a>. Windows users: tick "Add Python to PATH" during install!</li>
-        <li><strong>psutil library</strong> — installed with one quick command (see step 3 below)</li>
+        <li><strong>Windows 10 / 11</strong> — just download and double-click. No Python, no terminal, nothing to install.</li>
+        <li><strong>Python source version</strong> — if you prefer the <code>.py</code> file on Mac/Linux, you'll need Python 3.7+ and <code>pip install psutil</code> (the app will prompt you automatically on first run).</li>
       </ul>
     </div>
   </section>
@@ -614,10 +687,10 @@
       <div class="step">
         <div class="step-num">1</div>
         <div class="step-content">
-          <div class="step-title">Download the app</div>
+          <div class="step-title">Download NetWatch.exe</div>
           <div class="step-body">
             Click the big green download button above (or below) to
-            save <span class="code-inline">netwatch_app.py</span> anywhere
+            save <span class="code-inline">NetWatch.exe</span> anywhere
             you like — your Desktop works great.
           </div>
         </div>
@@ -626,12 +699,11 @@
       <div class="step">
         <div class="step-num">2</div>
         <div class="step-content">
-          <div class="step-title">Install Python (if you haven't already)</div>
+          <div class="step-title">Double-click to open NetWatch</div>
           <div class="step-body">
-            Go to <a href="https://python.org/downloads" target="_blank" rel="noopener">python.org/downloads</a>,
-            download the installer, and run it.
-            <strong>Windows users:</strong> on the first screen, tick the
-            checkbox that says <em>"Add Python to PATH"</em> — this is important!
+            Find <span class="code-inline">NetWatch.exe</span> and <strong>double-click it</strong>.
+            The NetWatch window opens immediately — no terminal, no Python, nothing to install.
+            Close the window whenever you're done.
           </div>
         </div>
       </div>
@@ -639,26 +711,13 @@
       <div class="step">
         <div class="step-num">3</div>
         <div class="step-content">
-          <div class="step-title">Install the psutil helper library (once only)</div>
+          <div class="step-title">That's it — you're monitoring! 🎉</div>
           <div class="step-body">
-            Open <strong>Command Prompt</strong> (Windows) or
-            <strong>Terminal</strong> (Mac/Linux) and type:
+            NetWatch will show your live download &amp; upload speed, plus every
+            app that's connected to the internet right now — updated every second.
             <br><br>
-            <span class="code-inline">pip install psutil</span>
-            <br><br>
-            Hit Enter and wait a few seconds. You only ever need to do this once!
-          </div>
-        </div>
-      </div>
-
-      <div class="step">
-        <div class="step-num">4</div>
-        <div class="step-content">
-          <div class="step-title">Double-click to open NetWatch</div>
-          <div class="step-body">
-            Find the file you saved and <strong>double-click it</strong>.
-            The NetWatch window opens immediately — no terminal, no typing.
-            Close the window whenever you're done.
+            <em>Using the Python source on Mac/Linux?</em> The app automatically
+            installs <span class="code-inline">psutil</span> for you on first launch.
           </div>
         </div>
       </div>
@@ -675,11 +734,11 @@
         no nonsense. Double-click and go.
       </p>
       <div class="btn-row" style="justify-content:center;">
-        <a href="/netwatch/netwatch_app.py" download="netwatch_app.py" class="btn-download">
-          <span class="icon">⬇️</span> Download NetWatch App — Free
+        <a href="/netwatch/NetWatch.exe" download="NetWatch.exe" class="btn-download">
+          <span class="icon">⬇️</span> Download NetWatch.exe — Free
         </a>
-        <a href="/netwatch/netwatch.py" download="netwatch.py" class="btn-download-outline">
-          CLI version
+        <a href="/netwatch/netwatch_app.py" download="netwatch_app.py" class="btn-download-outline">
+          Python source
         </a>
       </div>
     </div>

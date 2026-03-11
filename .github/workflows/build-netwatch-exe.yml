@@ -1,0 +1,56 @@
+name: Build NetWatch.exe
+
+on:
+  push:
+    paths:
+      - 'netwatch/netwatch_app.py'
+      - 'netwatch/netwatch.spec'
+      - '.github/workflows/build-netwatch-exe.yml'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: netwatch
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller psutil
+
+      - name: Build EXE with PyInstaller
+        run: pyinstaller netwatch.spec
+
+      - name: Copy EXE to netwatch folder
+        run: |
+          copy dist\NetWatch.exe .\NetWatch.exe
+
+      - name: Upload EXE as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NetWatch-exe
+          path: netwatch/NetWatch.exe
+
+      - name: Commit EXE to repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add netwatch/NetWatch.exe
+          git diff --staged --quiet || git commit -m "ci: update NetWatch.exe [skip ci]"
+          git push
+        working-directory: ${{ github.workspace }}

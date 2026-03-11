@@ -1,2 +1,6 @@
 node_modules/
 leaderboard.json
+__pycache__/
+*.pyc
+netwatch/dist/
+netwatch/build/
