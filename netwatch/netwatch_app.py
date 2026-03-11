@@ -127,6 +127,7 @@ import psutil
 # ── Colour palette ───────────────────────────────────────────
 BG          = "#16082e"
 NAV_BG      = "#0e0520"
+TITLE_BG    = "#080214"   # slightly darker strip for the custom title bar
 CARD_BG     = "#1e1040"
 CARD_BORDER = "#2d1a5e"
 ROW_ALT     = "#190d38"
@@ -140,6 +141,89 @@ CREAM       = "#fff8e1"
 CREAM_2     = "#ede0c8"
 MUTED       = "#c4aed0"
 FAINT       = "#8a6aaa"
+
+# ── Friendly process-name map ─────────────────────────────────
+# Keys are lowercase base names (no .exe).  Values are display labels.
+FRIENDLY_NAMES: dict[str, str] = {
+    # Browsers
+    "chrome":           "Chrome",
+    "firefox":          "Firefox",
+    "msedge":           "Microsoft Edge",
+    "msedgewebview2":   "Edge WebView",
+    "opera":            "Opera",
+    "brave":            "Brave",
+    "vivaldi":          "Vivaldi",
+    "iexplore":         "Internet Explorer",
+    # Communication / Social
+    "discord":          "Discord",
+    "discordptb":       "Discord PTB",
+    "discordcanary":    "Discord Canary",
+    "slack":            "Slack",
+    "teams":            "Microsoft Teams",
+    "ms-teams":         "Microsoft Teams",
+    "zoom":             "Zoom",
+    "skype":            "Skype",
+    "telegram":         "Telegram",
+    "whatsapp":         "WhatsApp",
+    "signal":           "Signal",
+    "element":          "Element",
+    # Gaming
+    "steam":            "Steam",
+    "epicgameslauncher":"Epic Games",
+    "battle.net":       "Battle.net",
+    "origin":           "EA Origin",
+    "eadesktop":        "EA Desktop",
+    "riotclientservices":"Riot Client",
+    "gog galaxy":       "GOG Galaxy",
+    "galaxyclient":     "GOG Galaxy",
+    # Media / Streaming
+    "spotify":          "Spotify",
+    "vlc":              "VLC",
+    "obs64":            "OBS Studio",
+    "obs32":            "OBS Studio",
+    "plex":             "Plex",
+    "plexmediaserver":  "Plex Media Server",
+    # Productivity / Cloud
+    "outlook":          "Outlook",
+    "thunderbird":      "Thunderbird",
+    "onedrive":         "OneDrive",
+    "dropbox":          "Dropbox",
+    "googledrivefs":    "Google Drive",
+    "notion":           "Notion",
+    "obsidian":         "Obsidian",
+    # Dev tools
+    "code":             "VS Code",
+    "devenv":           "Visual Studio",
+    "pycharm64":        "PyCharm",
+    "idea64":           "IntelliJ IDEA",
+    "webstorm64":       "WebStorm",
+    "clion64":          "CLion",
+    "rider64":          "Rider",
+    "datagrip64":       "DataGrip",
+    "goland64":         "GoLand",
+    "androidstudio64":  "Android Studio",
+    "sublime_text":     "Sublime Text",
+    "atom":             "Atom",
+    "cursor":           "Cursor",
+    # Runtimes / system helpers
+    "node":             "Node.js",
+    "python":           "Python",
+    "pythonw":          "Python",
+    "git":              "Git",
+    "svchost":          "Windows Service",
+}
+
+
+def friendly_name(proc_name: str) -> str:
+    """Return a clean display name for a process.
+
+    Strips the .exe extension from every process and maps well-known
+    executables to their human-readable app names.
+    """
+    base = proc_name
+    if base.lower().endswith(".exe"):
+        base = base[:-4]
+    return FRIENDLY_NAMES.get(base.lower(), base)
 
 # Speed-tier thresholds (bytes/sec)
 SPEED_RED_THRESHOLD   = 5_000_000   # ≥ 5 MB/s  → red
@@ -280,6 +364,15 @@ class NetWatchApp:
         self.root.geometry("860x720")
         self.root.minsize(680, 540)
 
+        # Remove the default Windows title bar — we draw our own below
+        self.root.overrideredirect(True)
+
+        # Window-drag / maximize state
+        self._drag_x     = 0
+        self._drag_y     = 0
+        self._maximized  = False
+        self._pre_max_geo = "860x720"
+
         # Try to set window icon (EXE bundle puts it next to the exe)
         _icon = os.path.join(os.path.dirname(sys.executable), "netwatch_icon.ico")
         if not os.path.isfile(_icon):
@@ -308,6 +401,68 @@ class NetWatchApp:
 
     def _build_ui(self):
         """Build all widgets once at startup."""
+
+        # ── Custom title bar (replaces the native Windows caption) ──
+        self._title_bar = tk.Frame(self.root, bg=TITLE_BG, height=36)
+        self._title_bar.pack(fill="x", side="top")
+        self._title_bar.pack_propagate(False)
+
+        # Left side: window icon + title text
+        self._title_label = tk.Label(
+            self._title_bar, text="🌐  NetWatch — What's Using My Internet?",
+            bg=TITLE_BG, fg=ACCENT_LT,
+            font=("Segoe UI", 9, "bold"),
+        )
+        self._title_label.pack(side="left", padx=12)
+
+        # Right side: window control buttons  ─  □  ✕
+        _btn_kw = dict(
+            bg=TITLE_BG, relief="flat", bd=0,
+            padx=10, pady=0, font=("Segoe UI", 11),
+            cursor="hand2", highlightthickness=0,
+        )
+
+        self._close_btn = tk.Button(
+            self._title_bar, text="✕", fg=MUTED,
+            activebackground=RED, activeforeground=CREAM,
+            command=self.on_close, **_btn_kw,
+        )
+        self._close_btn.pack(side="right", fill="y")
+        self._close_btn.bind("<Enter>",
+            lambda e: self._close_btn.config(bg=RED, fg=CREAM))
+        self._close_btn.bind("<Leave>",
+            lambda e: self._close_btn.config(bg=TITLE_BG, fg=MUTED))
+
+        self._max_btn = tk.Button(
+            self._title_bar, text="□", fg=MUTED,
+            activebackground=CARD_BG, activeforeground=CREAM,
+            command=self._toggle_maximize, **_btn_kw,
+        )
+        self._max_btn.pack(side="right", fill="y")
+        self._max_btn.bind("<Enter>",
+            lambda e: self._max_btn.config(bg=CARD_BG, fg=CREAM))
+        self._max_btn.bind("<Leave>",
+            lambda e: self._max_btn.config(bg=TITLE_BG, fg=MUTED))
+
+        self._min_btn = tk.Button(
+            self._title_bar, text="─", fg=MUTED,
+            activebackground=CARD_BG, activeforeground=CREAM,
+            command=self._minimize_window, **_btn_kw,
+        )
+        self._min_btn.pack(side="right", fill="y")
+        self._min_btn.bind("<Enter>",
+            lambda e: self._min_btn.config(bg=CARD_BG, fg=CREAM))
+        self._min_btn.bind("<Leave>",
+            lambda e: self._min_btn.config(bg=TITLE_BG, fg=MUTED))
+
+        # Drag-to-move: bind on the bar frame and the title label
+        for widget in (self._title_bar, self._title_label):
+            widget.bind("<Button-1>",   self._start_drag)
+            widget.bind("<B1-Motion>",  self._do_drag)
+            widget.bind("<Double-Button-1>", lambda e: self._toggle_maximize())
+
+        # Thin accent border around the whole window
+        self.root.configure(highlightthickness=0)
 
         # ── Navigation bar ───────────────────────────────────
         nav = tk.Frame(self.root, bg=NAV_BG, height=52)
@@ -341,7 +496,7 @@ class NetWatchApp:
 
         sub_row = tk.Frame(hero, bg=BG)
         sub_row.pack(fill="x", pady=(4, 0))
-        tk.Label(sub_row, text="Live network monitor · updates every second",
+        tk.Label(sub_row, text="Live network monitor · updates every 500 ms",
                  bg=BG, fg=MUTED, font=("Segoe UI", 11),
                  anchor="w").pack(side="left")
 
@@ -478,6 +633,63 @@ class NetWatchApp:
         card._val_label = val_lbl
         return card, val_lbl, spark
 
+    # ── Window-management helpers ─────────────────────────────
+
+    def _start_drag(self, event):
+        """Record the cursor offset relative to the window origin."""
+        self._drag_x = event.x_root - self.root.winfo_x()
+        self._drag_y = event.y_root - self.root.winfo_y()
+
+    def _do_drag(self, event):
+        """Move the window as the title bar is dragged."""
+        if self._maximized:
+            return
+        x = event.x_root - self._drag_x
+        y = event.y_root - self._drag_y
+        self.root.geometry(f"+{x}+{y}")
+
+    def _minimize_window(self):
+        """Iconify the window (requires briefly re-enabling the native chrome)."""
+        self.root.overrideredirect(False)
+        self.root.iconify()
+        # Re-apply custom chrome once the window is restored from the taskbar
+        self.root.bind("<Map>", self._on_restore)
+
+    def _on_restore(self, _event=None):
+        """Called when the window is un-iconified; restores the custom title bar."""
+        if self.root.state() == "normal":
+            self.root.after(10, lambda: self.root.overrideredirect(True))
+            self.root.unbind("<Map>")
+
+    def _toggle_maximize(self):
+        """Toggle between maximized and restored window size."""
+        if self._maximized:
+            self.root.geometry(self._pre_max_geo)
+            self._maximized = False
+            self._max_btn.configure(text="□")
+        else:
+            self._pre_max_geo = self.root.geometry()
+            # Use the OS work area (screen minus taskbar) on Windows
+            try:
+                import ctypes
+                class _RECT(ctypes.Structure):
+                    _fields_ = [
+                        ("left",   ctypes.c_long), ("top",    ctypes.c_long),
+                        ("right",  ctypes.c_long), ("bottom", ctypes.c_long),
+                    ]
+                rc = _RECT()
+                # SPI_GETWORKAREA = 0x30 (48)
+                ctypes.windll.user32.SystemParametersInfoW(48, 0, ctypes.byref(rc), 0)
+                w = rc.right  - rc.left
+                h = rc.bottom - rc.top
+                self.root.geometry(f"{w}x{h}+{rc.left}+{rc.top}")
+            except Exception:
+                sw = self.root.winfo_screenwidth()
+                sh = self.root.winfo_screenheight()
+                self.root.geometry(f"{sw}x{sh}+0+0")
+            self._maximized = True
+            self._max_btn.configure(text="❐")
+
     # ── Sort helpers ─────────────────────────────────────────
 
     def _set_sort(self, key: str):
@@ -519,7 +731,7 @@ class NetWatchApp:
 
     def _monitor_loop(self):
         previous_stats = psutil.net_io_counters()
-        time.sleep(1)
+        time.sleep(0.5)
 
         while self._running:
             try:
@@ -550,12 +762,12 @@ class NetWatchApp:
                     0, self._update_ui, dl, ul, apps, current_stats)
 
                 previous_stats = current_stats
-                time.sleep(1)
+                time.sleep(0.5)
 
             except (psutil.Error, OSError):
-                time.sleep(1)
+                time.sleep(0.5)
             except Exception:
-                time.sleep(2)
+                time.sleep(0.5)
 
     # ── UI refresh ───────────────────────────────────────────
 
@@ -590,13 +802,17 @@ class NetWatchApp:
         """Rebuild the scrollable app rows."""
         query = self._filter_text.get().lower().strip()
 
-        # Filter
-        filtered = [a for a in apps
-                    if not query or query in a["name"].lower()]
+        # Filter — match against both raw name and friendly display name
+        filtered = [
+            a for a in apps
+            if not query
+            or query in a["name"].lower()
+            or query in friendly_name(a["name"]).lower()
+        ]
 
         # Sort
         if self._sort_key == "name":
-            filtered.sort(key=lambda a: a["name"].lower())
+            filtered.sort(key=lambda a: friendly_name(a["name"]).lower())
         else:
             filtered.sort(key=lambda a: a["connections"], reverse=True)
 
@@ -636,8 +852,9 @@ class NetWatchApp:
             row     = tk.Frame(self._app_frame, bg=row_bg)
             row.pack(fill="x")
 
-            # Left: emoji + name
-            tk.Label(row, text=f"  {emoji}  {app['name']}",
+            # Left: emoji + friendly display name
+            display = friendly_name(app["name"])
+            tk.Label(row, text=f"  {emoji}  {display}",
                      bg=row_bg, fg=CREAM, font=("Segoe UI", 11),
                      anchor="w", pady=9).pack(
                          side="left", fill="x", expand=True, padx=(4, 0))
