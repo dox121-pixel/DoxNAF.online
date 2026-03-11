@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NetWatch — What's Using My Internet? | DoxNAF.online</title>
-  <meta name="description" content="NetWatch is a free, super-readable tool that shows you exactly which apps are using your internet in real time. Download it free from DoxNAF.online." />
+  <meta name="description" content="NetWatch is a free point-and-click app that shows you exactly which apps are using your internet in real time. Download it free from DoxNAF.online." />
   <!-- Open Graph / Discord embed -->
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://doxnaf.online/netwatch/" />
@@ -337,9 +337,104 @@
     .footer-logo { font-size: 14px; font-weight: 700; color: var(--accent-lt); }
     .footer-copy { font-size: 13px; color: var(--faint); font-style: italic; }
 
+    /* ── Secondary (outline) download button ── */
+    .btn-download-outline {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 28px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid rgba(124,77,255,0.40);
+      border-radius: var(--r-pill);
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s;
+    }
+    .btn-download-outline:hover {
+      background: rgba(124,77,255,0.12);
+      color: var(--cream);
+      box-shadow: 0 0 18px rgba(124,77,255,0.25);
+      transform: translateY(-1px);
+    }
+    .btn-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* ── App window mockup ── */
+    .appwin {
+      background: #0b0b1a;
+      border: 1px solid rgba(124,77,255,0.28);
+      border-radius: 14px;
+      overflow: hidden;
+      max-width: 680px;
+      box-shadow: 0 8px 48px rgba(0,0,0,0.60), 0 0 0 1px rgba(124,77,255,0.10);
+    }
+    .appwin-bar {
+      background: #0e0520;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      border-bottom: 1px solid rgba(124,77,255,0.18);
+    }
+    .appwin-title {
+      margin-left: 8px;
+      font-size: 12px;
+      color: var(--faint);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .appwin-body {
+      padding: 18px 20px 20px;
+      font-family: 'Inter', sans-serif;
+    }
+    .aw-hero {
+      margin-bottom: 14px;
+    }
+    .aw-title  { font-size: 18px; font-weight: 800; color: var(--cream); }
+    .aw-sub    { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .aw-cards  { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .aw-card   {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+    .aw-card-lbl  { font-size: 10px; color: var(--muted); }
+    .aw-card-val  { font-size: 18px; font-weight: 800; margin-top: 2px; }
+    .aw-card-val.green   { color: var(--green); }
+    .aw-card-val.purple  { color: var(--accent-lt); }
+    .aw-list-hdr { font-size: 11px; font-weight: 700; color: var(--cream); margin-bottom: 6px; }
+    .aw-list { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; overflow: hidden; }
+    .aw-row  {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 14px;
+      font-size: 12px;
+      color: var(--cream);
+    }
+    .aw-row:nth-child(even) { background: rgba(124,77,255,0.05); }
+    .aw-row-conn { color: var(--muted); font-size: 11px; }
+    .aw-row-conn.hot { color: var(--green); }
+    .aw-status {
+      margin-top: 10px;
+      font-size: 10px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    .aw-dot { color: var(--green); }
+
     /* ── Responsive ── */
     @media (max-width: 640px) {
       .hero { padding-top: calc(68px + 44px); }
+      .btn-row { flex-direction: column; align-items: flex-start; }
     }
   </style>
 </head>
@@ -360,19 +455,34 @@
     </h1>
     <p class="hero-sub">
       Ever wondered why your internet feels slow? <strong style="color:var(--cream-2)">NetWatch</strong>
-      shows you exactly which apps on your computer are connected
-      to the internet right now — updated live, every second,
-      written so clearly that anyone can understand it.
+      shows you exactly which apps on your computer are using the internet
+      right now — in a clean, easy-to-use app. No terminal. No typing.
+      Just click and go.
     </p>
-    <a href="/netwatch/netwatch.py" download="netwatch.py" class="btn-download">
-      <span class="icon">⬇️</span> Download NetWatch (Python)
-    </a>
+    <div class="btn-row">
+      <a href="/netwatch/netwatch_app.py" download="netwatch_app.py" class="btn-download">
+        <span class="icon">⬇️</span> Download NetWatch App (Python)
+      </a>
+      <a href="/netwatch/netwatch.py" download="netwatch.py" class="btn-download-outline">
+        CLI version (advanced)
+      </a>
+    </div>
   </section>
 
   <!-- ╔══════════════════ FEATURES ═════════════╗ -->
   <section class="section">
     <div class="section-label">✦ &nbsp; What it does</div>
     <div class="features-grid">
+
+      <div class="feat-card">
+        <span class="feat-icon">🖱️</span>
+        <div class="feat-title">No terminal needed</div>
+        <div class="feat-body">
+          A real <strong>point-and-click app</strong> window — just
+          double-click the file and it opens. No commands to type,
+          no scary black boxes.
+        </div>
+      </div>
 
       <div class="feat-card">
         <span class="feat-icon">🔍</span>
@@ -405,22 +515,12 @@
       </div>
 
       <div class="feat-card">
-        <span class="feat-icon">📖</span>
-        <div class="feat-title">Readable code — no jargon</div>
-        <div class="feat-body">
-          The script is written to be <strong>understood by anyone</strong>,
-          with plain-English comments on every section. Open it in
-          any text editor and follow along!
-        </div>
-      </div>
-
-      <div class="feat-card">
         <span class="feat-icon">🔄</span>
         <div class="feat-title">Refreshes every second</div>
         <div class="feat-body">
           The display updates <strong>automatically every second</strong>
           so you can watch in real time as apps connect and disconnect.
-          Press Ctrl+C whenever you want to quit.
+          Close the window whenever you want to quit.
         </div>
       </div>
 
@@ -437,43 +537,58 @@
     </div>
   </section>
 
-  <!-- ╔══════════════════ TERMINAL PREVIEW ═════╗ -->
+  <!-- ╔══════════════════ APP PREVIEW ═══════════╗ -->
   <section class="section">
     <div class="section-label">✦ &nbsp; What it looks like</div>
     <div class="terminal-wrapper">
-      <div class="terminal">
-        <div class="terminal-bar">
+      <div class="appwin">
+        <div class="appwin-bar">
           <div class="dot dot-red"></div>
           <div class="dot dot-yellow"></div>
           <div class="dot dot-green"></div>
-          <span class="terminal-title">netwatch.py</span>
+          <span class="appwin-title">NetWatch — What's Using My Internet?</span>
         </div>
-        <div class="terminal-body">
-<span class="t-head">==============================================================</span>
-<span class="t-head">  🌐  WHAT'S USING MY INTERNET?       DoxNAF.online</span>
-<span class="t-head">  Ctrl+C to quit at any time.</span>
-<span class="t-head">==============================================================</span>
-&nbsp;
-<span class="t-label">  ⬇️  Downloading right now:   </span><span class="t-val">4.2 MB/s</span>
-<span class="t-label">  ⬆️  Uploading right now:     </span><span class="t-val">120.5 KB/s</span>
-&nbsp;
-<span class="t-sep">--------------------------------------------------------------</span>
-<span class="t-label">  📋  Apps currently connected to the internet:</span>
-<span class="t-sep">--------------------------------------------------------------</span>
-&nbsp;
-<span class="t-fire">  🔥  chrome.exe                          14 connections</span>
-<span class="t-blue">  📶  Discord.exe                          7 connections</span>
-<span class="t-label">  🌐  Spotify.exe                          3 connections</span>
-<span class="t-label">  🔌  OneDrive.exe                          1 connection</span>
-<span class="t-label">  🔌  steam.exe                             1 connection</span>
-&nbsp;
-<span class="t-sep">--------------------------------------------------------------</span>
-&nbsp;
-<span class="t-info">  📊  Total since your computer last started:</span>
-<span class="t-info">       Downloaded:  18.4 GB</span>
-<span class="t-info">       Uploaded:    2.1 GB</span>
-&nbsp;
-<span class="t-dim">  🔄  Updating every second...   (Ctrl+C to quit)</span>
+        <div class="appwin-body">
+
+          <!-- Nav strip -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(124,77,255,0.18);">
+            <span style="color:var(--accent-lt);font-weight:700;font-size:13px;">DoxNAF.online</span>
+            <span style="color:var(--faint);font-size:12px;">✦  NetWatch</span>
+          </div>
+
+          <!-- Hero -->
+          <div class="aw-hero">
+            <div class="aw-title">What's Using My Internet?</div>
+            <div class="aw-sub">Live network monitor · updates every second</div>
+          </div>
+
+          <!-- Speed cards -->
+          <div class="aw-cards">
+            <div class="aw-card">
+              <div class="aw-card-lbl">⬇️  Download speed</div>
+              <div class="aw-card-val green">4.2 MB/s</div>
+            </div>
+            <div class="aw-card">
+              <div class="aw-card-lbl">⬆️  Upload speed</div>
+              <div class="aw-card-val purple">120.5 KB/s</div>
+            </div>
+          </div>
+
+          <!-- App list -->
+          <div class="aw-list-hdr">📋  Apps connected to the internet &nbsp;<span class="aw-dot">● Live</span></div>
+          <div class="aw-list">
+            <div class="aw-row"><span>🔥  chrome.exe</span><span class="aw-row-conn hot">14 connections</span></div>
+            <div class="aw-row"><span>📶  Discord.exe</span><span class="aw-row-conn hot">7 connections</span></div>
+            <div class="aw-row"><span>🌐  Spotify.exe</span><span class="aw-row-conn">3 connections</span></div>
+            <div class="aw-row"><span>🔌  OneDrive.exe</span><span class="aw-row-conn">1 connection</span></div>
+            <div class="aw-row"><span>🔌  steam.exe</span><span class="aw-row-conn">1 connection</span></div>
+          </div>
+
+          <!-- Status bar -->
+          <div class="aw-status">
+            <span>📊  Total since boot:  Downloaded: 18.4 GB  |  Uploaded: 2.1 GB</span>
+          </div>
+
         </div>
       </div>
     </div>
@@ -486,8 +601,7 @@
       <div class="req-box-title">⚠️ Before you run NetWatch, make sure you have:</div>
       <ul class="req-list">
         <li><strong>Python 3.7 or newer</strong> — free at <a href="https://python.org" target="_blank" rel="noopener" style="color:var(--amber-lt)">python.org</a>. Windows users: tick "Add Python to PATH" during install!</li>
-        <li><strong>psutil library</strong> — installed with one command (see steps below)</li>
-        <li>A <strong>terminal / Command Prompt</strong> — already on your computer, no download needed</li>
+        <li><strong>psutil library</strong> — installed with one quick command (see step 3 below)</li>
       </ul>
     </div>
   </section>
@@ -500,10 +614,10 @@
       <div class="step">
         <div class="step-num">1</div>
         <div class="step-content">
-          <div class="step-title">Download the file</div>
+          <div class="step-title">Download the app</div>
           <div class="step-body">
             Click the big green download button above (or below) to
-            save <span class="code-inline">netwatch.py</span> anywhere
+            save <span class="code-inline">netwatch_app.py</span> anywhere
             you like — your Desktop works great.
           </div>
         </div>
@@ -525,14 +639,14 @@
       <div class="step">
         <div class="step-num">3</div>
         <div class="step-content">
-          <div class="step-title">Install the psutil helper library</div>
+          <div class="step-title">Install the psutil helper library (once only)</div>
           <div class="step-body">
             Open <strong>Command Prompt</strong> (Windows) or
             <strong>Terminal</strong> (Mac/Linux) and type:
             <br><br>
             <span class="code-inline">pip install psutil</span>
             <br><br>
-            Hit Enter and wait a few seconds. Done!
+            Hit Enter and wait a few seconds. You only ever need to do this once!
           </div>
         </div>
       </div>
@@ -540,15 +654,11 @@
       <div class="step">
         <div class="step-num">4</div>
         <div class="step-content">
-          <div class="step-title">Run NetWatch</div>
+          <div class="step-title">Double-click to open NetWatch</div>
           <div class="step-body">
-            In your terminal, navigate to where you saved the file
-            (e.g. your Desktop), then type:
-            <br><br>
-            <span class="code-inline">python netwatch.py</span>
-            <br><br>
-            The tool starts immediately and refreshes every 2 seconds.
-            Press <span class="code-inline">Ctrl+C</span> to quit.
+            Find the file you saved and <strong>double-click it</strong>.
+            The NetWatch window opens immediately — no terminal, no typing.
+            Close the window whenever you're done.
           </div>
         </div>
       </div>
@@ -562,11 +672,16 @@
       <div class="cta-title">Ready to see what's online?</div>
       <p class="cta-sub">
         Download NetWatch for free — no account, no tracking,
-        no nonsense. Just open it and go.
+        no nonsense. Double-click and go.
       </p>
-      <a href="/netwatch/netwatch.py" download="netwatch.py" class="btn-download">
-        <span class="icon">⬇️</span> Download netwatch.py — Free
-      </a>
+      <div class="btn-row" style="justify-content:center;">
+        <a href="/netwatch/netwatch_app.py" download="netwatch_app.py" class="btn-download">
+          <span class="icon">⬇️</span> Download NetWatch App — Free
+        </a>
+        <a href="/netwatch/netwatch.py" download="netwatch.py" class="btn-download-outline">
+          CLI version
+        </a>
+      </div>
     </div>
   </section>
 
