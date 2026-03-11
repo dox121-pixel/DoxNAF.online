@@ -20,19 +20,19 @@
   </script>
   <style>
     :root {
-      --bg:          #1e1528;
-      --surface:     rgba(255, 235, 202, 0.044);
-      --border:      rgba(200, 165, 122, 0.20);
-      --text:        #ede0cc;
-      --text-2:      #c4b09c;
-      --text-3:      #9e8e7c;
-      --text-faint:  #6c5e50;
-      --purple:      #c0a0f0;
-      --purple-btn:  #8864be;
-      --purple-btn2: #7052a8;
-      --amber:       #d4a46c;
-      --amber-lt:    #e4bc88;
-      --shadow:      rgba(0, 0, 0, 0.48);
+      --bg:          #2a1548;
+      --surface:     rgba(124, 77, 255, 0.07);
+      --border:      rgba(124, 77, 255, 0.22);
+      --text:        #fff8e1;
+      --text-2:      #e8d9b8;
+      --text-3:      #c4aed0;
+      --text-faint:  #8a6aaa;
+      --purple:      #a87dff;
+      --purple-btn:  #7c4dff;
+      --purple-btn2: #45227a;
+      --amber:       #ffb74d;
+      --amber-lt:    #ffd180;
+      --shadow:      rgba(0, 0, 0, 0.55);
       --r-card:      20px;
       --r-pill:      50px;
     }
@@ -42,9 +42,9 @@
     body {
       background-color: var(--bg);
       background-image:
-        radial-gradient(ellipse at 18% 18%, rgba(190, 130, 60,  0.13) 0%, transparent 44%),
-        radial-gradient(ellipse at 82% 82%, rgba(130, 80,  200, 0.14) 0%, transparent 44%),
-        radial-gradient(ellipse at 55%  5%, rgba(210, 165, 90,  0.09) 0%, transparent 36%);
+        radial-gradient(ellipse at 20% 20%, rgba(124, 77, 255, 0.22) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(69, 34, 122,  0.32) 0%, transparent 50%),
+        radial-gradient(ellipse at 60%  5%, rgba(255, 183, 77,  0.08) 0%, transparent 40%);
       color: var(--text);
       font-family: Georgia, 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
       font-size: 15px;
@@ -66,8 +66,8 @@
       padding: clamp(32px, 7vw, 54px) clamp(24px, 7vw, 46px);
       box-shadow:
         0 10px 50px var(--shadow),
-        0  0  80px rgba(130, 80, 200, 0.09),
-        inset 0 1px 0 rgba(255, 240, 200, 0.07);
+        0  0  90px rgba(124, 77, 255, 0.14),
+        inset 0 1px 0 rgba(255, 248, 225, 0.08);
       text-align: center;
     }
 
@@ -75,21 +75,14 @@
       font-size: clamp(28px, 6vw, 40px);
       font-weight: normal;
       color: var(--purple);
-      text-shadow: 0 2px 20px rgba(170, 120, 250, 0.26);
+      text-shadow: 0 2px 24px rgba(124, 77, 255, 0.45);
       margin-bottom: 6px;
-    }
-
-    .tagline {
-      font-size: 13px;
-      color: var(--text-3);
-      font-style: italic;
-      margin-bottom: 0;
     }
 
     .divider {
       margin: 24px 0;
       text-align: center;
-      color: rgba(200, 158, 100, 0.52);
+      color: rgba(255, 183, 77, 0.45);
       font-size: 14px;
     }
     .divider::before { content: '✦ \00a0 ✦ \00a0 ✦'; }
@@ -100,8 +93,8 @@
       gap: 6px;
       font-size: 12px;
       color: var(--amber-lt);
-      background: rgba(210, 158, 100, 0.12);
-      border: 1px solid rgba(210, 158, 100, 0.28);
+      background: rgba(255, 183, 77, 0.12);
+      border: 1px solid rgba(255, 183, 77, 0.30);
       border-radius: var(--r-pill);
       padding: 5px 16px;
       margin-bottom: 14px;
@@ -112,7 +105,7 @@
       font-weight: normal;
       color: var(--amber);
       margin-bottom: 16px;
-      text-shadow: 0 1px 12px rgba(200, 148, 80, 0.20);
+      text-shadow: 0 1px 14px rgba(255, 183, 77, 0.28);
     }
 
     .body-text {
@@ -144,12 +137,12 @@
       border-radius: var(--r-pill);
       text-decoration: none;
       cursor: pointer;
-      box-shadow: 0 4px 22px rgba(120, 80, 200, 0.42), inset 0 1px 0 rgba(255, 240, 255, 0.14);
+      box-shadow: 0 4px 22px rgba(124, 77, 255, 0.48), inset 0 1px 0 rgba(255, 240, 255, 0.14);
       transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
     .btn-drop:hover {
       transform: translateY(-3px);
-      box-shadow: 0 8px 34px rgba(120, 80, 200, 0.55), inset 0 1px 0 rgba(255, 240, 255, 0.14);
+      box-shadow: 0 8px 34px rgba(124, 77, 255, 0.65), inset 0 1px 0 rgba(255, 240, 255, 0.14);
     }
     .btn-drop:active { transform: translateY(-1px); }
 
@@ -164,7 +157,6 @@
 <body>
   <div class="container">
     <div class="site-title">DoxNAF.online</div>
-    <div class="tagline">a cozy corner of the internet</div>
     <div class="divider"></div>
 
     <div class="notice-badge">⚠ Notice</div>
