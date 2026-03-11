@@ -206,7 +206,7 @@
       box-shadow: 0 0 8px var(--amber);
     }
 
-    /* ── hero visual: CSS café art ── */
+    /* ── hero visual: CSS solar system ── */
     .hero-visual {
       flex: 0 0 auto;
       width: clamp(280px, 40vw, 520px);
@@ -226,195 +226,90 @@
       pointer-events: none;
     }
 
-    /* spinning orbit rings */
+    /* ── solar system: orbit rings ── */
     .ring {
       position: absolute;
       border-radius: 50%;
-      border: 1px solid rgba(124, 77, 255, 0.22);
+      border: 1px solid rgba(255, 255, 255, 0.09);
     }
-    .ring-1 { width: 96%; height: 96%; animation: spin 32s linear infinite; }
-    .ring-2 { width: 76%; height: 76%; border-color: rgba(255, 183, 77, 0.16); animation: spin 22s linear infinite reverse; }
-    .ring-3 { width: 56%; height: 56%; border-color: rgba(124, 77, 255, 0.30); animation: spin 14s linear infinite; }
+    .ring-1 { width: 96%; height: 96%; animation: spin 40s linear infinite; }
+    .ring-2 { width: 70%; height: 70%; border-color: rgba(255, 255, 255, 0.07); animation: spin 24s linear infinite reverse; }
+    .ring-3 { width: 46%; height: 46%; border-color: rgba(255, 255, 255, 0.07); animation: spin 13s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* orbit dot markers on ring-1 */
+    /* planets on each orbit ring */
     .ring-1::before, .ring-1::after,
-    .ring-2::before, .ring-2::after {
+    .ring-2::before, .ring-2::after,
+    .ring-3::before {
       content: '';
       position: absolute;
       border-radius: 50%;
     }
+    /* ring-1: blue planet (Earth-like) */
     .ring-1::before {
+      width: 14px; height: 14px;
+      top: -7px; left: 50%; transform: translateX(-50%);
+      background: radial-gradient(circle at 35% 30%, #88ddff 0%, #2288cc 50%, #0a3060 100%);
+      box-shadow: 0 0 14px rgba(80, 200, 255, 0.85);
+    }
+    /* ring-1: small red planet (Mars-like) */
+    .ring-1::after {
+      width: 9px; height: 9px;
+      bottom: -4.5px; left: 50%; transform: translateX(-50%);
+      background: radial-gradient(circle at 35% 30%, #ffaa88 0%, #cc4422 55%, #661100 100%);
+      box-shadow: 0 0 10px rgba(220, 80, 40, 0.8);
+    }
+    /* ring-2: golden planet (Venus-like) */
+    .ring-2::before {
+      width: 11px; height: 11px;
+      top: -5.5px; left: 50%; transform: translateX(-50%);
+      background: radial-gradient(circle at 35% 30%, #ffe8a0 0%, #ddaa22 50%, #885500 100%);
+      box-shadow: 0 0 12px rgba(255, 200, 60, 0.85);
+    }
+    /* ring-2: large blue-purple gas giant */
+    .ring-2::after {
+      width: 18px; height: 18px;
+      bottom: -9px; left: 50%; transform: translateX(-50%);
+      background: radial-gradient(circle at 32% 28%, #b0e0ff 0%, #4499cc 38%, #8855dd 72%, #1a0640 100%);
+      box-shadow: 0 0 16px rgba(100, 170, 255, 0.75);
+    }
+    /* ring-3: small inner rocky planet */
+    .ring-3::before {
       width: 8px; height: 8px;
       top: -4px; left: 50%; transform: translateX(-50%);
-      background: var(--accent-lt);
-      box-shadow: 0 0 10px rgba(168, 125, 255, 0.9);
-    }
-    .ring-1::after {
-      width: 6px; height: 6px;
-      bottom: -3px; left: 50%; transform: translateX(-50%);
-      background: var(--amber);
-      box-shadow: 0 0 10px rgba(255, 183, 77, 0.9);
-    }
-    .ring-2::before {
-      width: 7px; height: 7px;
-      top: -3.5px; left: 50%; transform: translateX(-50%);
-      background: var(--amber-lt);
-      box-shadow: 0 0 8px rgba(255, 209, 128, 0.9);
-    }
-    .ring-2::after {
-      width: 5px; height: 5px;
-      bottom: -2.5px; left: 50%; transform: translateX(-50%);
-      background: var(--accent-lt);
-      box-shadow: 0 0 8px rgba(168, 125, 255, 0.9);
+      background: radial-gradient(circle at 38% 33%, #ffddaa 0%, #cc8844 52%, #6b3310 100%);
+      box-shadow: 0 0 8px rgba(220, 160, 80, 0.75);
     }
 
-    /* café window */
-    .cafe-window {
-      position: relative;
+    /* sun */
+    .sun {
+      position: absolute;
       z-index: 2;
-      width: 52%;
-      aspect-ratio: 1 / 1.1;
-      background: linear-gradient(170deg, #2d1060 0%, #1a0840 55%, #0e0528 100%);
-      border: 2px solid rgba(124, 77, 255, 0.50);
-      border-radius: 18px 18px 10px 10px;
-      overflow: hidden;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 36% 32%, #fff8c0 0%, #ffdd44 28%, #ff9900 62%, #cc4400 100%);
       box-shadow:
-        0 0 40px rgba(124, 77, 255, 0.28),
-        0 0 90px rgba(124, 77, 255, 0.10),
-        inset 0 1px 0 rgba(255, 255, 255, 0.07);
+        0 0 20px 6px  rgba(255, 210, 50,  0.88),
+        0 0 60px 20px rgba(255, 130, 20,  0.46),
+        0 0 110px 45px rgba(255, 70, 10,  0.16);
+      animation: sun-pulse 3.8s ease-in-out infinite;
+    }
+    @keyframes sun-pulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 20px 6px rgba(255,210,50,0.88), 0 0 60px 20px rgba(255,130,20,0.46), 0 0 110px 45px rgba(255,70,10,0.16); }
+      50%       { transform: scale(1.06); box-shadow: 0 0 28px 10px rgba(255,210,50,0.95), 0 0 80px 28px rgba(255,130,20,0.55), 0 0 140px 58px rgba(255,70,10,0.22); }
     }
 
-    /* warm amber glow from inside */
-    .cafe-window::before {
-      content: '';
-      position: absolute;
-      bottom: 0; left: 0; right: 0; height: 55%;
-      background: radial-gradient(ellipse at 50% 120%, rgba(255, 183, 77, 0.26) 0%, transparent 60%);
-    }
-
-    /* purple glow at top (café sign halo) */
-    .cafe-window::after {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; height: 35%;
-      background: radial-gradient(ellipse at 50% -20%, rgba(124, 77, 255, 0.30) 0%, transparent 65%);
-    }
-
-    /* "café" neon sign */
-    .cafe-sign {
-      position: absolute;
-      top: -1px; left: 50%; transform: translateX(-50%);
-      z-index: 3;
-      background: rgba(90, 40, 200, 0.88);
-      border: 1px solid rgba(168, 125, 255, 0.65);
-      border-top: none;
-      border-radius: 0 0 8px 8px;
-      padding: 3px 14px;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 2.5px;
-      color: #fff;
-      text-shadow: 0 0 12px rgba(200, 170, 255, 1), 0 0 4px rgba(200, 170, 255, 0.8);
-      white-space: nowrap;
-    }
-
-    /* window frame dividers */
-    .pane-h {
-      position: absolute;
-      top: 38%; left: 0; right: 0;
-      height: 3px;
-      background: rgba(124, 77, 255, 0.32);
-      z-index: 3;
-    }
-    .pane-v {
-      position: absolute;
-      top: 22%; bottom: 0;
-      left: 50%; transform: translateX(-50%);
-      width: 3px;
-      background: rgba(124, 77, 255, 0.32);
-      z-index: 3;
-    }
-
-    /* upper shelf */
-    .shelf {
-      position: absolute;
-      top: 14%; left: 8%; right: 8%;
-      height: 4px;
-      background: rgba(200, 168, 255, 0.38);
-      border-radius: 2px;
-      z-index: 3;
-    }
-    .shelf::after {
-      content: '';
-      position: absolute;
-      top: 5px; left: 12%; right: 12%;
-      height: 3px;
-      background: rgba(200, 168, 255, 0.18);
-      border-radius: 2px;
-    }
-
-    /* cups / jars on the shelf */
-    .cup {
-      position: absolute;
-      bottom: 6px;
-      border-radius: 2px 2px 4px 4px;
-      z-index: 4;
-    }
-    .cup.c1 { left: 14%; width: 10px; height: 14px; background: rgba(255, 183, 77, 0.60); box-shadow: 0 0 6px rgba(255, 183, 77, 0.45); }
-    .cup.c2 { left: 30%; width: 9px;  height: 10px; border-radius: 50%; background: rgba(168, 125, 255, 0.65); box-shadow: 0 0 6px rgba(168, 125, 255, 0.5); }
-    .cup.c3 { left: 48%; width: 10px; height: 14px; background: rgba(255, 209, 128, 0.55); box-shadow: 0 0 6px rgba(255, 209, 128, 0.4); }
-    .cup.c4 { left: 66%; width: 8px;  height: 11px; background: rgba(124, 77, 255, 0.55); box-shadow: 0 0 6px rgba(124, 77, 255, 0.4); }
-
-    /* bar counter */
-    .counter {
-      position: absolute;
-      bottom: 26%; left: 0; right: 0;
-      height: 6px;
-      background: linear-gradient(90deg, rgba(80, 40, 160, 0.5), rgba(124, 77, 255, 0.75), rgba(80, 40, 160, 0.5));
-      box-shadow: 0 0 12px rgba(124, 77, 255, 0.35);
-      z-index: 3;
-    }
-
-    /* bar stools */
-    .stool {
-      position: absolute;
-      bottom: 5%;
-      z-index: 3;
-    }
-    .stool::before {
-      content: '';
-      display: block;
-      width: 18px; height: 4px;
-      background: rgba(168, 125, 255, 0.55);
-      border-radius: 4px;
-      margin-bottom: 3px;
-    }
-    .stool::after {
-      content: '';
-      display: block;
-      width: 3px; height: 14px;
-      background: rgba(130, 90, 200, 0.45);
-      margin: 0 auto;
-      border-radius: 2px;
-    }
-    .stool.s1 { left: 18%; }
-    .stool.s2 { left: 44%; }
-    .stool.s3 { left: 68%; }
-
-    /* floating steam particles */
+    /* twinkling star particles */
     .particle {
       position: absolute;
       border-radius: 50%;
       pointer-events: none;
-      opacity: 0;
-      animation: float-up var(--dur, 6s) var(--delay, 0s) ease-in-out infinite;
+      animation: twinkle var(--dur, 4s) var(--delay, 0s) ease-in-out infinite;
     }
-    @keyframes float-up {
-      0%   { opacity: 0; transform: translateY(0) scale(0.5); }
-      20%  { opacity: 0.65; }
-      80%  { opacity: 0.30; }
-      100% { opacity: 0; transform: translateY(-70px) scale(1.1); }
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.15; transform: scale(0.8); }
+      50%       { opacity: 1;    transform: scale(1.4); }
     }
 
     /* ── cards section ── */
@@ -542,34 +437,23 @@
       </div>
     </div>
 
-    <!-- CSS café window art -->
+    <!-- CSS solar system art -->
     <div class="hero-visual">
       <div class="ring ring-1"></div>
       <div class="ring ring-2"></div>
       <div class="ring ring-3"></div>
 
-      <div class="cafe-window">
-        <span class="cafe-sign">café</span>
-        <div class="pane-h"></div>
-        <div class="pane-v"></div>
-        <div class="shelf">
-          <div class="cup c1"></div>
-          <div class="cup c2"></div>
-          <div class="cup c3"></div>
-          <div class="cup c4"></div>
-        </div>
-        <div class="counter"></div>
-        <div class="stool s1"></div>
-        <div class="stool s2"></div>
-        <div class="stool s3"></div>
-      </div>
+      <!-- sun at the center -->
+      <div class="sun"></div>
 
-      <!-- floating steam/glow particles -->
-      <div class="particle" style="width:4px;height:4px;background:#a87dff;top:54%;left:39%;--dur:5.2s;--delay:0s;"></div>
-      <div class="particle" style="width:3px;height:3px;background:#ffd180;top:60%;left:54%;--dur:7.0s;--delay:1.4s;"></div>
-      <div class="particle" style="width:5px;height:5px;background:#a87dff;top:64%;left:46%;--dur:6.4s;--delay:2.2s;"></div>
-      <div class="particle" style="width:3px;height:3px;background:#ffb74d;top:58%;left:50%;--dur:4.8s;--delay:0.7s;"></div>
-      <div class="particle" style="width:4px;height:4px;background:#ffd180;top:62%;left:42%;--dur:6.0s;--delay:3.1s;"></div>
+      <!-- twinkling background stars -->
+      <div class="particle" style="width:2px;height:2px;background:#ffffff;top:12%;left:20%;--dur:3.2s;--delay:0s;"></div>
+      <div class="particle" style="width:3px;height:3px;background:#ffe8a0;top:18%;left:78%;--dur:4.0s;--delay:1.1s;"></div>
+      <div class="particle" style="width:2px;height:2px;background:#aaddff;top:78%;left:15%;--dur:2.8s;--delay:0.5s;"></div>
+      <div class="particle" style="width:2px;height:2px;background:#ffffff;top:84%;left:76%;--dur:3.6s;--delay:2.0s;"></div>
+      <div class="particle" style="width:3px;height:3px;background:#ffffff;top:32%;left:90%;--dur:4.4s;--delay:0.8s;"></div>
+      <div class="particle" style="width:2px;height:2px;background:#ffd180;top:68%;left:88%;--dur:3.0s;--delay:1.7s;"></div>
+      <div class="particle" style="width:2px;height:2px;background:#c8b8ff;top:8%;left:55%;--dur:5.0s;--delay:2.5s;"></div>
     </div>
 
   </section>
