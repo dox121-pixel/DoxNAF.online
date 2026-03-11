@@ -696,6 +696,8 @@ const MIME = {
   '.mp3':   'audio/mpeg',
   '.ogg':   'audio/ogg',
   '.wav':   'audio/wav',
+  // Scripts / downloads
+  '.py':    'text/plain; charset=utf-8',
 };
 
 const httpServer = http.createServer((req, res) => {
@@ -1492,6 +1494,7 @@ const httpServer = http.createServer((req, res) => {
   const file    = (urlPath === '/' || urlPath === '/index.html') ? '/index.html'
                 : (urlPath === '/VIPER.exe' || urlPath === '/VIPER.exe/') ? '/VIPER.exe/index.html'
                 : (urlPath === '/unity-game' || urlPath === '/unity-game/') ? '/unity-game/index.html'
+                : (urlPath === '/netwatch' || urlPath === '/netwatch/') ? '/netwatch/index.html'
                 : urlPath;
   // Resolve the full path and ensure it stays inside __dirname
   const full    = path.resolve(__dirname, '.' + file);
