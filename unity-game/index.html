@@ -19,18 +19,41 @@
     gtag('config', 'G-LTSJ5GKL0C');
   </script>
   <style>
+    :root {
+      --bg:          #1e1528;
+      --surface:     rgba(255, 235, 202, 0.044);
+      --border:      rgba(200, 165, 122, 0.20);
+      --text:        #ede0cc;
+      --text-2:      #c4b09c;
+      --text-3:      #9e8e7c;
+      --text-faint:  #6c5e50;
+      --purple:      #c0a0f0;
+      --purple-btn:  #8864be;
+      --amber:       #d4a46c;
+      --rose:        #d09098;
+      --shadow:      rgba(0, 0, 0, 0.48);
+      --r-sm:        8px;
+      --r-pill:      50px;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #0a0a0f;
-      color: #c8d8e8;
-      font-family: 'Courier New', Courier, monospace;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(ellipse at 18% 18%, rgba(190, 130, 60,  0.13) 0%, transparent 44%),
+        radial-gradient(ellipse at 82% 82%, rgba(130, 80,  200, 0.14) 0%, transparent 44%),
+        radial-gradient(ellipse at 55%  5%, rgba(210, 165, 90,  0.09) 0%, transparent 36%);
+      color: var(--text);
+      font-family: Georgia, 'Palatino Linotype', Palatino, 'Book Antiqua', serif;
+      font-size: 15px;
+      line-height: 1.75;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: flex-start;
-      padding: 24px 16px 40px;
+      padding: 32px 20px 52px;
     }
 
     header {
@@ -44,53 +67,51 @@
 
     .site-title {
       font-size: clamp(14px, 3vw, 20px);
-      letter-spacing: 4px;
-      color: #4ff;
-      text-shadow: 0 0 10px #4ff8;
-      text-transform: uppercase;
+      font-weight: normal;
+      color: var(--purple);
+      text-shadow: 0 1px 12px rgba(170, 120, 250, 0.22);
       text-decoration: none;
+      transition: color 0.2s;
     }
-
-    .site-title:hover { color: #7ef; }
+    .site-title:hover { color: #d4bcff; }
 
     .back-link {
-      font-size: 11px;
-      letter-spacing: 2px;
-      color: #445;
+      font-size: 13px;
+      color: var(--text-3);
       text-decoration: none;
-      text-transform: uppercase;
-      transition: color 0.15s;
+      font-style: italic;
+      transition: color 0.2s;
     }
-
-    .back-link:hover { color: #7ef; }
+    .back-link:hover { color: var(--amber); }
 
     .divider {
       width: 100%;
       max-width: 960px;
       height: 1px;
-      background: linear-gradient(to right, transparent, #2af6, transparent);
+      background: linear-gradient(to right, transparent, var(--border), transparent);
       margin-bottom: 24px;
     }
 
     .game-title {
-      font-size: clamp(16px, 3.5vw, 24px);
-      letter-spacing: 4px;
-      color: #4ff;
-      text-transform: uppercase;
-      text-shadow: 0 0 10px #4ff8;
+      font-size: clamp(18px, 3.5vw, 26px);
+      font-weight: normal;
+      color: var(--purple);
+      text-shadow: 0 1px 16px rgba(170, 120, 250, 0.22);
       margin-bottom: 20px;
       text-align: center;
     }
 
-    /* ── Unity container ───────────────────────── */
+    /* Unity container */
     #unity-container {
       position: relative;
       width: 100%;
       max-width: 960px;
       aspect-ratio: 16 / 9;
       background: #000;
-      border: 1px solid #1a3a3a;
-      box-shadow: 0 0 40px #0af2;
+      border: 1px solid var(--border);
+      border-radius: var(--r-sm);
+      box-shadow: 0 12px 52px var(--shadow), 0 0 80px rgba(130, 80, 200, 0.07);
+      overflow: hidden;
     }
 
     #unity-canvas {
@@ -100,7 +121,7 @@
       background: #000;
     }
 
-    /* ── Loading overlay ───────────────────────── */
+    /* Loading overlay */
     #loading-overlay {
       position: absolute;
       inset: 0;
@@ -108,11 +129,10 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #0a0a0f;
+      background: var(--bg);
       gap: 18px;
       transition: opacity 0.4s;
     }
-
     #loading-overlay.hidden {
       opacity: 0;
       pointer-events: none;
@@ -120,34 +140,33 @@
 
     .loading-logo {
       font-size: clamp(22px, 5vw, 32px);
-      letter-spacing: 5px;
-      color: #4ff;
-      text-shadow: 0 0 14px #4ff8;
-      text-transform: uppercase;
+      font-weight: normal;
+      color: var(--purple);
+      text-shadow: 0 2px 20px rgba(170, 120, 250, 0.26);
     }
 
     .loading-status {
-      font-size: 11px;
-      letter-spacing: 3px;
-      color: #445;
-      text-transform: uppercase;
+      font-size: 13px;
+      color: var(--text-3);
+      font-style: italic;
     }
 
     .progress-track {
       width: 260px;
       height: 3px;
-      background: #1a2a3a;
+      background: rgba(200, 165, 122, 0.15);
+      border-radius: 3px;
     }
 
     .progress-bar {
       height: 100%;
       width: 0%;
-      background: #4ff;
-      box-shadow: 0 0 8px #4ff;
+      background: linear-gradient(to right, var(--purple-btn), var(--amber));
+      border-radius: 3px;
       transition: width 0.2s;
     }
 
-    /* ── Error overlay ─────────────────────────── */
+    /* Error overlay */
     #error-overlay {
       position: absolute;
       inset: 0;
@@ -155,30 +174,28 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: #0a0a0f;
+      background: var(--bg);
       gap: 12px;
       padding: 32px;
       text-align: center;
     }
-
     #error-overlay.visible { display: flex; }
 
     .error-title {
-      font-size: 14px;
-      letter-spacing: 3px;
-      color: #f64;
-      text-transform: uppercase;
-      text-shadow: 0 0 8px #f644;
+      font-size: 16px;
+      font-weight: normal;
+      color: var(--rose);
     }
 
     .error-msg {
-      font-size: 11px;
-      color: #667;
-      line-height: 1.8;
+      font-size: 13px;
+      color: var(--text-2);
+      line-height: 1.9;
       max-width: 480px;
+      font-style: italic;
     }
 
-    /* ── Controls bar ──────────────────────────── */
+    /* Controls bar */
     .controls {
       display: flex;
       align-items: center;
@@ -190,28 +207,26 @@
     }
 
     .btn-fullscreen {
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 11px;
-      letter-spacing: 2px;
-      text-transform: uppercase;
+      font-family: Georgia, serif;
+      font-size: 13px;
       background: none;
-      border: 1px solid #2a4a4a;
-      color: #4ff;
-      padding: 6px 16px;
+      border: 1px solid var(--border);
+      color: var(--purple);
+      padding: 8px 22px;
       cursor: pointer;
-      transition: border-color 0.15s, color 0.15s, box-shadow 0.15s;
+      border-radius: var(--r-pill);
+      transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
     }
-
     .btn-fullscreen:hover {
-      border-color: #4ff;
-      box-shadow: 0 0 8px #4ff4;
+      border-color: var(--purple);
+      box-shadow: 0 2px 14px rgba(130, 80, 200, 0.25);
     }
 
     .footer {
-      margin-top: 40px;
-      font-size: 10px;
-      color: #334;
-      letter-spacing: 1px;
+      margin-top: 44px;
+      font-size: 12px;
+      color: var(--text-faint);
+      font-style: italic;
       text-align: center;
     }
   </style>
