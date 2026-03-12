@@ -4,19 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NetWatch — What's Using My Internet? | DoxNAF.online</title>
-  <meta name="description" content="NetWatch is a free point-and-click app that shows you exactly which apps are using your internet in real time. Download it free from DoxNAF.online." />
+  <meta name="description" content="NetWatch is a free Windows tool that shows you exactly which apps are using your internet in real time. Download it free from DoxNAF.online." />
   <!-- Favicon -->
   <link rel="icon" href="NETWATCH.png" type="image/png" />
-  <!-- Open Graph / Discord embed -->
+  <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://doxnaf.online/netwatch/" />
   <meta property="og:title" content="NetWatch — What's Using My Internet?" />
-  <meta property="og:description" content="A free tool that shows exactly which apps are hogging your internet, in plain English. Made for everyone — even if you're not a tech expert." />
-  <!-- Google Fonts: Inter -->
+  <meta property="og:description" content="A free tool that shows exactly which apps are hogging your internet, in plain English." />
+  <meta property="og:image" content="https://doxnaf.online/netwatch/NETWATCH.png" />
+  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <!-- Google tag (gtag.js) -->
+  <!-- Google Analytics -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-LTSJ5GKL0C"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -24,733 +25,502 @@
     gtag('js', new Date());
     gtag('config', 'G-LTSJ5GKL0C');
   </script>
+  <!-- Tailwind CSS (Play CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'nw-bg':       '#16082e',
+            'nw-accent':   '#7c4dff',
+            'nw-lt':       '#a87dff',
+            'nw-dk':       '#5c2ee0',
+            'nw-green':    '#3ddc84',
+            'nw-green-lt': '#6eeea6',
+            'nw-amber':    '#ffb74d',
+            'nw-amber-lt': '#ffd180',
+            'nw-cream':    '#fff8e1',
+            'nw-cream-2':  '#ede0c8',
+            'nw-muted':    '#c4aed0',
+            'nw-faint':    '#8a6aaa',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          backgroundImage: {
+            'hero-glow': 'radial-gradient(ellipse 80% 65% at 70% 45%, rgba(69,34,122,0.55) 0%, transparent 65%)',
+          },
+          keyframes: {
+            pulse2: { '0%,100%': { opacity: '1' }, '50%': { opacity: '0.2' } },
+            spin:   { to: { transform: 'rotate(360deg)' } },
+          },
+          animation: {
+            'pulse2': 'pulse2 1.4s ease-in-out infinite',
+          },
+        }
+      }
+    }
+  </script>
+  <!-- React + Babel (CDN — no build step needed) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
   <style>
-    /* ── Design tokens (same palette as the main site) ── */
-    :root {
-      --bg:          #16082e;
-      --accent:      #7c4dff;
-      --accent-lt:   #a87dff;
-      --accent-dk:   #5c2ee0;
-      --green:       #3ddc84;
-      --green-lt:    #6eeea6;
-      --amber:       #ffb74d;
-      --amber-lt:    #ffd180;
-      --cream:       #fff8e1;
-      --cream-2:     #ede0c8;
-      --muted:       #c4aed0;
-      --faint:       #8a6aaa;
-      --card-bg:     rgba(124, 77, 255, 0.08);
-      --card-border: rgba(124, 77, 255, 0.22);
-      --r:           18px;
-      --r-pill:      50px;
-    }
-
-    /* ── Reset ── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
-
-    /* ── Base ── */
-    body {
-      background-color: var(--bg);
-      background-image:
-        radial-gradient(ellipse 80% 65% at 70% 45%, rgba(69,34,122,0.55) 0%, transparent 65%),
-        radial-gradient(ellipse 50% 45% at 10% 80%, rgba(61,220,132,0.07) 0%, transparent 60%),
-        radial-gradient(ellipse 40% 30% at 50%  0%, rgba(255,183,77,0.05) 0%, transparent 55%);
-      color: var(--cream);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 16px;
-      line-height: 1.6;
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-
-    /* ── Nav ── */
-    nav {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 100;
-      height: 68px;
-      padding: 0 clamp(20px, 5vw, 80px);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: rgba(22, 8, 46, 0.80);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      border-bottom: 1px solid rgba(124, 77, 255, 0.15);
-    }
-    .nav-logo {
-      font-size: 17px;
-      font-weight: 700;
-      letter-spacing: -0.3px;
-      color: var(--accent-lt);
-      text-shadow: 0 0 22px rgba(124,77,255,0.55);
-      text-decoration: none;
-    }
-    .nav-back {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      padding: 9px 22px;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--cream);
-      background: rgba(124,77,255,0.12);
-      border: 1px solid rgba(124,77,255,0.38);
-      border-radius: var(--r-pill);
-      text-decoration: none;
-      transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
-    }
-    .nav-back:hover {
-      background: rgba(124,77,255,0.25);
-      box-shadow: 0 0 18px rgba(124,77,255,0.32);
-      transform: translateY(-1px);
-    }
-
-    /* ── Hero ── */
-    .hero {
-      padding: calc(68px + 72px) clamp(20px, 5vw, 80px) 72px;
-      max-width: 900px;
-    }
-    .hero-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 18px;
-      margin-bottom: 28px;
-      font-size: 13px;
-      font-weight: 500;
-      letter-spacing: 0.3px;
-      color: var(--green);
-      background: rgba(61, 220, 132, 0.10);
-      border: 1px solid rgba(61, 220, 132, 0.30);
-      border-radius: var(--r-pill);
-    }
-    .hero-headline {
-      font-size: clamp(34px, 5.5vw, 64px);
-      font-weight: 800;
-      line-height: 1.08;
-      letter-spacing: -2px;
-      color: var(--cream);
-      margin-bottom: 22px;
-    }
-    .hero-headline span { color: var(--green-lt); text-shadow: 0 0 44px rgba(61,220,132,0.5); }
-    .hero-sub {
-      font-size: clamp(15px, 1.6vw, 19px);
-      color: var(--muted);
-      line-height: 1.78;
-      max-width: 560px;
-      margin-bottom: 40px;
-    }
-
-    /* ── Download button ── */
-    .btn-download {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      padding: 16px 36px;
-      font-size: 16px;
-      font-weight: 700;
-      color: #0d0d1a;
-      background: var(--green);
-      border: none;
-      border-radius: var(--r-pill);
-      text-decoration: none;
-      cursor: pointer;
-      transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
-      box-shadow: 0 0 28px rgba(61,220,132,0.40);
-    }
-    .btn-download:hover {
-      background: var(--green-lt);
-      box-shadow: 0 0 44px rgba(61,220,132,0.60);
-      transform: translateY(-2px);
-    }
-    .btn-download .icon { font-size: 20px; }
-
-    /* ── Section wrapper ── */
-    .section {
-      padding: 0 clamp(20px, 5vw, 80px) 80px;
-    }
-    .section-label {
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--faint);
-      margin-bottom: 22px;
-    }
-
-    /* ── Feature cards ── */
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 18px;
-      margin-bottom: 60px;
-    }
-    .feat-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--r);
-      padding: 26px 22px;
-      position: relative;
-      overflow: hidden;
-    }
-    .feat-card::before {
+    body { background-color: #16082e; }
+    /* Live-dot pulse animation used inside the app preview */
+    @keyframes pulse2 { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
+    .live-dot { animation: pulse2 1.4s ease-in-out infinite; }
+    /* Subtle top-highlight on every card */
+    .card-top::before {
       content: '';
       position: absolute;
-      top: 0; left: 0; right: 0; height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(61,220,132,0.35), transparent);
-    }
-    .feat-icon  { font-size: 26px; margin-bottom: 12px; display: block; }
-    .feat-title { font-size: 15px; font-weight: 700; color: var(--cream); margin-bottom: 7px; }
-    .feat-body  { font-size: 14px; color: var(--muted); line-height: 1.7; }
-    .feat-body strong { color: var(--green-lt); }
-
-    /* ── Terminal preview ── */
-    .terminal-wrapper {
-      margin-bottom: 60px;
-    }
-    .terminal {
-      background: #0b0b1a;
-      border: 1px solid rgba(61,220,132,0.25);
-      border-radius: 14px;
-      overflow: hidden;
-      max-width: 680px;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(61,220,132,0.08);
-    }
-    .terminal-bar {
-      background: rgba(255,255,255,0.04);
-      padding: 10px 16px;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-    }
-    .dot { width: 11px; height: 11px; border-radius: 50%; }
-    .dot-red    { background: #ff5f57; }
-    .dot-yellow { background: #ffbd2e; }
-    .dot-green  { background: #28c840; }
-    .terminal-title {
-      margin-left: 8px;
-      font-size: 12px;
-      color: rgba(255,255,255,0.3);
-      font-family: 'JetBrains Mono', monospace;
-    }
-    .terminal-body {
-      padding: 20px 22px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
-      line-height: 1.75;
-      color: #aac;
-    }
-    .t-head  { color: #3ddc84; font-weight: 500; }
-    .t-sep   { color: #2a4a3a; }
-    .t-label { color: #7eb8a0; }
-    .t-val   { color: #ffffff; }
-    .t-fire  { color: #ff9944; }
-    .t-blue  { color: #88ccff; }
-    .t-dim   { color: #4a5a52; }
-    .t-info  { color: #9988bb; }
-    .t-prompt { color: #3ddc84; }
-
-    /* ── Steps section ── */
-    .steps-list {
-      display: flex;
-      flex-direction: column;
-      gap: 18px;
-      max-width: 620px;
-    }
-    .step {
-      display: flex;
-      gap: 20px;
-      align-items: flex-start;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--r);
-      padding: 20px 22px;
-    }
-    .step-num {
-      flex-shrink: 0;
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      background: rgba(61,220,132,0.15);
-      border: 1px solid rgba(61,220,132,0.35);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--green);
-    }
-    .step-content { flex: 1; }
-    .step-title { font-size: 15px; font-weight: 700; color: var(--cream); margin-bottom: 5px; }
-    .step-body  { font-size: 14px; color: var(--muted); line-height: 1.7; }
-    .step-body a { color: var(--green-lt); text-underline-offset: 3px; }
-    .code-inline {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 13px;
-      background: rgba(61,220,132,0.10);
-      border: 1px solid rgba(61,220,132,0.22);
-      border-radius: 6px;
-      padding: 2px 8px;
-      color: var(--green-lt);
-    }
-
-    /* ── Requirements box ── */
-    .req-box {
-      max-width: 560px;
-      background: rgba(255, 183, 77, 0.06);
-      border: 1px solid rgba(255, 183, 77, 0.22);
-      border-radius: var(--r);
-      padding: 22px 24px;
-      margin-bottom: 60px;
-    }
-    .req-box-title { font-size: 14px; font-weight: 700; color: var(--amber); margin-bottom: 12px; }
-    .req-list { list-style: none; display: flex; flex-direction: column; gap: 7px; }
-    .req-list li { font-size: 14px; color: var(--cream-2); display: flex; align-items: baseline; gap: 10px; }
-    .req-list li::before { content: '✦'; color: var(--amber); font-size: 10px; flex-shrink: 0; }
-
-    /* ── CTA section ── */
-    .cta-section {
-      padding: 0 clamp(20px, 5vw, 80px) 90px;
-    }
-    .cta-box {
-      max-width: 680px;
-      background: rgba(61,220,132,0.06);
-      border: 1px solid rgba(61,220,132,0.22);
-      border-radius: var(--r);
-      padding: 40px 36px;
-      text-align: center;
-    }
-    .cta-title { font-size: clamp(22px, 3vw, 30px); font-weight: 800; letter-spacing: -0.5px; color: var(--cream); margin-bottom: 12px; }
-    .cta-sub   { font-size: 15px; color: var(--muted); margin-bottom: 30px; max-width: 440px; margin-left: auto; margin-right: auto; line-height: 1.72; }
-
-    /* ── Footer ── */
-    footer {
-      border-top: 1px solid rgba(124,77,255,0.14);
-      padding: 26px clamp(20px, 5vw, 80px);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-    .footer-logo { font-size: 14px; font-weight: 700; color: var(--accent-lt); }
-    .footer-copy { font-size: 13px; color: var(--faint); font-style: italic; }
-
-    /* ── Secondary (outline) download button ── */
-    .btn-download-outline {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      padding: 13px 28px;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--muted);
-      background: transparent;
-      border: 1px solid rgba(124,77,255,0.40);
-      border-radius: var(--r-pill);
-      text-decoration: none;
-      cursor: pointer;
-      transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s;
-    }
-    .btn-download-outline:hover {
-      background: rgba(124,77,255,0.12);
-      color: var(--cream);
-      box-shadow: 0 0 18px rgba(124,77,255,0.25);
-      transform: translateY(-1px);
-    }
-    .btn-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
-
-    /* ── App window mockup ── */
-    .appwin {
-      background: #0b0b1a;
-      border: 1px solid rgba(124,77,255,0.28);
-      border-radius: 14px;
-      overflow: hidden;
-      max-width: 680px;
-      box-shadow: 0 8px 48px rgba(0,0,0,0.60), 0 0 0 1px rgba(124,77,255,0.10);
-    }
-    .appwin-bar {
-      background: #0e0520;
-      padding: 10px 16px;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      border-bottom: 1px solid rgba(124,77,255,0.18);
-    }
-    .appwin-title {
-      margin-left: 8px;
-      font-size: 12px;
-      color: var(--faint);
-      font-family: 'JetBrains Mono', monospace;
-    }
-    .appwin-body {
-      padding: 18px 20px 20px;
-      font-family: 'Inter', sans-serif;
-    }
-    .aw-hero {
-      margin-bottom: 14px;
-    }
-    .aw-title  { font-size: 18px; font-weight: 800; color: var(--cream); }
-    .aw-sub    { font-size: 11px; color: var(--muted); margin-top: 2px; }
-    .aw-cards  { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-    .aw-card   {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 10px;
-      padding: 10px 14px;
-    }
-    .aw-card-lbl  { font-size: 10px; color: var(--muted); }
-    .aw-card-val  { font-size: 18px; font-weight: 800; margin-top: 2px; }
-    .aw-card-val.green   { color: var(--green); }
-    .aw-card-val.purple  { color: var(--accent-lt); }
-    .aw-list-hdr { font-size: 11px; font-weight: 700; color: var(--cream); margin-bottom: 6px; }
-    .aw-list { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; overflow: hidden; }
-    .aw-row  {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 7px 14px;
-      font-size: 12px;
-      color: var(--cream);
-    }
-    .aw-row:nth-child(even) { background: rgba(124,77,255,0.05); }
-    .aw-row-conn { color: var(--muted); font-size: 11px; }
-    .aw-row-conn.hot { color: var(--green); }
-    .aw-status {
-      margin-top: 10px;
-      font-size: 10px;
-      color: var(--muted);
-      display: flex;
-      justify-content: space-between;
-    }
-    .aw-dot { color: var(--green); }
-    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
-
-    /* ── Responsive ── */
-    @media (max-width: 640px) {
-      .hero { padding-top: calc(68px + 44px); }
-      .btn-row { flex-direction: column; align-items: flex-start; }
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(168,125,255,0.42), transparent);
+      pointer-events: none;
     }
   </style>
 </head>
 <body>
+  <div id="root"></div>
 
-  <!-- ╔══════════════════ NAV ══════════════════╗ -->
-  <nav>
-    <a href="/" class="nav-logo">DoxNAF.online</a>
-    <a href="/" class="nav-back">← Back to home</a>
-  </nav>
+  <script type="text/babel">
+    const { useState } = React;
 
-  <!-- ╔══════════════════ HERO ═════════════════╗ -->
-  <section class="hero">
-    <div class="hero-badge">🟢 &nbsp; Free download — no sign-up needed</div>
-    <h1 class="hero-headline">
-      What's using<br>
-      <span>my internet?</span>
-    </h1>
-    <p class="hero-sub">
-      Ever wondered why your internet feels slow? <strong style="color:var(--cream-2)">NetWatch</strong>
-      shows you exactly which apps on your computer are using the internet
-      right now — in a clean, easy-to-use app. No terminal. No typing.
-      Just click and go.
-    </p>
-    <div class="btn-row">
-      <a href="/netwatch/NetWatch.exe" download="NetWatch.exe" class="btn-download">
-        <span class="icon">⬇️</span> Download NetWatch.exe — Free
-      </a>
-      <a href="/netwatch/netwatch_app.py" download="netwatch_app.py" class="btn-download-outline">
-        Python source
-      </a>
-    </div>
-  </section>
+    /* ── Sub-components ─────────────────────────────────────── */
 
-  <!-- ╔══════════════════ FEATURES ═════════════╗ -->
-  <section class="section">
-    <div class="section-label">✦ &nbsp; What it does</div>
-    <div class="features-grid">
+    function Nav() {
+      return (
+        <nav className="fixed top-0 left-0 right-0 z-50 h-[68px] px-[clamp(20px,5vw,80px)]
+                        flex items-center justify-between
+                        bg-[rgba(22,8,46,0.80)] backdrop-blur-lg
+                        border-b border-[rgba(124,77,255,0.15)]">
+          <a href="/" className="text-[17px] font-bold tracking-tight text-nw-lt
+                                 [text-shadow:0_0_22px_rgba(124,77,255,0.55)] no-underline">
+            DoxNAF.online
+          </a>
+          <a href="/"
+             className="inline-flex items-center gap-2 px-[22px] py-[9px]
+                        text-[14px] font-semibold text-nw-cream
+                        bg-[rgba(124,77,255,0.12)] border border-[rgba(124,77,255,0.38)]
+                        rounded-full no-underline
+                        hover:bg-[rgba(124,77,255,0.25)] transition-colors">
+            ← Back to home
+          </a>
+        </nav>
+      );
+    }
 
-      <div class="feat-card">
-        <span class="feat-icon">🖱️</span>
-        <div class="feat-title">True .exe — no setup</div>
-        <div class="feat-body">
-          <strong>Download, double-click, done.</strong> NetWatch is a
-          self-contained Windows EXE — no Python, no terminal,
-          no install wizard.
-        </div>
-      </div>
-
-      <div class="feat-card">
-        <span class="feat-icon">🔍</span>
-        <div class="feat-title">Spots every app online</div>
-        <div class="feat-body">
-          Shows you a list of <strong>every program</strong> that has an
-          active internet connection — browsers, games, Discord,
-          background updaters, all of them.
-        </div>
-      </div>
-
-      <div class="feat-card">
-        <span class="feat-icon">⚡</span>
-        <div class="feat-title">Live download &amp; upload speed</div>
-        <div class="feat-body">
-          See your <strong>real-time speed</strong> at the top —
-          downloading and uploading — so you know exactly how fast
-          (or slow) things are moving.
-        </div>
-      </div>
-
-      <div class="feat-card">
-        <span class="feat-icon">🔥</span>
-        <div class="feat-title">Fun emoji indicators</div>
-        <div class="feat-body">
-          Apps get a <strong>fire, signal, or plug emoji</strong>
-          depending on how active they are — so you can spot the
-          data hog at a glance without reading numbers.
-        </div>
-      </div>
-
-      <div class="feat-card">
-        <span class="feat-icon">🔄</span>
-        <div class="feat-title">Refreshes every second</div>
-        <div class="feat-body">
-          The display updates <strong>automatically every second</strong>
-          so you can watch in real time as apps connect and disconnect.
-          Close the window whenever you want to quit.
-        </div>
-      </div>
-
-      <div class="feat-card">
-        <span class="feat-icon">🌍</span>
-        <div class="feat-title">Windows EXE + Python source</div>
-        <div class="feat-body">
-          The <strong>NetWatch.exe</strong> is built for Windows.
-          Mac &amp; Linux users can grab the Python source —
-          dependencies install themselves automatically on first run.
-        </div>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- ╔══════════════════ APP PREVIEW ═══════════╗ -->
-  <section class="section">
-    <div class="section-label">✦ &nbsp; What it looks like</div>
-    <div class="terminal-wrapper">
-      <div class="appwin">
-        <div class="appwin-bar">
-          <div class="dot dot-red"></div>
-          <div class="dot dot-yellow"></div>
-          <div class="dot dot-green"></div>
-          <span class="appwin-title">NetWatch — What's Using My Internet?</span>
-        </div>
-        <div class="appwin-body">
-
-          <!-- Nav strip -->
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(124,77,255,0.18);">
-            <span style="color:var(--accent-lt);font-weight:700;font-size:13px;">DoxNAF.online</span>
-            <span style="color:var(--faint);font-size:12px;">✦  NetWatch</span>
-            <span style="color:var(--faint);font-size:10px;background:rgba(124,77,255,0.15);border-radius:4px;padding:1px 6px;">v2.0</span>
-            <span style="margin-left:auto;color:var(--muted);font-size:10px;">🖥  DESKTOP-XYZ</span>
+    function Hero() {
+      return (
+        <section className="pt-[calc(68px+60px)] pb-16 px-[clamp(20px,5vw,80px)]">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-[18px] py-[6px] mb-7
+                          text-[13px] font-medium tracking-wide text-nw-green
+                          bg-[rgba(61,220,132,0.10)] border border-[rgba(61,220,132,0.28)]
+                          rounded-full">
+            🟢 &nbsp; Free download — no sign-up needed
           </div>
 
-          <!-- Hero -->
-          <div class="aw-hero">
-            <div class="aw-title">What's Using My Internet?</div>
-            <div class="aw-sub">Live network monitor · updates every second</div>
-          </div>
-
-          <!-- Speed cards with sparklines -->
-          <div class="aw-cards">
-            <div class="aw-card">
-              <div class="aw-card-lbl">⬇   Download</div>
-              <div class="aw-card-val green">4.2 MB/s</div>
-              <!-- sparkline bars -->
-              <div style="display:flex;align-items:flex-end;gap:2px;height:28px;padding:0 2px 4px;">
-                <div style="width:4px;background:var(--green);opacity:0.3;height:8px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--green);opacity:0.4;height:12px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--green);opacity:0.4;height:10px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--green);opacity:0.5;height:15px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--green);opacity:0.6;height:18px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--green);opacity:0.5;height:14px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--green);opacity:0.7;height:20px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--green);opacity:0.9;height:24px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--green);height:28px;border-radius:1px;"></div>
-              </div>
-            </div>
-            <div class="aw-card">
-              <div class="aw-card-lbl">⬆   Upload</div>
-              <div class="aw-card-val purple">120.5 KB/s</div>
-              <div style="display:flex;align-items:flex-end;gap:2px;height:28px;padding:0 2px 4px;">
-                <div style="width:4px;background:var(--accent-lt);opacity:0.3;height:6px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--accent-lt);opacity:0.4;height:9px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--accent-lt);opacity:0.5;height:14px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--accent-lt);opacity:0.4;height:10px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--accent-lt);opacity:0.6;height:16px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--accent-lt);opacity:0.5;height:11px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--accent-lt);opacity:0.7;height:18px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--accent-lt);opacity:0.8;height:22px;border-radius:1px;"></div>
-                <div style="width:4px;background:var(--accent-lt);height:28px;border-radius:1px;"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- App list header with search -->
-          <div class="aw-list-hdr" style="display:flex;align-items:center;justify-content:space-between;">
-            <span>📋  Apps connected to the internet &nbsp;<span class="aw-dot" style="animation:pulse 1.4s infinite;">●</span> LIVE</span>
-            <span style="display:flex;gap:6px;align-items:center;">
-              <span style="font-size:10px;background:var(--accent);color:#fff;border-radius:4px;padding:2px 7px;cursor:default;">Sort: # Conns</span>
-              <span style="font-size:10px;background:rgba(124,77,255,0.12);color:var(--muted);border-radius:4px;padding:2px 7px;cursor:default;">Name</span>
-              <span style="font-size:10px;background:rgba(124,77,255,0.12);color:var(--muted);border-radius:4px;padding:2px 7px;">🔍 Search…</span>
+          {/* Headline */}
+          <h1 className="text-[clamp(38px,5.2vw,72px)] font-extrabold leading-[1.07]
+                         tracking-[-2px] text-nw-cream mb-5">
+            What's using<br />
+            <span className="text-nw-lt [text-shadow:0_0_44px_rgba(124,77,255,0.65)]">
+              my internet?
             </span>
-          </div>
-          <!-- Column header -->
-          <div style="display:flex;justify-content:space-between;padding:4px 10px;background:rgba(14,5,32,0.6);font-size:10px;color:var(--faint);font-weight:700;letter-spacing:.04em;">
-            <span>App / Process</span><span>Conns&nbsp;&nbsp;Ports</span>
-          </div>
-          <div class="aw-list">
-            <div class="aw-row">
-              <span>🔥  chrome.exe</span>
-              <span style="display:flex;align-items:center;gap:10px;">
-                <span style="font-size:9px;color:var(--faint);">443, 80</span>
-                <span style="display:inline-block;width:60px;height:5px;background:rgba(255,82,82,0.15);border-radius:2px;overflow:hidden;"><span style="display:block;width:90%;height:100%;background:#ff5252;border-radius:2px;"></span></span>
-                <span class="aw-row-conn hot" style="color:#ff5252;font-weight:700;">14 conns</span>
-              </span>
-            </div>
-            <div class="aw-row">
-              <span>📶  Discord.exe</span>
-              <span style="display:flex;align-items:center;gap:10px;">
-                <span style="font-size:9px;color:var(--faint);">443</span>
-                <span style="display:inline-block;width:60px;height:5px;background:rgba(255,183,77,0.15);border-radius:2px;overflow:hidden;"><span style="display:block;width:47%;height:100%;background:var(--amber);border-radius:2px;"></span></span>
-                <span class="aw-row-conn hot" style="color:var(--amber);font-weight:700;">7 conns</span>
-              </span>
-            </div>
-            <div class="aw-row">
-              <span>🌐  Spotify.exe</span>
-              <span style="display:flex;align-items:center;gap:10px;">
-                <span style="font-size:9px;color:var(--faint);">4070</span>
-                <span style="display:inline-block;width:60px;height:5px;background:rgba(61,220,132,0.15);border-radius:2px;overflow:hidden;"><span style="display:block;width:20%;height:100%;background:var(--green);border-radius:2px;"></span></span>
-                <span class="aw-row-conn" style="color:var(--green);font-weight:700;">3 conns</span>
-              </span>
-            </div>
-            <div class="aw-row">
-              <span>🔌  OneDrive.exe</span>
-              <span style="display:flex;align-items:center;gap:10px;">
-                <span style="font-size:9px;color:var(--faint);">443</span>
-                <span style="display:inline-block;width:60px;height:5px;background:rgba(196,174,208,0.15);border-radius:2px;overflow:hidden;"><span style="display:block;width:7%;height:100%;background:var(--muted);border-radius:2px;"></span></span>
-                <span class="aw-row-conn">1 conn</span>
-              </span>
-            </div>
-            <div class="aw-row">
-              <span>🔌  steam.exe</span>
-              <span style="display:flex;align-items:center;gap:10px;">
-                <span style="font-size:9px;color:var(--faint);">27015</span>
-                <span style="display:inline-block;width:60px;height:5px;background:rgba(196,174,208,0.15);border-radius:2px;overflow:hidden;"><span style="display:block;width:7%;height:100%;background:var(--muted);border-radius:2px;"></span></span>
-                <span class="aw-row-conn">1 conn</span>
-              </span>
-            </div>
-          </div>
+          </h1>
 
-          <!-- Status bar -->
-          <div class="aw-status" style="display:flex;justify-content:space-between;">
-            <span>📊  Since boot:  ⬇ 18.4 GB  ·  ⬆ 2.1 GB</span>
-            <span style="color:var(--faint);">🕐  14:23:07</span>
-          </div>
+          {/* Sub-headline */}
+          <p className="text-[clamp(15px,1.5vw,18px)] text-nw-muted leading-[1.8] max-w-lg mb-8">
+            Ever wondered why your internet feels slow?&nbsp;
+            <strong className="text-nw-cream-2">NetWatch</strong> shows you exactly which
+            apps on your computer are using the internet right now — in a clean,
+            easy-to-use app. No terminal. No typing. Just click and go.
+          </p>
 
+          {/* App icon + buttons */}
+          <div className="flex items-center gap-4 flex-wrap mb-2">
+            <img src="NETWATCH.png" alt="NetWatch icon"
+                 className="w-14 h-14 rounded-xl object-contain
+                            shadow-[0_0_24px_rgba(61,220,132,0.35)]" />
+            <div className="flex gap-3 flex-wrap">
+              <a href="/netwatch/NetWatch.exe" download="NetWatch.exe"
+                 className="inline-flex items-center gap-2 px-6 py-3
+                            text-[15px] font-semibold text-nw-bg
+                            bg-nw-green rounded-full no-underline
+                            shadow-[0_0_18px_rgba(61,220,132,0.45)]
+                            hover:brightness-110 transition-all">
+                ⬇️ Download NetWatch.exe — Free
+              </a>
+              <a href="/netwatch/netwatch.c" download="netwatch.c"
+                 className="inline-flex items-center gap-2 px-6 py-3
+                            text-[15px] font-semibold text-nw-green
+                            border border-[rgba(61,220,132,0.45)]
+                            bg-[rgba(61,220,132,0.08)] rounded-full no-underline
+                            hover:bg-[rgba(61,220,132,0.16)] transition-all">
+                C source
+              </a>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    /* ── Feature card ────────────────────────────────────────── */
+
+    function FeatCard({ icon, title, body }) {
+      return (
+        <div className="relative card-top bg-[rgba(124,77,255,0.08)] border border-[rgba(124,77,255,0.22)]
+                        rounded-[18px] p-7 overflow-hidden
+                        hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(124,77,255,0.18)]
+                        hover:border-[rgba(124,77,255,0.42)] transition-all duration-300">
+          <span className="text-[26px] mb-3 block">{icon}</span>
+          <div className="text-[15px] font-bold text-nw-cream mb-2">{title}</div>
+          <p className="text-[14px] text-nw-muted leading-[1.75]"
+             dangerouslySetInnerHTML={{ __html: body }} />
         </div>
-      </div>
-    </div>
-  </section>
+      );
+    }
 
-  <!-- ╔══════════════════ REQUIREMENTS ═════════╗ -->
-  <section class="section">
-    <div class="section-label">✦ &nbsp; What you need</div>
-    <div class="req-box">
-      <div class="req-box-title">✅ NetWatch.exe is completely self-contained — no extra setup required!</div>
-      <ul class="req-list">
-        <li><strong>Windows 10 / 11</strong> — just download and double-click. No Python, no terminal, nothing to install.</li>
-        <li><strong>Python source version</strong> — if you prefer the <code>.py</code> file on Mac/Linux, you'll need Python 3.7+ and <code>pip install psutil</code> (the app will prompt you automatically on first run).</li>
-      </ul>
-    </div>
-  </section>
+    function Features() {
+      const feats = [
+        { icon: "🖱️", title: "True .exe — no setup",
+          body: "<strong class='text-nw-lt'>Download, double-click, done.</strong> NetWatch is a self-contained Windows EXE — no Python, no terminal, no install wizard." },
+        { icon: "🔍", title: "Spots every app online",
+          body: "Shows you a list of <strong class='text-nw-lt'>every program</strong> that has an active internet connection — browsers, games, Discord, background updaters, all of them." },
+        { icon: "⚡", title: "Live download & upload speed",
+          body: "See your <strong class='text-nw-lt'>real-time speed</strong> at the top — downloading and uploading — so you know exactly how fast (or slow) things are moving." },
+        { icon: "⚙️", title: "Written in C — lightning fast",
+          body: "The core is written in <strong class='text-nw-lt'>pure C</strong> using native Windows APIs — minimal memory footprint, instant startup, no runtime dependencies." },
+        { icon: "🔄", title: "Refreshes every second",
+          body: "The display updates <strong class='text-nw-lt'>automatically every second</strong> so you can watch in real time as apps connect and disconnect." },
+        { icon: "🌍", title: "Windows EXE + C source",
+          body: "The <strong class='text-nw-lt'>NetWatch.exe</strong> is built for Windows. Developers can grab the C source and compile it themselves with GCC or MSVC." },
+      ];
 
-  <!-- ╔══════════════════ HOW TO RUN ════════════╗ -->
-  <section class="section">
-    <div class="section-label">✦ &nbsp; How to get started</div>
-    <div class="steps-list">
+      return (
+        <section className="px-[clamp(20px,5vw,80px)] pb-20">
+          <div className="text-[12px] font-semibold tracking-[2px] uppercase text-nw-faint mb-6">
+            ✦ &nbsp; What it does
+          </div>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5">
+            {feats.map((f, i) => <FeatCard key={i} {...f} />)}
+          </div>
+        </section>
+      );
+    }
 
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-content">
-          <div class="step-title">Download NetWatch.exe</div>
-          <div class="step-body">
-            Click the big green download button above (or below) to
-            save <span class="code-inline">NetWatch.exe</span> anywhere
-            you like — your Desktop works great.
+    /* ── App preview mock-up ─────────────────────────────────── */
+
+    const mockApps = [
+      { name: "chrome.exe",   conns: 14, color: "#ff5252",  pct: 90, ports: "443, 80" },
+      { name: "Discord.exe",  conns: 7,  color: "#ffb74d",  pct: 47, ports: "443"     },
+      { name: "Spotify.exe",  conns: 3,  color: "#3ddc84",  pct: 20, ports: "4070"    },
+      { name: "OneDrive.exe", conns: 1,  color: "#c4aed0",  pct:  7, ports: "443"     },
+      { name: "steam.exe",    conns: 1,  color: "#c4aed0",  pct:  7, ports: "27015"   },
+    ];
+
+    function Sparkline({ color }) {
+      const heights = [8, 12, 10, 15, 18, 14, 20, 24, 28];
+      return (
+        <div className="flex items-end gap-[2px] h-[28px] pb-1">
+          {heights.map((h, i) => (
+            <div key={i} style={{ width: 4, height: h, background: color,
+                                  opacity: 0.3 + (i / heights.length) * 0.7,
+                                  borderRadius: 1 }} />
+          ))}
+        </div>
+      );
+    }
+
+    function AppPreview() {
+      return (
+        <section className="px-[clamp(20px,5vw,80px)] pb-20">
+          <div className="text-[12px] font-semibold tracking-[2px] uppercase text-nw-faint mb-6">
+            ✦ &nbsp; What it looks like
+          </div>
+
+          {/* Window chrome */}
+          <div className="max-w-[760px] rounded-[18px] overflow-hidden
+                          border border-[rgba(124,77,255,0.22)]
+                          shadow-[0_24px_80px_rgba(0,0,0,0.5)]">
+            {/* Title bar */}
+            <div className="flex items-center gap-[6px] px-4 py-[10px]
+                            bg-[#1a0e38] border-b border-[rgba(124,77,255,0.18)]">
+              <span className="w-3 h-3 rounded-full bg-[#ff5f57]" />
+              <span className="w-3 h-3 rounded-full bg-[#febc2e]" />
+              <span className="w-3 h-3 rounded-full bg-[#28c840]" />
+              <span className="ml-3 text-[12px] text-nw-faint font-medium font-mono">
+                NetWatch — What's Using My Internet?
+              </span>
+            </div>
+
+            {/* App body */}
+            <div className="bg-[#0e0520] p-5 font-mono text-[13px]">
+
+              {/* Nav strip */}
+              <div className="flex items-center gap-3 mb-4 pb-3
+                              border-b border-[rgba(124,77,255,0.18)]">
+                <span className="text-nw-lt font-bold text-[13px]">DoxNAF.online</span>
+                <span className="text-nw-faint text-[12px]">✦  NetWatch</span>
+                <span className="text-[10px] bg-[rgba(124,77,255,0.15)] text-nw-muted
+                                 rounded px-[6px] py-[1px]">v3.0</span>
+                <span className="ml-auto text-nw-muted text-[10px]">🖥  DESKTOP-XYZ</span>
+              </div>
+
+              {/* Speed cards */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-[rgba(61,220,132,0.08)] border border-[rgba(61,220,132,0.22)]
+                                rounded-xl p-3">
+                  <div className="text-[11px] text-nw-faint mb-1">⬇  Download</div>
+                  <div className="text-[18px] font-bold text-nw-green mb-1">4.2 MB/s</div>
+                  <Sparkline color="#3ddc84" />
+                </div>
+                <div className="bg-[rgba(124,77,255,0.08)] border border-[rgba(124,77,255,0.22)]
+                                rounded-xl p-3">
+                  <div className="text-[11px] text-nw-faint mb-1">⬆  Upload</div>
+                  <div className="text-[18px] font-bold text-nw-lt mb-1">120 KB/s</div>
+                  <Sparkline color="#a87dff" />
+                </div>
+              </div>
+
+              {/* App list header */}
+              <div className="flex items-center justify-between text-[11px] text-nw-muted
+                              mb-1 px-1">
+                <span>
+                  📋 Apps connected to the internet&nbsp;
+                  <span className="text-nw-green live-dot">●</span>
+                  &nbsp;LIVE
+                </span>
+                <span className="flex gap-2">
+                  <span className="bg-nw-accent text-white rounded px-[7px] py-[2px] cursor-default">
+                    Sort: # Conns
+                  </span>
+                  <span className="bg-[rgba(124,77,255,0.12)] text-nw-muted rounded px-[7px] py-[2px]">
+                    🔍 Search…
+                  </span>
+                </span>
+              </div>
+
+              {/* Column headers */}
+              <div className="flex justify-between px-[10px] py-1
+                              bg-[rgba(14,5,32,0.6)] text-[10px] text-nw-faint font-bold
+                              tracking-wide rounded-t mb-0">
+                <span>App / Process</span>
+                <span>Conns&nbsp;&nbsp;Ports</span>
+              </div>
+
+              {/* Rows */}
+              <div className="divide-y divide-[rgba(124,77,255,0.10)]
+                              bg-[rgba(14,5,32,0.4)] rounded-b mb-3">
+                {mockApps.map((app, i) => (
+                  <div key={i}
+                       className="flex items-center justify-between px-[10px] py-[8px]
+                                  text-[12px] text-nw-muted
+                                  hover:bg-[rgba(124,77,255,0.08)] transition-colors">
+                    <span>{app.conns >= 10 ? "🔥" : app.conns >= 5 ? "📶" : app.conns >= 2 ? "🌐" : "🔌"}
+                      &nbsp; {app.name}
+                    </span>
+                    <span className="flex items-center gap-3">
+                      <span className="text-[10px] text-nw-faint">{app.ports}</span>
+                      {/* mini bar */}
+                      <span className="w-[60px] h-[5px] rounded-sm overflow-hidden
+                                       bg-[rgba(255,255,255,0.06)]">
+                        <span style={{ display: 'block', width: `${app.pct}%`, height: '100%',
+                                       background: app.color, borderRadius: 2 }} />
+                      </span>
+                      <span style={{ color: app.color }} className="font-bold text-[11px]">
+                        {app.conns === 1 ? "1 conn" : `${app.conns} conns`}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Status bar */}
+              <div className="flex justify-between text-[11px] text-nw-muted
+                              pt-2 border-t border-[rgba(124,77,255,0.12)]">
+                <span>📊  Since boot:  ⬇ 18.4 GB · ⬆ 2.1 GB</span>
+                <span className="text-nw-faint">🕐  14:23:07</span>
+              </div>
+
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    /* ── Requirements ─────────────────────────────────────────── */
+
+    function Requirements() {
+      return (
+        <section className="px-[clamp(20px,5vw,80px)] pb-20">
+          <div className="text-[12px] font-semibold tracking-[2px] uppercase text-nw-faint mb-6">
+            ✦ &nbsp; What you need
+          </div>
+          <div className="border border-[rgba(61,220,132,0.22)]
+                          bg-[rgba(61,220,132,0.05)] rounded-[18px] p-7">
+            <div className="text-[15px] font-bold text-nw-green mb-4">
+              ✅ NetWatch.exe is completely self-contained — no extra setup required!
+            </div>
+            <ul className="space-y-3 text-[14px] text-nw-muted leading-[1.7] list-none">
+              <li>
+                <strong className="text-nw-cream-2">Windows 10 / 11</strong> — just download
+                and double-click. No Python, no terminal, nothing to install.
+              </li>
+              <li>
+                <strong className="text-nw-cream-2">C source version</strong> — if you want
+                to compile it yourself, you'll need a C compiler (GCC / MSVC) and run:&nbsp;
+                <code className="font-mono bg-[rgba(124,77,255,0.15)] text-nw-lt
+                                 rounded px-2 py-0.5 text-[13px]">
+                  gcc netwatch.c -o netwatch.exe -liphlpapi -lws2_32
+                </code>
+              </li>
+            </ul>
+          </div>
+        </section>
+      );
+    }
+
+    /* ── How-to steps ─────────────────────────────────────────── */
+
+    function Step({ num, title, body }) {
+      return (
+        <div className="flex gap-5">
+          <div className="flex-shrink-0 w-10 h-10 rounded-full
+                          bg-[rgba(124,77,255,0.18)] border border-[rgba(124,77,255,0.38)]
+                          flex items-center justify-center
+                          text-[15px] font-bold text-nw-lt">
+            {num}
+          </div>
+          <div className="pt-1">
+            <div className="text-[16px] font-bold text-nw-cream mb-1">{title}</div>
+            <p className="text-[14px] text-nw-muted leading-[1.75]"
+               dangerouslySetInnerHTML={{ __html: body }} />
           </div>
         </div>
-      </div>
+      );
+    }
 
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-content">
-          <div class="step-title">Double-click to open NetWatch</div>
-          <div class="step-body">
-            Find <span class="code-inline">NetWatch.exe</span> and <strong>double-click it</strong>.
-            The NetWatch window opens immediately — no terminal, no Python, nothing to install.
-            Close the window whenever you're done.
+    function HowTo() {
+      const steps = [
+        { title: "Download NetWatch.exe",
+          body: "Click the big green download button to save <code class='font-mono bg-[rgba(124,77,255,0.15)] text-nw-lt rounded px-1 text-[13px]'>NetWatch.exe</code> anywhere you like — your Desktop works great." },
+        { title: "Double-click to open NetWatch",
+          body: "Find <code class='font-mono bg-[rgba(124,77,255,0.15)] text-nw-lt rounded px-1 text-[13px]'>NetWatch.exe</code> and <strong class='text-nw-cream-2'>double-click it</strong>. The window opens immediately — no terminal, no Python, nothing to install." },
+        { title: "That's it — you're monitoring! 🎉",
+          body: "NetWatch shows your live download &amp; upload speed, plus every app connected to the internet — updated every second. Close the window whenever you're done." },
+      ];
+
+      return (
+        <section className="px-[clamp(20px,5vw,80px)] pb-20">
+          <div className="text-[12px] font-semibold tracking-[2px] uppercase text-nw-faint mb-6">
+            ✦ &nbsp; How to get started
           </div>
-        </div>
-      </div>
-
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-content">
-          <div class="step-title">That's it — you're monitoring! 🎉</div>
-          <div class="step-body">
-            NetWatch will show your live download &amp; upload speed, plus every
-            app that's connected to the internet right now — updated every second.
-            <br><br>
-            <em>Using the Python source on Mac/Linux?</em> The app automatically
-            installs <span class="code-inline">psutil</span> for you on first launch.
+          <div className="flex flex-col gap-8 max-w-2xl">
+            {steps.map((s, i) => <Step key={i} num={i + 1} {...s} />)}
           </div>
+        </section>
+      );
+    }
+
+    /* ── Bottom CTA ──────────────────────────────────────────── */
+
+    function Cta() {
+      return (
+        <section className="px-[clamp(20px,5vw,80px)] pb-24">
+          <div className="relative rounded-[24px] overflow-hidden
+                          border border-[rgba(61,220,132,0.22)]
+                          bg-[rgba(61,220,132,0.05)]
+                          p-10 text-center">
+            {/* glow */}
+            <div className="absolute inset-0 pointer-events-none"
+                 style={{ background: 'radial-gradient(ellipse 60% 60% at 50% 0%, rgba(61,220,132,0.12) 0%, transparent 70%)' }} />
+
+            <img src="NETWATCH.png" alt="NetWatch"
+                 className="w-16 h-16 rounded-2xl object-contain mx-auto mb-5
+                            shadow-[0_0_28px_rgba(61,220,132,0.4)]" />
+
+            <h2 className="text-[clamp(22px,3vw,34px)] font-extrabold text-nw-cream
+                           tracking-tight mb-3">
+              Ready to see what's online?
+            </h2>
+            <p className="text-[15px] text-nw-muted mb-8 max-w-md mx-auto">
+              Download NetWatch for free — no account, no tracking, no nonsense.
+              Double-click and go.
+            </p>
+            <div className="flex justify-center gap-4 flex-wrap">
+              <a href="/netwatch/NetWatch.exe" download="NetWatch.exe"
+                 className="inline-flex items-center gap-2 px-8 py-3
+                            text-[15px] font-semibold text-nw-bg
+                            bg-nw-green rounded-full no-underline
+                            shadow-[0_0_18px_rgba(61,220,132,0.45)]
+                            hover:brightness-110 transition-all">
+                ⬇️ Download NetWatch.exe — Free
+              </a>
+              <a href="/netwatch/netwatch.c" download="netwatch.c"
+                 className="inline-flex items-center gap-2 px-8 py-3
+                            text-[15px] font-semibold text-nw-green
+                            border border-[rgba(61,220,132,0.45)]
+                            bg-[rgba(61,220,132,0.08)] rounded-full no-underline
+                            hover:bg-[rgba(61,220,132,0.16)] transition-all">
+                C source
+              </a>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    /* ── Footer ──────────────────────────────────────────────── */
+
+    function Footer() {
+      return (
+        <footer className="border-t border-[rgba(124,77,255,0.14)]
+                           px-[clamp(20px,5vw,80px)] py-6
+                           flex items-center justify-between flex-wrap gap-3">
+          <div className="text-[14px] font-bold text-nw-lt">DoxNAF.online</div>
+          <div className="text-[13px] text-nw-faint italic">
+            doxnaf.online &nbsp;·&nbsp; all rights reserved
+          </div>
+        </footer>
+      );
+    }
+
+    /* ── Root App ─────────────────────────────────────────────── */
+
+    function App() {
+      return (
+        <div className="min-h-screen font-sans text-nw-cream overflow-x-hidden"
+             style={{
+               backgroundColor: '#16082e',
+               backgroundImage: [
+                 'radial-gradient(ellipse 80% 65% at 70% 45%, rgba(69,34,122,0.55) 0%, transparent 65%)',
+                 'radial-gradient(ellipse 50% 45% at 10% 80%, rgba(61,220,132,0.07) 0%, transparent 60%)',
+                 'radial-gradient(ellipse 40% 30% at 50%  0%, rgba(255,183,77,0.05) 0%, transparent 55%)',
+               ].join(','),
+             }}>
+          <Nav />
+          <main className="pt-0">
+            <Hero />
+            <Features />
+            <AppPreview />
+            <Requirements />
+            <HowTo />
+            <Cta />
+          </main>
+          <Footer />
         </div>
-      </div>
+      );
+    }
 
-    </div>
-  </section>
-
-  <!-- ╔══════════════════ BOTTOM CTA ════════════╗ -->
-  <section class="cta-section">
-    <div class="cta-box">
-      <div class="cta-title">Ready to see what's online?</div>
-      <p class="cta-sub">
-        Download NetWatch for free — no account, no tracking,
-        no nonsense. Double-click and go.
-      </p>
-      <div class="btn-row" style="justify-content:center;">
-        <a href="/netwatch/NetWatch.exe" download="NetWatch.exe" class="btn-download">
-          <span class="icon">⬇️</span> Download NetWatch.exe — Free
-        </a>
-        <a href="/netwatch/netwatch_app.py" download="netwatch_app.py" class="btn-download-outline">
-          Python source
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- ╔══════════════════ FOOTER ════════════════╗ -->
-  <footer>
-    <div class="footer-logo">DoxNAF.online</div>
-    <div class="footer-copy">doxnaf.online &nbsp;·&nbsp; all rights reserved</div>
-  </footer>
-
+    /* ── Mount ────────────────────────────────────────────────── */
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
 </body>
 </html>
