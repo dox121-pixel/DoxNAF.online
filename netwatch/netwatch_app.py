@@ -234,6 +234,7 @@ SPEED_LT_THRESHOLD    =   100_000   # ≥ 100 KB/s → light green
 BAR_MAX_WIDTH        = 60   # pixel width of 100% full bar
 BAR_MIN_WIDTH        = 4    # minimum visible bar width (px)
 CONN_FULL_BAR        = 15   # connection count that fills the bar 100%
+MAX_PORT_DISPLAY_LEN = 22   # max chars shown in the ports column
 
 # Speed-tier colour helper
 def _speed_color(bps: int) -> str:
@@ -355,14 +356,14 @@ class NetWatchApp:
     """
 
     MAX_ROWS = 40
-    VERSION  = "v2.0"
+    VERSION  = "v3.0"
 
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("NetWatch — What's Using My Internet?")
+        self.root.title("NetWatch")
         self.root.configure(bg=BG)
-        self.root.geometry("860x720")
-        self.root.minsize(680, 540)
+        self.root.geometry("1020x680")
+        self.root.minsize(820, 540)
 
         # Remove the default Windows title bar — we draw our own below
         self.root.overrideredirect(True)
@@ -371,25 +372,41 @@ class NetWatchApp:
         self._drag_x     = 0
         self._drag_y     = 0
         self._maximized  = False
-        self._pre_max_geo = "860x720"
+        self._pre_max_geo = "1020x680"
 
-        # Try to set window icon from NETWATCH.png
-        _icon_png = os.path.join(os.path.dirname(sys.executable), "NETWATCH.png")
-        if not os.path.isfile(_icon_png):
-            _icon_png = os.path.join(os.path.dirname(__file__), "NETWATCH.png")
+        # ── Icon loading ──────────────────────────────────────
+        # Locate NETWATCH.png (works both frozen .exe and plain .py)
+        def _asset(name: str) -> str:
+            for base in (os.path.dirname(sys.executable),
+                         getattr(sys, "_MEIPASS", ""),
+                         os.path.dirname(os.path.abspath(__file__))):
+                p = os.path.join(base, name)
+                if os.path.isfile(p):
+                    return p
+            return ""
+
+        _icon_png = _asset("NETWATCH.png")
+        _icon_ico = _asset("NETWATCH.ico")
+
         self._icon_photo = None
         self._icon_small = None
-        if os.path.isfile(_icon_png):
+
+        if _icon_png:
             try:
                 _img = tk.PhotoImage(file=_icon_png)
-                # Image is 4961×3508 — subsample(100) gives ~50×35 px for taskbar
                 self._icon_photo = _img.subsample(100, 100)
                 self.root.iconphoto(True, self._icon_photo)
-                # subsample(146) gives ~34×24 px — fits the 36 px title bar
                 self._icon_small = _img.subsample(146, 146)
                 del _img
-            except Exception:
-                pass  # icon is optional
+            except (tk.TclError, FileNotFoundError, OSError):
+                pass
+
+        # Use .ico for the native Windows taskbar icon (crisp at all sizes)
+        if _icon_ico:
+            try:
+                self.root.iconbitmap(_icon_ico)
+            except (tk.TclError, FileNotFoundError, OSError):
+                pass
 
         self._running      = True
         self._filter_text  = tk.StringVar()
@@ -404,45 +421,53 @@ class NetWatchApp:
         )
 
         self._build_ui()
+        # Ensure window appears in taskbar even without a native title bar
+        self.root.after(150, self._fix_taskbar)
         self._start_monitor()
 
     # ── UI construction ──────────────────────────────────────
 
     def _build_ui(self):
-        """Build all widgets once at startup."""
+        """Build all widgets once at startup (sidebar + main-content layout)."""
 
-        # ── Custom title bar (replaces the native Windows caption) ──
-        self._title_bar = tk.Frame(self.root, bg=TITLE_BG, height=36)
+        # ── Custom title bar ──────────────────────────────────────
+        self._title_bar = tk.Frame(self.root, bg=TITLE_BG, height=40)
         self._title_bar.pack(fill="x", side="top")
         self._title_bar.pack_propagate(False)
 
-        # Left side: window icon + title text
+        # Accent stripe on the far left
+        tk.Frame(self._title_bar, bg=ACCENT, width=4).pack(side="left", fill="y")
+
+        # Window icon
         self._icon_label = None
         if self._icon_small:
             self._icon_label = tk.Label(
                 self._title_bar, image=self._icon_small,
-                bg=TITLE_BG, bd=0,
-            )
-            self._icon_label.pack(side="left", padx=(8, 0))
-        self._title_label = tk.Label(
-            self._title_bar, text="NetWatch — What's Using My Internet?",
-            bg=TITLE_BG, fg=ACCENT_LT,
-            font=("Segoe UI", 9, "bold"),
-        )
-        self._title_label.pack(side="left", padx=(4 if self._icon_small else 12, 0))
+                bg=TITLE_BG, bd=0)
+            self._icon_label.pack(side="left", padx=(10, 0))
 
-        # Right side: window control buttons  ─  □  ✕
+        # App name
+        self._title_label = tk.Label(
+            self._title_bar, text="NetWatch",
+            bg=TITLE_BG, fg=CREAM, font=("Segoe UI", 10, "bold"))
+        self._title_label.pack(side="left", padx=(8, 0))
+
+        # Version badge
+        tk.Label(
+            self._title_bar, text=self.VERSION,
+            bg=ACCENT, fg=CREAM, font=("Segoe UI", 7, "bold"),
+            padx=6, pady=2).pack(side="left", padx=(8, 0))
+
+        # Window controls: ─  □  ✕
         _btn_kw = dict(
             bg=TITLE_BG, relief="flat", bd=0,
-            padx=10, pady=0, font=("Segoe UI", 11),
-            cursor="hand2", highlightthickness=0,
-        )
+            padx=12, pady=0, font=("Segoe UI", 11),
+            cursor="hand2", highlightthickness=0)
 
         self._close_btn = tk.Button(
             self._title_bar, text="✕", fg=MUTED,
             activebackground=RED, activeforeground=CREAM,
-            command=self.on_close, **_btn_kw,
-        )
+            command=self.on_close, **_btn_kw)
         self._close_btn.pack(side="right", fill="y")
         self._close_btn.bind("<Enter>",
             lambda e: self._close_btn.config(bg=RED, fg=CREAM))
@@ -452,8 +477,7 @@ class NetWatchApp:
         self._max_btn = tk.Button(
             self._title_bar, text="□", fg=MUTED,
             activebackground=CARD_BG, activeforeground=CREAM,
-            command=self._toggle_maximize, **_btn_kw,
-        )
+            command=self._toggle_maximize, **_btn_kw)
         self._max_btn.pack(side="right", fill="y")
         self._max_btn.bind("<Enter>",
             lambda e: self._max_btn.config(bg=CARD_BG, fg=CREAM))
@@ -463,136 +487,261 @@ class NetWatchApp:
         self._min_btn = tk.Button(
             self._title_bar, text="─", fg=MUTED,
             activebackground=CARD_BG, activeforeground=CREAM,
-            command=self._minimize_window, **_btn_kw,
-        )
+            command=self._minimize_window, **_btn_kw)
         self._min_btn.pack(side="right", fill="y")
         self._min_btn.bind("<Enter>",
             lambda e: self._min_btn.config(bg=CARD_BG, fg=CREAM))
         self._min_btn.bind("<Leave>",
             lambda e: self._min_btn.config(bg=TITLE_BG, fg=MUTED))
 
-        # Drag-to-move: bind on the bar frame, icon label, and title label
-        drag_targets = [w for w in (self._title_bar, self._icon_label, self._title_label) if w]
+        # Drag-to-move bindings on title bar elements
+        drag_targets = [w for w in (self._title_bar, self._icon_label,
+                                    self._title_label) if w]
         for widget in drag_targets:
-            widget.bind("<Button-1>",   self._start_drag)
-            widget.bind("<B1-Motion>",  self._do_drag)
+            widget.bind("<Button-1>",        self._start_drag)
+            widget.bind("<B1-Motion>",       self._do_drag)
             widget.bind("<Double-Button-1>", lambda e: self._toggle_maximize())
 
-        # Thin accent border around the whole window
-        self.root.configure(highlightthickness=0)
+        # ── Horizontal split: sidebar | main content ───────────────
+        body = tk.Frame(self.root, bg=BG)
+        body.pack(fill="both", expand=True)
 
-        # ── Navigation bar ───────────────────────────────────
-        nav = tk.Frame(self.root, bg=NAV_BG, height=52)
-        nav.pack(fill="x", side="top")
-        nav.pack_propagate(False)
+        # ── LEFT SIDEBAR ──────────────────────────────────────────
+        sidebar = tk.Frame(body, bg=NAV_BG, width=200)
+        sidebar.pack(side="left", fill="y")
+        sidebar.pack_propagate(False)
 
-        tk.Label(nav, text="DoxNAF.online", bg=NAV_BG, fg=ACCENT_LT,
-                 font=("Segoe UI", 12, "bold")).pack(side="left", padx=20)
+        # Top accent line
+        tk.Frame(sidebar, bg=ACCENT, height=2).pack(fill="x")
 
-        tk.Label(nav, text="✦  NetWatch", bg=NAV_BG, fg=FAINT,
-                 font=("Segoe UI", 11)).pack(side="left")
+        # Brand section
+        brand = tk.Frame(sidebar, bg=NAV_BG)
+        brand.pack(fill="x", padx=18, pady=(18, 0))
+        tk.Label(brand, text="DoxNAF.online",
+                 bg=NAV_BG, fg=ACCENT_LT,
+                 font=("Segoe UI", 11, "bold"), anchor="w").pack(fill="x")
+        tk.Label(brand, text="Network Activity Monitor",
+                 bg=NAV_BG, fg=FAINT,
+                 font=("Segoe UI", 8), anchor="w").pack(fill="x")
 
-        tk.Label(nav, text=self.VERSION, bg=NAV_BG, fg=FAINT,
-                 font=("Segoe UI", 9)).pack(side="left", padx=(6, 0))
+        tk.Frame(sidebar, bg=CARD_BORDER, height=1).pack(
+            fill="x", padx=18, pady=(14, 14))
 
-        # Hostname chip on the right
+        # HOST section
+        host_sec = tk.Frame(sidebar, bg=NAV_BG)
+        host_sec.pack(fill="x", padx=18)
+        tk.Label(host_sec, text="HOST",
+                 bg=NAV_BG, fg=FAINT,
+                 font=("Segoe UI", 7, "bold"), anchor="w").pack(fill="x")
         try:
             hostname = socket.gethostname()
         except Exception:
             hostname = "—"
-        tk.Label(nav, text=f"🖥  {hostname}", bg=NAV_BG, fg=MUTED,
-                 font=("Segoe UI", 9)).pack(side="right", padx=20)
+        tk.Label(host_sec, text=f"🖥  {hostname}",
+                 bg=NAV_BG, fg=CREAM,
+                 font=("Segoe UI", 9), anchor="w").pack(fill="x", pady=(3, 0))
 
-        # ── Hero strip ───────────────────────────────────────
-        hero = tk.Frame(self.root, bg=BG)
-        hero.pack(fill="x", padx=28, pady=(16, 6))
+        tk.Frame(sidebar, bg=CARD_BORDER, height=1).pack(
+            fill="x", padx=18, pady=(14, 14))
 
-        tk.Label(hero, text="What's Using My Internet?",
-                 bg=BG, fg=CREAM, font=("Segoe UI", 22, "bold"),
-                 anchor="w").pack(fill="x")
+        # BANDWIDTH SINCE BOOT
+        bw_sec = tk.Frame(sidebar, bg=NAV_BG)
+        bw_sec.pack(fill="x", padx=18)
+        tk.Label(bw_sec, text="SINCE BOOT",
+                 bg=NAV_BG, fg=FAINT,
+                 font=("Segoe UI", 7, "bold"), anchor="w").pack(fill="x")
 
-        sub_row = tk.Frame(hero, bg=BG)
-        sub_row.pack(fill="x", pady=(4, 0))
-        tk.Label(sub_row, text="Live network monitor · updates every 500 ms",
-                 bg=BG, fg=MUTED, font=("Segoe UI", 11),
-                 anchor="w").pack(side="left")
+        dl_row = tk.Frame(bw_sec, bg=NAV_BG)
+        dl_row.pack(fill="x", pady=(8, 3))
+        tk.Label(dl_row, text="⬇", bg=NAV_BG, fg=GREEN,
+                 font=("Segoe UI", 12)).pack(side="left")
+        self._sidebar_dl_total = tk.Label(
+            dl_row, text="—",
+            bg=NAV_BG, fg=CREAM,
+            font=("Segoe UI", 10, "bold"), anchor="w")
+        self._sidebar_dl_total.pack(side="left", padx=(5, 0))
 
-        # ── Separator ────────────────────────────────────────
-        tk.Frame(self.root, bg=CARD_BORDER, height=1).pack(
-            fill="x", padx=28, pady=(4, 0))
+        ul_row = tk.Frame(bw_sec, bg=NAV_BG)
+        ul_row.pack(fill="x")
+        tk.Label(ul_row, text="⬆", bg=NAV_BG, fg=ACCENT_LT,
+                 font=("Segoe UI", 12)).pack(side="left")
+        self._sidebar_ul_total = tk.Label(
+            ul_row, text="—",
+            bg=NAV_BG, fg=CREAM,
+            font=("Segoe UI", 10, "bold"), anchor="w")
+        self._sidebar_ul_total.pack(side="left", padx=(5, 0))
 
-        # ── Speed cards row ──────────────────────────────────
-        speed_row = tk.Frame(self.root, bg=BG)
-        speed_row.pack(fill="x", padx=28, pady=(14, 0))
+        tk.Frame(sidebar, bg=CARD_BORDER, height=1).pack(
+            fill="x", padx=18, pady=(14, 14))
 
-        dl_card, self._dl_val, self._dl_spark = self._make_speed_card(
-            speed_row, "⬇   Download", "—", GREEN)
-        ul_card, self._ul_val, self._ul_spark = self._make_speed_card(
-            speed_row, "⬆   Upload",   "—", ACCENT_LT)
+        # ACTIVE PROCESSES count
+        proc_sec = tk.Frame(sidebar, bg=NAV_BG)
+        proc_sec.pack(fill="x", padx=18)
+        tk.Label(proc_sec, text="ACTIVE PROCESSES",
+                 bg=NAV_BG, fg=FAINT,
+                 font=("Segoe UI", 7, "bold"), anchor="w").pack(fill="x")
+        self._sidebar_proc_count = tk.Label(
+            proc_sec, text="—",
+            bg=NAV_BG, fg=ACCENT_LT,
+            font=("Segoe UI", 28, "bold"), anchor="w")
+        self._sidebar_proc_count.pack(fill="x", pady=(4, 0))
 
-        dl_card.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        ul_card.pack(side="left", fill="x", expand=True, padx=(8, 0))
+        # Clock pinned to bottom of sidebar
+        tk.Frame(sidebar, bg=CARD_BORDER, height=1).pack(
+            side="bottom", fill="x", padx=18, pady=(0, 0))
+        time_sec = tk.Frame(sidebar, bg=NAV_BG)
+        time_sec.pack(side="bottom", fill="x", padx=18, pady=(0, 12))
+        tk.Label(time_sec, text="LOCAL TIME",
+                 bg=NAV_BG, fg=FAINT,
+                 font=("Segoe UI", 7, "bold"), anchor="w").pack(fill="x")
+        self._sidebar_time = tk.Label(
+            time_sec, text="",
+            bg=NAV_BG, fg=MUTED,
+            font=("Segoe UI", 13, "bold"), anchor="w")
+        self._sidebar_time.pack(fill="x", pady=(3, 0))
 
-        # ── App list header ──────────────────────────────────
-        list_hdr = tk.Frame(self.root, bg=BG)
-        list_hdr.pack(fill="x", padx=28, pady=(16, 5))
+        # ── RIGHT MAIN CONTENT ─────────────────────────────────────
+        content = tk.Frame(body, bg=BG)
+        content.pack(side="left", fill="both", expand=True)
 
-        # Left side: title + pulsing live dot
-        left = tk.Frame(list_hdr, bg=BG)
-        left.pack(side="left")
-        tk.Label(left, text="📋  Apps connected to the internet",
-                 bg=BG, fg=CREAM, font=("Segoe UI", 12, "bold")).pack(side="left")
-        PulsingDot(left, bg=BG, font=("Segoe UI", 10)).pack(
-            side="left", padx=(10, 0))
-        tk.Label(left, text="LIVE", bg=BG, fg=GREEN,
-                 font=("Segoe UI", 9, "bold")).pack(side="left", padx=(2, 0))
+        # Vertical accent line dividing sidebar from content
+        tk.Frame(body, bg=CARD_BORDER, width=1).place(relx=0, rely=0,
+            relheight=1, x=200)
 
-        # Right side: sort buttons + search box
-        right = tk.Frame(list_hdr, bg=BG)
-        right.pack(side="right")
+        # ── Speed panel (top of content) ──────────────────────────
+        speed_panel = tk.Frame(content, bg=CARD_BG,
+                               highlightthickness=1,
+                               highlightbackground=CARD_BORDER)
+        speed_panel.pack(fill="x", padx=14, pady=(14, 0))
 
-        tk.Label(right, text="Sort:", bg=BG, fg=FAINT,
-                 font=("Segoe UI", 9)).pack(side="left", padx=(0, 4))
+        # Panel header
+        spd_hdr = tk.Frame(speed_panel, bg=CARD_BG)
+        spd_hdr.pack(fill="x", padx=14, pady=(10, 6))
+        tk.Label(spd_hdr, text="⚡  NETWORK SPEED",
+                 bg=CARD_BG, fg=FAINT,
+                 font=("Segoe UI", 8, "bold")).pack(side="left")
+        tk.Label(spd_hdr, text="updates every 500 ms",
+                 bg=CARD_BG, fg=FAINT,
+                 font=("Segoe UI", 8)).pack(side="right")
+
+        # Two-column: download | divider | upload
+        spd_cols = tk.Frame(speed_panel, bg=CARD_BG)
+        spd_cols.pack(fill="x", padx=14, pady=(0, 12))
+
+        # Download column
+        dl_col = tk.Frame(spd_cols, bg=CARD_BG)
+        dl_col.pack(side="left", fill="x", expand=True, padx=(0, 6))
+
+        dl_top = tk.Frame(dl_col, bg=CARD_BG)
+        dl_top.pack(fill="x")
+        tk.Label(dl_top, text="⬇  DOWNLOAD",
+                 bg=CARD_BG, fg=GREEN,
+                 font=("Segoe UI", 8, "bold")).pack(side="left")
+        self._dl_val = tk.Label(
+            dl_top, text="—",
+            bg=CARD_BG, fg=CREAM,
+            font=("Segoe UI", 12, "bold"))
+        self._dl_val.pack(side="right")
+        self._dl_spark = SparklineCanvas(
+            dl_col, bars=HISTORY_LEN,
+            bar_color=GREEN, bg=CARD_BG, height=34)
+        self._dl_spark.pack(fill="x", pady=(5, 0))
+
+        # Vertical divider
+        tk.Frame(spd_cols, bg=CARD_BORDER, width=1).pack(
+            side="left", fill="y", padx=6)
+
+        # Upload column
+        ul_col = tk.Frame(spd_cols, bg=CARD_BG)
+        ul_col.pack(side="left", fill="x", expand=True, padx=(6, 0))
+
+        ul_top = tk.Frame(ul_col, bg=CARD_BG)
+        ul_top.pack(fill="x")
+        tk.Label(ul_top, text="⬆  UPLOAD",
+                 bg=CARD_BG, fg=ACCENT_LT,
+                 font=("Segoe UI", 8, "bold")).pack(side="left")
+        self._ul_val = tk.Label(
+            ul_top, text="—",
+            bg=CARD_BG, fg=CREAM,
+            font=("Segoe UI", 12, "bold"))
+        self._ul_val.pack(side="right")
+        self._ul_spark = SparklineCanvas(
+            ul_col, bars=HISTORY_LEN,
+            bar_color=ACCENT_LT, bg=CARD_BG, height=34)
+        self._ul_spark.pack(fill="x", pady=(5, 0))
+
+        # ── Process table controls ────────────────────────────────
+        ctrl_bar = tk.Frame(content, bg=BG)
+        ctrl_bar.pack(fill="x", padx=14, pady=(14, 0))
+
+        # Left: title + live dot
+        ctrl_left = tk.Frame(ctrl_bar, bg=BG)
+        ctrl_left.pack(side="left")
+        tk.Label(ctrl_left, text="PROCESSES",
+                 bg=BG, fg=CREAM,
+                 font=("Segoe UI", 10, "bold")).pack(side="left")
+        PulsingDot(ctrl_left, bg=BG, font=("Segoe UI", 9)).pack(
+            side="left", padx=(10, 3))
+        tk.Label(ctrl_left, text="LIVE",
+                 bg=BG, fg=GREEN,
+                 font=("Segoe UI", 8, "bold")).pack(side="left")
+
+        # Right: segmented sort + search
+        ctrl_right = tk.Frame(ctrl_bar, bg=BG)
+        ctrl_right.pack(side="right")
+
+        sort_wrap = tk.Frame(ctrl_right, bg=CARD_BORDER, padx=1, pady=1)
+        sort_wrap.pack(side="left", padx=(0, 8))
+        sort_inner = tk.Frame(sort_wrap, bg=CARD_BG)
+        sort_inner.pack()
 
         self._sort_btn_conn = tk.Button(
-            right, text="# Conns", bg=ACCENT, fg=CREAM,
-            font=("Segoe UI", 9, "bold"), relief="flat",
-            padx=8, pady=3, cursor="hand2",
+            sort_inner, text="# Conns",
+            bg=ACCENT, fg=CREAM,
+            font=("Segoe UI", 8, "bold"), relief="flat",
+            padx=8, pady=4, cursor="hand2",
             command=lambda: self._set_sort("connections"))
-        self._sort_btn_conn.pack(side="left", padx=(0, 3))
-
+        self._sort_btn_conn.pack(side="left")
+        tk.Frame(sort_inner, bg=CARD_BORDER, width=1).pack(
+            side="left", fill="y")
         self._sort_btn_name = tk.Button(
-            right, text="Name", bg=CARD_BG, fg=MUTED,
-            font=("Segoe UI", 9), relief="flat",
-            padx=8, pady=3, cursor="hand2",
+            sort_inner, text="Name",
+            bg=CARD_BG, fg=MUTED,
+            font=("Segoe UI", 8), relief="flat",
+            padx=8, pady=4, cursor="hand2",
             command=lambda: self._set_sort("name"))
-        self._sort_btn_name.pack(side="left", padx=(0, 12))
+        self._sort_btn_name.pack(side="left")
 
-        # Search field
-        search_frame = tk.Frame(right, bg=CARD_BORDER, padx=1, pady=1)
-        search_frame.pack(side="left")
-        inner = tk.Frame(search_frame, bg=CARD_BG)
-        inner.pack()
-        tk.Label(inner, text="🔍", bg=CARD_BG, fg=FAINT,
-                 font=("Segoe UI", 10)).pack(side="left", padx=(6, 2))
+        # Search
+        search_wrap = tk.Frame(ctrl_right, bg=CARD_BORDER, padx=1, pady=1)
+        search_wrap.pack(side="left")
+        search_inner = tk.Frame(search_wrap, bg=CARD_BG)
+        search_inner.pack()
+        tk.Label(search_inner, text="⌕",
+                 bg=CARD_BG, fg=FAINT,
+                 font=("Segoe UI", 11)).pack(side="left", padx=(6, 2))
         self._search_entry = tk.Entry(
-            inner, textvariable=self._filter_text,
+            search_inner, textvariable=self._filter_text,
             bg=CARD_BG, fg=CREAM, insertbackground=CREAM,
-            font=("Segoe UI", 10), relief="flat", width=16,
+            font=("Segoe UI", 9), relief="flat", width=14,
             highlightthickness=0)
-        self._search_entry.pack(side="left", pady=4, padx=(0, 6))
-        self._filter_text.trace_add("write", lambda *_: self._redraw_list(
-            self._last_apps))
+        self._search_entry.pack(side="left", pady=3, padx=(0, 6))
+        self._filter_text.trace_add("write",
+            lambda *_: self._redraw_list(self._last_apps))
 
-        # ── Scrollable app list ──────────────────────────────
-        list_outer = tk.Frame(self.root, bg=BG)
-        list_outer.pack(fill="both", expand=True, padx=28, pady=(0, 4))
+        # ── Scrollable process table ──────────────────────────────
+        table_outer = tk.Frame(content, bg=BG)
+        table_outer.pack(fill="both", expand=True, padx=14, pady=(8, 14))
+
+        table_wrap = tk.Frame(
+            table_outer, bg=CARD_BG,
+            highlightthickness=1, highlightbackground=CARD_BORDER)
+        table_wrap.pack(fill="both", expand=True)
 
         self._canvas = tk.Canvas(
-            list_outer, bg=CARD_BG,
-            highlightthickness=1, highlightbackground=CARD_BORDER)
-        scrollbar = ttk.Scrollbar(list_outer, orient="vertical",
-                                  command=self._canvas.yview)
+            table_wrap, bg=CARD_BG, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(
+            table_wrap, orient="vertical", command=self._canvas.yview)
         self._canvas.configure(yscrollcommand=scrollbar.set)
 
         scrollbar.pack(side="right", fill="y")
@@ -603,52 +752,12 @@ class NetWatchApp:
             (0, 0), window=self._app_frame, anchor="nw")
 
         self._app_frame.bind("<Configure>", self._on_frame_resize)
-        self._canvas.bind("<Configure>",   self._on_canvas_resize)
+        self._canvas.bind("<Configure>",    self._on_canvas_resize)
         self._canvas.bind("<MouseWheel>",   self._on_mousewheel)
         self._canvas.bind("<Button-4>",     self._scroll_up)
         self._canvas.bind("<Button-5>",     self._scroll_down)
 
-        # ── Status bar ───────────────────────────────────────
-        status_bar = tk.Frame(self.root, bg=NAV_BG, height=38)
-        status_bar.pack(fill="x", side="bottom")
-        status_bar.pack_propagate(False)
-
-        self._status_label = tk.Label(
-            status_bar,
-            text="📊  Total since boot:   Downloaded: —   |   Uploaded: —",
-            bg=NAV_BG, fg=MUTED, font=("Segoe UI", 10))
-        self._status_label.pack(side="left", padx=16, expand=False)
-
-        self._tick_label = tk.Label(
-            status_bar, text="", bg=NAV_BG, fg=FAINT,
-            font=("Segoe UI", 9))
-        self._tick_label.pack(side="right", padx=16)
         self._start_tick()
-
-    # ── Speed card factory ───────────────────────────────────
-
-    def _make_speed_card(self, parent, label_text, value_text, value_color):
-        """Create a speed card with label, big value, and sparkline."""
-        card = tk.Frame(parent, bg=CARD_BG,
-                        highlightthickness=1, highlightbackground=CARD_BORDER)
-
-        # Top row: label
-        tk.Label(card, text=label_text, bg=CARD_BG, fg=MUTED,
-                 font=("Segoe UI", 10), anchor="w").pack(
-                     anchor="w", padx=16, pady=(14, 0))
-
-        # Big value label
-        val_lbl = tk.Label(card, text=value_text, bg=CARD_BG, fg=value_color,
-                           font=("Segoe UI", 22, "bold"), anchor="w")
-        val_lbl.pack(anchor="w", padx=16, pady=(2, 6))
-
-        # Sparkline canvas
-        spark = SparklineCanvas(card, bars=HISTORY_LEN,
-                                bar_color=value_color, bg=CARD_BG, height=36)
-        spark.pack(fill="x", padx=16, pady=(0, 14))
-
-        card._val_label = val_lbl
-        return card, val_lbl, spark
 
     # ── Window-management helpers ─────────────────────────────
 
@@ -676,7 +785,25 @@ class NetWatchApp:
         """Called when the window is un-iconified; restores the custom title bar."""
         if self.root.state() == "normal":
             self.root.after(10, lambda: self.root.overrideredirect(True))
+            self.root.after(160, self._fix_taskbar)
             self.root.unbind("<Map>")
+
+    def _fix_taskbar(self):
+        """Add WS_EX_APPWINDOW so the window appears in the Windows taskbar."""
+        if sys.platform != "win32":
+            return
+        try:
+            import ctypes
+            GWL_EXSTYLE      = -20
+            WS_EX_APPWINDOW  = 0x00040000
+            WS_EX_TOOLWINDOW = 0x00000080
+            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id())
+            style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            style = (style & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW
+            ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
+            ctypes.windll.user32.ShowWindow(hwnd, 5)   # SW_SHOW
+        except (AttributeError, OSError):
+            pass  # Windows API unavailable — silently ignore
 
     def _toggle_maximize(self):
         """Toggle between maximized and restored window size."""
@@ -733,11 +860,10 @@ class NetWatchApp:
     def _scroll_up(self,   _event): self._canvas.yview_scroll(-1, "units")
     def _scroll_down(self, _event): self._canvas.yview_scroll(1,  "units")
 
-    # ── Clock tick in status bar ─────────────────────────────
+    # ── Clock tick in sidebar ────────────────────────────────
 
     def _start_tick(self):
-        self._tick_label.configure(
-            text=time.strftime("🕐  %H:%M:%S"))
+        self._sidebar_time.configure(text=time.strftime("%H:%M:%S"))
         self.root.after(1000, self._start_tick)
 
     # ── Background monitoring thread ─────────────────────────
@@ -795,7 +921,7 @@ class NetWatchApp:
         self._dl_history.append(dl)
         self._ul_history.append(ul)
 
-        # Speed cards
+        # Speed panel
         dl_color = _speed_color(dl)
         ul_color = _speed_color(ul)
         self._dl_val.configure(text=speed_to_readable(dl), fg=dl_color)
@@ -805,18 +931,19 @@ class NetWatchApp:
         self._ul_spark.push(ul)
         self._ul_spark.set_color(ul_color)
 
-        # Status bar
-        self._status_label.configure(
-            text=(f"📊  Since boot:  "
-                  f"⬇ {bytes_to_readable(stats.bytes_recv)}"
-                  f"  ·  ⬆ {bytes_to_readable(stats.bytes_sent)}"))
+        # Sidebar totals
+        self._sidebar_dl_total.configure(
+            text=bytes_to_readable(stats.bytes_recv))
+        self._sidebar_ul_total.configure(
+            text=bytes_to_readable(stats.bytes_sent))
+        self._sidebar_proc_count.configure(text=str(len(apps)))
 
         # Cache & redraw app list
         self._last_apps = apps
         self._redraw_list(apps)
 
     def _redraw_list(self, apps: list):
-        """Rebuild the scrollable app rows."""
+        """Rebuild the scrollable process table."""
         query = self._filter_text.get().lower().strip()
 
         # Filter — match against both raw name and friendly display name
@@ -838,81 +965,97 @@ class NetWatchApp:
             w.destroy()
 
         if not filtered:
-            msg = ("  😴  No apps match your search."
+            msg = ("  No processes match your filter."
                    if query
-                   else "  😴  No apps appear to be connected right now.")
+                   else "  No processes appear to be connected right now.")
             tk.Label(self._app_frame, text=msg,
                      bg=CARD_BG, fg=MUTED,
-                     font=("Segoe UI", 11), anchor="w", pady=20
+                     font=("Segoe UI", 11), anchor="w", pady=24
                      ).pack(fill="x", padx=18)
             return
 
-        # Column header
-        hdr = tk.Frame(self._app_frame, bg=NAV_BG)
+        # ── Column header ─────────────────────────────────────────
+        hdr = tk.Frame(self._app_frame, bg=TITLE_BG)
         hdr.pack(fill="x")
-        for txt, anchor, side, expand in [
-            ("  App / Process", "w", "left",  True),
-            ("Ports (sample)  ","e", "right", False),
-            ("Connections  ",   "e", "right", False),
-        ]:
-            tk.Label(hdr, text=txt, bg=NAV_BG, fg=FAINT,
-                     font=("Segoe UI", 9, "bold"),
-                     anchor=anchor).pack(
-                         side=side, fill="x" if expand else None,
-                         expand=expand, padx=4, pady=5)
 
-        # Rows
+        tk.Label(hdr, text="  PROCESS",
+                 bg=TITLE_BG, fg=FAINT,
+                 font=("Segoe UI", 8, "bold"), anchor="w"
+                 ).pack(side="left", fill="x", expand=True, padx=4, pady=6)
+        tk.Label(hdr, text="ACTIVITY        ",
+                 bg=TITLE_BG, fg=FAINT,
+                 font=("Segoe UI", 8, "bold"), anchor="e"
+                 ).pack(side="right", padx=4, pady=6)
+        tk.Label(hdr, text="CONNS  ",
+                 bg=TITLE_BG, fg=FAINT,
+                 font=("Segoe UI", 8, "bold"), anchor="e"
+                 ).pack(side="right", padx=4, pady=6)
+        tk.Label(hdr, text="PORTS            ",
+                 bg=TITLE_BG, fg=FAINT,
+                 font=("Segoe UI", 8, "bold"), anchor="e"
+                 ).pack(side="right", padx=4, pady=6)
+
+        # ── Data rows ─────────────────────────────────────────────
         for idx, app in enumerate(filtered[:self.MAX_ROWS]):
-            n       = app["connections"]
-            emoji   = pick_emoji(n)
-            row_bg  = CARD_BG if idx % 2 == 0 else ROW_ALT
-            row     = tk.Frame(self._app_frame, bg=row_bg)
-            row.pack(fill="x")
-
-            # Left: emoji + friendly display name
-            display = friendly_name(app["name"])
-            tk.Label(row, text=f"  {emoji}  {display}",
-                     bg=row_bg, fg=CREAM, font=("Segoe UI", 11),
-                     anchor="w", pady=9).pack(
-                         side="left", fill="x", expand=True, padx=(4, 0))
-
-            # Right: port list (small)
-            ports_str = ", ".join(str(p) for p in app.get("ports", []))
-            if ports_str:
-                tk.Label(row, text=ports_str + "  ",
-                         bg=row_bg, fg=FAINT,
-                         font=("Segoe UI", 9), anchor="e"
-                         ).pack(side="right", pady=9)
-
-            # Right: connection count with colour
+            n        = app["connections"]
+            emoji    = pick_emoji(n)
+            row_bg   = ROW_ALT if idx % 2 == 0 else CARD_BG
             conn_color = (RED   if n >= 10 else
                           AMBER if n >= 5  else
                           GREEN if n >= 2  else MUTED)
-            conn_text = f"{n} conn{'s' if n != 1 else ''}"
-            tk.Label(row, text=conn_text + "  ",
-                     bg=row_bg, fg=conn_color,
-                     font=("Segoe UI", 10, "bold"), anchor="e"
-                     ).pack(side="right", pady=9, padx=4)
 
-            # Strength bar (tiny canvas)
-            bar_canvas = tk.Canvas(row, bg=row_bg,
-                                   width=BAR_MAX_WIDTH, height=6,
-                                   highlightthickness=0)
-            bar_canvas.pack(side="right", padx=(0, 6))
-            bar_w = min(BAR_MAX_WIDTH,
-                        max(BAR_MIN_WIDTH,
-                            int(n / CONN_FULL_BAR * BAR_MAX_WIDTH)))
-            bar_canvas.create_rectangle(
-                0, 1, bar_w, 5, fill=conn_color, outline="")
+            row = tk.Frame(self._app_frame, bg=row_bg)
+            row.pack(fill="x")
 
-        # "… and N more" row
+            # Thin left accent stripe colour-coded by connection level
+            tk.Frame(row, bg=conn_color, width=3).pack(side="left", fill="y")
+
+            # Process name
+            display = friendly_name(app["name"])
+            tk.Label(row, text=f"  {emoji}  {display}",
+                     bg=row_bg, fg=CREAM, font=("Segoe UI", 10),
+                     anchor="w", pady=8
+                     ).pack(side="left", fill="x", expand=True, padx=(2, 0))
+
+            # Activity bar (horizontal fill bar, right-aligned)
+            bar_frame = tk.Frame(row, bg=row_bg, width=90)
+            bar_frame.pack(side="right", padx=(0, 10))
+            bar_frame.pack_propagate(False)
+            bar_bg = tk.Canvas(bar_frame, bg=CARD_BORDER,
+                               height=6, highlightthickness=0)
+            bar_bg.pack(fill="x", pady=10)
+            bar_w = min(88, max(4, int(n / CONN_FULL_BAR * 88)))
+            bar_bg.create_rectangle(0, 0, bar_w, 6,
+                                    fill=conn_color, outline="")
+
+            # Connection count badge
+            badge_bg = conn_color if n >= 2 else CARD_BORDER
+            badge = tk.Label(row, text=f" {n} ",
+                             bg=badge_bg, fg=TITLE_BG if n >= 2 else MUTED,
+                             font=("Segoe UI", 8, "bold"), padx=4, pady=2)
+            badge.pack(side="right", padx=(0, 8))
+
+            # Ports
+            ports_str = ", ".join(str(p) for p in app.get("ports", []))
+            tk.Label(row,
+                     text=(ports_str[:MAX_PORT_DISPLAY_LEN] + "…"
+                           if len(ports_str) > MAX_PORT_DISPLAY_LEN
+                           else ports_str) + "   ",
+                     bg=row_bg, fg=FAINT,
+                     font=("Segoe UI", 8), anchor="e"
+                     ).pack(side="right", padx=4)
+
+            # Horizontal rule between rows
+            tk.Frame(self._app_frame, bg=CARD_BORDER, height=1).pack(fill="x")
+
+        # "… and N more" footer
         if len(filtered) > self.MAX_ROWS:
             extra = len(filtered) - self.MAX_ROWS
             tk.Label(self._app_frame,
-                     text=f"   ···  and {extra} more (use search to filter)",
+                     text=f"  ···  {extra} more — refine your search to see them",
                      bg=CARD_BG, fg=FAINT,
-                     font=("Segoe UI", 10), anchor="w", pady=8
-                     ).pack(fill="x", padx=18)
+                     font=("Segoe UI", 9), anchor="w", pady=8
+                     ).pack(fill="x", padx=14)
 
     # ── Shutdown ─────────────────────────────────────────────
 

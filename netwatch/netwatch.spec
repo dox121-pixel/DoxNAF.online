@@ -12,7 +12,7 @@ a = Analysis(
     ['netwatch_app.py'],
     pathex=[],
     binaries=[],
-    datas=[('NETWATCH.png', '.')],
+    datas=[('NETWATCH.png', '.'), ('NETWATCH.ico', '.')],
     hiddenimports=['psutil', 'tkinter', 'tkinter.ttk'],
     hookspath=[],
     hooksconfig={},
@@ -46,6 +46,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    # icon='netwatch_icon.ico',   # uncomment once you add an icon file
+    icon='NETWATCH.ico',    # NetWatch icon for exe and taskbar
     version_file=None,
 )
