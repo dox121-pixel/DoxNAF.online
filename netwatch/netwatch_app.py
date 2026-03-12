@@ -373,14 +373,23 @@ class NetWatchApp:
         self._maximized  = False
         self._pre_max_geo = "860x720"
 
-        # Try to set window icon (EXE bundle puts it next to the exe)
-        _icon = os.path.join(os.path.dirname(sys.executable), "netwatch_icon.ico")
-        if not os.path.isfile(_icon):
-            _icon = os.path.join(os.path.dirname(__file__), "netwatch_icon.ico")
-        try:
-            self.root.iconbitmap(_icon)
-        except Exception:
-            pass  # icon is optional
+        # Try to set window icon from NETWATCH.png
+        _icon_png = os.path.join(os.path.dirname(sys.executable), "NETWATCH.png")
+        if not os.path.isfile(_icon_png):
+            _icon_png = os.path.join(os.path.dirname(__file__), "NETWATCH.png")
+        self._icon_photo = None
+        self._icon_small = None
+        if os.path.isfile(_icon_png):
+            try:
+                _img = tk.PhotoImage(file=_icon_png)
+                # Image is 4961×3508 — subsample(100) gives ~50×35 px for taskbar
+                self._icon_photo = _img.subsample(100, 100)
+                self.root.iconphoto(True, self._icon_photo)
+                # subsample(146) gives ~34×24 px — fits the 36 px title bar
+                self._icon_small = _img.subsample(146, 146)
+                del _img
+            except Exception:
+                pass  # icon is optional
 
         self._running      = True
         self._filter_text  = tk.StringVar()
@@ -408,12 +417,19 @@ class NetWatchApp:
         self._title_bar.pack_propagate(False)
 
         # Left side: window icon + title text
+        self._icon_label = None
+        if self._icon_small:
+            self._icon_label = tk.Label(
+                self._title_bar, image=self._icon_small,
+                bg=TITLE_BG, bd=0,
+            )
+            self._icon_label.pack(side="left", padx=(8, 0))
         self._title_label = tk.Label(
-            self._title_bar, text="🌐  NetWatch — What's Using My Internet?",
+            self._title_bar, text="NetWatch — What's Using My Internet?",
             bg=TITLE_BG, fg=ACCENT_LT,
             font=("Segoe UI", 9, "bold"),
         )
-        self._title_label.pack(side="left", padx=12)
+        self._title_label.pack(side="left", padx=(4 if self._icon_small else 12, 0))
 
         # Right side: window control buttons  ─  □  ✕
         _btn_kw = dict(
@@ -455,8 +471,9 @@ class NetWatchApp:
         self._min_btn.bind("<Leave>",
             lambda e: self._min_btn.config(bg=TITLE_BG, fg=MUTED))
 
-        # Drag-to-move: bind on the bar frame and the title label
-        for widget in (self._title_bar, self._title_label):
+        # Drag-to-move: bind on the bar frame, icon label, and title label
+        drag_targets = [w for w in (self._title_bar, self._icon_label, self._title_label) if w]
+        for widget in drag_targets:
             widget.bind("<Button-1>",   self._start_drag)
             widget.bind("<B1-Motion>",  self._do_drag)
             widget.bind("<Double-Button-1>", lambda e: self._toggle_maximize())
@@ -835,8 +852,8 @@ class NetWatchApp:
         hdr.pack(fill="x")
         for txt, anchor, side, expand in [
             ("  App / Process", "w", "left",  True),
-            ("Connections  ",   "e", "right", False),
             ("Ports (sample)  ","e", "right", False),
+            ("Connections  ",   "e", "right", False),
         ]:
             tk.Label(hdr, text=txt, bg=NAV_BG, fg=FAINT,
                      font=("Segoe UI", 9, "bold"),

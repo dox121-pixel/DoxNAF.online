@@ -12,7 +12,7 @@ a = Analysis(
     ['netwatch_app.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('NETWATCH.png', '.')],
     hiddenimports=['psutil', 'tkinter', 'tkinter.ttk'],
     hookspath=[],
     hooksconfig={},
