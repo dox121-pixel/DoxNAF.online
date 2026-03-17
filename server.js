@@ -1495,6 +1495,7 @@ const httpServer = http.createServer((req, res) => {
                 : (urlPath === '/VIPER.exe' || urlPath === '/VIPER.exe/') ? '/VIPER.exe/index.html'
                 : (urlPath === '/unity-game' || urlPath === '/unity-game/') ? '/unity-game/index.html'
                 : (urlPath === '/netwatch' || urlPath === '/netwatch/') ? '/netwatch/index.html'
+                : (urlPath === '/pulse' || urlPath === '/pulse/') ? '/pulse/index.html'
                 : urlPath;
   // Resolve the full path and ensure it stays inside __dirname
   const full    = path.resolve(__dirname, '.' + file);
