@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Map — DoxNAF.online</title>
+  <meta name="description" content="Live Minecraft map powered by BlueMap" />
+  <link rel="icon" href="/netwatch/NETWATCH.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: #000;
+      color: #e0d0ff;
+      font-family: 'Inter', -apple-system, sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-bottom: 1px solid #1a0a33;
+      flex-shrink: 0;
+    }
+
+    .home-link {
+      font-size: 13px;
+      font-weight: 400;
+      color: #3a1a66;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .home-link:hover { color: #6633cc; }
+
+    .page-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #a87dff;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    /* spacer to balance the flex row */
+    .header-spacer { width: 80px; }
+
+    .map-container {
+      flex: 1;
+      position: relative;
+      min-height: 0;
+    }
+
+    .map-container iframe {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    footer {
+      padding: 8px 20px;
+      font-size: 11px;
+      color: #1a0a33;
+      text-align: center;
+      border-top: 1px solid #1a0a33;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="/" class="home-link">DoxNAF.online</a>
+    <span class="page-title">Map</span>
+    <div class="header-spacer"></div>
+  </header>
+
+  <div class="map-container">
+    <iframe
+      src="https://map.doxnaf.online"
+      title="DoxNAF Minecraft Map — BlueMap"
+      allowfullscreen
+    ></iframe>
+  </div>
+
+  <footer>doxnaf.online</footer>
+
+</body>
+</html>
