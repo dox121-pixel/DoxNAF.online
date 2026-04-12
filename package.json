@@ -1,19 +1,10 @@
 {
-  "name": "viper-exe",
+  "name": "doxnaf-online",
   "version": "1.0.0",
-  "description": "Snake Roguelike with Online Multiplayer",
+  "description": "DoxNAF.online website",
   "main": "server.js",
   "scripts": {
-    "build": "javascript-obfuscator game.js --output game.js --compact true --string-array true --string-array-encoding base64 --self-defending true --numbers-to-expressions true --transform-object-keys true --split-strings true --split-strings-chunk-length 10",
     "start": "node server.js"
   },
-  "dependencies": {
-    "@pixi/unsafe-eval": "^7.4.3",
-    "pg": "^8.18.0",
-    "pixi.js": "^7.4.3",
-    "ws": "^8.18.0"
-  },
-  "devDependencies": {
-    "javascript-obfuscator": "^5.3.0"
-  }
+  "dependencies": {}
 }
