@@ -6,6 +6,7 @@
 'use strict';
 
 const http   = require('http');
+const net    = require('net');
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
@@ -25,6 +26,14 @@ const dbPool = process.env.DATABASE_URL
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     })
   : null;
+
+// ── BlueMap reverse-proxy config ─────────────
+// Set BLUEMAP_UPSTREAM to "host:port" of your BlueMap web server (default: 127.0.0.1:8100).
+// Requests and WebSocket upgrades arriving with Host: map.doxnaf.online are forwarded there.
+const BLUEMAP_UPSTREAM    = process.env.BLUEMAP_UPSTREAM || '127.0.0.1:8100';
+const _bmLastColon        = BLUEMAP_UPSTREAM.lastIndexOf(':');
+const BLUEMAP_PROXY_HOST  = _bmLastColon === -1 ? BLUEMAP_UPSTREAM : BLUEMAP_UPSTREAM.slice(0, _bmLastColon);
+const BLUEMAP_PROXY_PORT  = _bmLastColon === -1 ? 8100 : (parseInt(BLUEMAP_UPSTREAM.slice(_bmLastColon + 1), 10) || 8100);
 
 // ── Admin authentication ──────────────────────
 const ADMIN_SESSION_TTL_MS = 3600000; // 1 hour
@@ -703,6 +712,28 @@ const MIME = {
 const httpServer = http.createServer((req, res) => {
   if (req.headers['x-forwarded-proto'] === 'https' || req.socket.encrypted) {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+
+  // ── BlueMap reverse proxy ─────────────────────
+  // Forward all HTTP requests for map.doxnaf.online to the BlueMap web server.
+  const reqHost = (req.headers.host || '').split(':')[0].toLowerCase();
+  if (reqHost === 'map.doxnaf.online') {
+    const proxyReq = http.request(
+      {
+        hostname: BLUEMAP_PROXY_HOST,
+        port:     BLUEMAP_PROXY_PORT,
+        path:     req.url,
+        method:   req.method,
+        headers:  Object.assign({}, req.headers, { host: BLUEMAP_UPSTREAM }),
+      },
+      proxyRes => {
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        proxyRes.pipe(res, { end: true });
+      }
+    );
+    proxyReq.on('error', () => { if (!res.headersSent) { res.writeHead(502); res.end('Bad Gateway'); } });
+    req.pipe(proxyReq, { end: true });
+    return;
   }
 
   const rawPath = (req.url || '/').split('?')[0];
@@ -1557,7 +1588,36 @@ const httpServer = http.createServer((req, res) => {
 });
 
 // ── WebSocket server ──────────────────────────
-const wss = new WebSocket.Server({ server: httpServer });
+// noServer: true so we can route upgrades manually (game WS vs BlueMap WS proxy).
+const wss = new WebSocket.Server({ noServer: true });
+
+// ── WebSocket upgrade router ──────────────────
+// Connections for map.doxnaf.online are tunnelled directly to the BlueMap server via TCP;
+// all other connections are handed off to the game WebSocket server.
+httpServer.on('upgrade', (req, socket, head) => {
+  const upgradeHost = (req.headers.host || '').split(':')[0].toLowerCase();
+  if (upgradeHost === 'map.doxnaf.online') {
+    const upstream = net.connect(BLUEMAP_PROXY_PORT, BLUEMAP_PROXY_HOST, () => {
+      let rawHeaders = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+      for (let i = 0; i < req.rawHeaders.length; i += 2) {
+        const key = req.rawHeaders[i];
+        const val = key.toLowerCase() === 'host' ? BLUEMAP_UPSTREAM : req.rawHeaders[i + 1];
+        rawHeaders += `${key}: ${val}\r\n`;
+      }
+      rawHeaders += '\r\n';
+      upstream.write(rawHeaders);
+      if (head && head.length) upstream.write(head);
+      upstream.pipe(socket);
+      socket.pipe(upstream);
+    });
+    upstream.on('error', () => socket.destroy());
+    socket.on('error', () => upstream.destroy());
+    return;
+  }
+  wss.handleUpgrade(req, socket, head, ws => {
+    wss.emit('connection', ws, req);
+  });
+});
 
 const rooms = new Map(); // code → room
 
