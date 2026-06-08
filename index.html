@@ -71,6 +71,16 @@
     <div>
       <div class="group-label">Validation</div>
       <div id="status">—</div>
+      <div id="simWarn" style="display:none; margin-top:8px; padding:10px; border-radius:5px; background:#3a2420; color:var(--warn); font-size:12px; line-height:1.5;">
+        <div class="simtext"></div>
+        <button class="btn" id="showSimBtn" style="margin-top:8px;">Show identical layout</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="group-label">Reference set</div>
+      <div class="sub" id="refCount">Loading from GitHub…</div>
+      <button class="btn" id="refBtn">Refresh from GitHub</button>
     </div>
 
     <div style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
@@ -91,6 +101,20 @@
     <div id="wrap">
       <canvas id="cv"></canvas>
       <div id="coords"></div>
+    </div>
+  </div>
+
+  <div id="compareModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); align-items:center; justify-content:center; z-index:100;">
+    <div style="background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:20px; max-width:90vw;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <div id="cmpTitle" style="font-size:14px; color:var(--accent);"></div>
+        <button class="btn" id="cmpClose" style="width:auto; padding:6px 14px;">Close</button>
+      </div>
+      <div style="display:flex; gap:20px; align-items:flex-start;">
+        <div style="text-align:center;"><div class="sub" style="margin-bottom:6px;">Yours</div><canvas id="cmpYours" style="image-rendering:pixelated; border:1px solid var(--line);"></canvas></div>
+        <div style="text-align:center;"><div class="sub" style="margin-bottom:6px;">Existing</div><canvas id="cmpRef" style="image-rendering:pixelated; border:1px solid var(--line);"></canvas></div>
+      </div>
+      <div class="sub" style="margin-top:12px; text-align:center;">Red = interior cells that differ</div>
     </div>
   </div>
 
@@ -121,6 +145,15 @@ let variantNum = 1;
 let hoverCell = null;   // {x,y} cell currently under the cursor, or null
 let history = [];       // stack of previous grid states for undo
 const MAX_HISTORY = 100;
+// Reference tiles loaded for similarity checking.
+// Each: { name, arch, grid }  (grid is N×N of 0/1)
+let refTiles = [];
+const SIM_THRESHOLD = 0.90;  // warn only if interior match >= this
+
+// GitHub source for reference tiles (auto-loaded on page open).
+const GH_REPO   = "dox121-pixel/DoxNAF.online";
+const GH_BRANCH = "main";
+const GH_PATH   = "layouts/custom";   // contains A,B,C,D,E folders
 
 const cv = document.getElementById("cv");
 const ctx = cv.getContext("2d");
@@ -240,6 +273,28 @@ window.addEventListener("keydown", e=>{
   }
 });
 
+// ---- similarity check (interior only, same archetype, as-drawn) ----
+// Returns the closest matching reference above threshold, or null.
+function interiorMatch(a, b){
+  // compare cells excluding the outer ring (forced edges/doorways)
+  let total=0, same=0;
+  for(let y=1;y<N-1;y++) for(let x=1;x<N-1;x++){
+    total++;
+    if(a[y][x]===b[y][x]) same++;
+  }
+  return total>0 ? same/total : 0;
+}
+function findSimilar(){
+  let best=null, bestScore=0;
+  for(const ref of refTiles){
+    if(ref.arch!==arch) continue;          // only compare same type
+    const s = interiorMatch(grid, ref.grid);
+    if(s>bestScore){ bestScore=s; best=ref; }
+  }
+  if(best && bestScore>=SIM_THRESHOLD) return {ref:best, score:bestScore};
+  return null;
+}
+
 // ---- validation: edge contract + connectivity ----
 function validate(){
   const el = document.getElementById("status");
@@ -295,6 +350,18 @@ function validate(){
     el.className="bad";
     el.textContent = (problems.slice(0,2).join("\n")) + (connWarn ? ("\n"+connWarn) : "");
   }
+
+  // similarity warning (separate panel, only if a near-duplicate exists)
+  const simEl = document.getElementById("simWarn");
+  const sim = findSimilar();
+  if(sim){
+    simEl.style.display="block";
+    simEl.querySelector(".simtext").textContent =
+      `⚠ ${Math.round(sim.score*100)}% identical interior to ${sim.ref.name}`;
+    simEl.dataset.refname = sim.ref.name;
+  } else {
+    simEl.style.display="none";
+  }
 }
 
 // ---- archetype buttons ----
@@ -317,6 +384,101 @@ document.querySelectorAll(".swatch").forEach(s=>{
 // ---- buttons ----
 document.getElementById("clearBtn").onclick = resetTemplate;
 document.getElementById("undoBtn").onclick = undo;
+
+// ---- reference set: auto-load from GitHub ----
+// Reads each A–E folder via the GitHub contents API, fetches every PNG,
+// converts to a grid, and stores for similarity checks.
+async function loadRefsFromGitHub(){
+  const countEl=document.getElementById("refCount");
+  countEl.textContent="Loading from GitHub…";
+  refTiles=[];
+  const letters=["A","B","C","D","E"];
+  try{
+    for(const letter of letters){
+      const apiUrl=`https://api.github.com/repos/${GH_REPO}/contents/${GH_PATH}/${letter}?ref=${GH_BRANCH}`;
+      const res=await fetch(apiUrl);
+      if(!res.ok) continue;  // folder might be empty/missing
+      const items=await res.json();
+      if(!Array.isArray(items)) continue;
+      for(const item of items){
+        if(item.type!=="file" || !item.name.toLowerCase().endsWith(".png")) continue;
+        await loadRefImage(item.download_url, item.name, letter);
+      }
+    }
+    countEl.textContent=`${refTiles.length} tiles loaded`;
+    validate();
+  }catch(err){
+    countEl.textContent="GitHub load failed (check repo/branch)";
+    console.error(err);
+  }
+}
+
+function loadRefImage(url, name, arch){
+  return new Promise((resolve)=>{
+    const img=new Image();
+    img.crossOrigin="anonymous";
+    img.onload=()=>{
+      const tmp=document.createElement("canvas"); tmp.width=N; tmp.height=N;
+      const tc=tmp.getContext("2d"); tc.drawImage(img,0,0,N,N);
+      const d=tc.getImageData(0,0,N,N).data;
+      const g=[];
+      for(let y=0;y<N;y++){ const row=[]; for(let x=0;x<N;x++){
+        const i=(y*N+x)*4; const r=d[i],gg=d[i+1],b=d[i+2],al=d[i+3];
+        row.push((al<128||(r<100&&gg<100&&b<100))?WALL:FLOOR);
+      } g.push(row); }
+      refTiles.push({name, arch, grid:g});
+      resolve();
+    };
+    img.onerror=()=>resolve();  // skip a bad image rather than hang
+    img.src=url;
+  });
+}
+
+document.getElementById("refBtn").onclick = loadRefsFromGitHub;
+
+// ---- side-by-side compare view ----
+document.getElementById("showSimBtn").onclick = ()=>{
+  const name=document.getElementById("simWarn").dataset.refname;
+  const ref=refTiles.find(t=>t.name===name);
+  if(!ref) return;
+  openCompare(ref);
+};
+
+function openCompare(ref){
+  const modal=document.getElementById("compareModal");
+  modal.style.display="flex";
+  document.getElementById("cmpTitle").textContent=`Yours  vs  ${ref.name}`;
+  drawMini(document.getElementById("cmpYours"), grid, ref.grid);
+  drawMini(document.getElementById("cmpRef"), ref.grid, grid);
+}
+// draw a tile; highlight interior cells that DIFFER from 'other' in red.
+function drawMini(canvas, g, other){
+  const S=18;
+  canvas.width=N*S; canvas.height=N*S;
+  const c=canvas.getContext("2d");
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    c.fillStyle = g[y][x]===WALL ? "#141414" : "#ffffff";
+    c.fillRect(x*S,y*S,S,S);
+    // highlight interior differences
+    const interior = (x>0&&y>0&&x<N-1&&y<N-1);
+    if(interior && g[y][x]!==other[y][x]){
+      c.fillStyle="rgba(224,90,74,0.55)";
+      c.fillRect(x*S,y*S,S,S);
+    }
+  }
+  c.strokeStyle="rgba(255,255,255,0.08)"; c.lineWidth=1;
+  for(let i=0;i<=N;i++){
+    c.beginPath(); c.moveTo(i*S,0); c.lineTo(i*S,N*S); c.stroke();
+    c.beginPath(); c.moveTo(0,i*S); c.lineTo(N*S,i*S); c.stroke();
+  }
+}
+document.getElementById("cmpClose").onclick=()=>{
+  document.getElementById("compareModal").style.display="none";
+};
+// click outside the panel (on the dark backdrop) also closes
+document.getElementById("compareModal").addEventListener("click", e=>{
+  if(e.target.id==="compareModal") e.currentTarget.style.display="none";
+});
 
 document.getElementById("saveBtn").onclick = ()=>{
   // export at native 15x15 (1px per cell) so it loads cleanly into the game
@@ -362,6 +524,8 @@ function updateSaveName(){
 // init
 setArch("A");
 resetTemplate();
+loadRefsFromGitHub();
 </script>
+
 </body>
 </html>
