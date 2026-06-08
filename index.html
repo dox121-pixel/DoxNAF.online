@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIMINEXIS Tile Editor</title>
+<style>
+  :root{
+    --bg:#1b1b1f; --panel:#26262c; --line:#3a3a42; --text:#e6e2d2;
+    --accent:#d8c560; --wall:#141414; --floor:#ffffff; --warn:#e05a4a; --ok:#5fae5f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:ui-monospace,Menlo,Consolas,monospace; display:flex; height:100vh;
+  }
+  /* Left sidebar */
+  #side{width:240px; background:var(--panel); border-right:1px solid var(--line);
+        padding:16px; display:flex; flex-direction:column; gap:18px; overflow-y:auto;}
+  h1{font-size:15px; margin:0 0 4px; color:var(--accent); letter-spacing:1px;}
+  .sub{font-size:11px; opacity:.6; margin-bottom:8px;}
+  .group-label{font-size:11px; text-transform:uppercase; letter-spacing:1px; opacity:.55; margin-bottom:6px;}
+  .arch-btns{display:grid; grid-template-columns:repeat(5,1fr); gap:6px;}
+  .arch-btn{background:#30303a; border:1px solid var(--line); color:var(--text);
+            padding:8px 0; border-radius:5px; cursor:pointer; font-size:14px; font-weight:bold;}
+  .arch-btn.active{background:var(--accent); color:#1b1b1f; border-color:var(--accent);}
+  .arch-desc{font-size:11px; opacity:.7; margin-top:8px; line-height:1.4; min-height:46px;}
+  .pal{display:flex; gap:10px;}
+  .swatch{width:46px; height:46px; border-radius:6px; cursor:pointer; border:3px solid transparent; position:relative;}
+  .swatch.active{border-color:var(--accent);}
+  .swatch span{position:absolute; bottom:-16px; left:0; right:0; text-align:center; font-size:10px; opacity:.7;}
+  .btn{background:#30303a; border:1px solid var(--line); color:var(--text);
+       padding:9px; border-radius:5px; cursor:pointer; font-size:12px; width:100%;}
+  .btn:hover{border-color:var(--accent);}
+  .btn.primary{background:var(--accent); color:#1b1b1f; font-weight:bold; border-color:var(--accent);}
+  #status{font-size:12px; line-height:1.5; padding:10px; border-radius:5px; background:#202026; min-height:60px;}
+  #status.ok{color:var(--ok);} #status.bad{color:var(--warn);}
+  .row{display:flex; gap:8px;}
+  .row .btn{flex:1;}
+  input[type=file]{display:none;}
+  /* Canvas area */
+  #main{flex:1; display:flex; align-items:center; justify-content:center; position:relative;}
+  #wrap{position:relative;}
+  canvas{background:#000; image-rendering:pixelated; cursor:crosshair;
+          border:1px solid var(--line); touch-action:none;}
+  #hint{position:absolute; top:14px; left:16px; font-size:11px; opacity:.45;}
+  #coords{position:absolute; bottom:14px; right:16px; font-size:11px; opacity:.5;}
+</style>
+</head>
+<body>
+  <div id="side">
+    <div>
+      <h1>LIMINEXIS</h1>
+      <div class="sub">Tile Layout Editor · 15×15</div>
+    </div>
+
+    <div>
+      <div class="group-label">Archetype</div>
+      <div class="arch-btns" id="archBtns"></div>
+      <div class="arch-desc" id="archDesc"></div>
+    </div>
+
+    <div>
+      <div class="group-label">Palette</div>
+      <div class="pal">
+        <div class="swatch active" data-val="0" style="background:#141414;" title="Wall"><span>Wall</span></div>
+        <div class="swatch" data-val="1" style="background:#ffffff;" title="Floor"><span>Floor</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="group-label">Validation</div>
+      <div id="status">—</div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:8px; margin-top:auto;">
+      <div class="row">
+        <button class="btn" id="undoBtn">Undo (Ctrl+Z)</button>
+        <button class="btn" id="clearBtn">Reset</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="loadBtn">Load PNG</button>
+        <input type="file" id="fileIn" accept="image/png">
+      </div>
+      <button class="btn primary" id="saveBtn">Export PNG</button>
+      <div class="sub" id="saveName">→ A1.png</div>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="wrap">
+      <canvas id="cv"></canvas>
+      <div id="coords"></div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+const N = 15;                 // grid size
+const CELL = 38;              // on-screen pixels per cell
+const MID = Math.floor(N/2);  // 7 -> doorway is MID-1..MID+1 (6,7,8)
+const DOOR = new Set([MID-1, MID, MID+1]);
+const WALL = 0, FLOOR = 1;
+const COLORS = {0:"#141414", 1:"#ffffff"};
+
+// Archetype edge contract: which sides are CLOSED (full wall). Others are open
+// (wall except centered 3-cell doorway). Sides: N,S,W,E.
+const ARCH = {
+  A:{name:"Open room",   closed:[],            desc:"All four sides open. Decorate freely; keep all 4 doorways clear and connected."},
+  B:{name:"T-junction",  closed:["N"],         desc:"North wall closed. Doorways on S, W, E."},
+  C:{name:"L-corner",    closed:["N","W"],     desc:"North & West closed. Doorways on S and E; path bends between them."},
+  D:{name:"Straight",    closed:["N","S"],     desc:"North & South closed. Hallway running W–E."},
+  E:{name:"Dead-end",    closed:["N","W","E"], desc:"Only South open. A pocket you enter and leave the same way."},
+};
+
+let arch = "A";
+let paintVal = WALL;
+let grid = [];
+let painting = false;
+let variantNum = 1;
+let hoverCell = null;   // {x,y} cell currently under the cursor, or null
+let history = [];       // stack of previous grid states for undo
+const MAX_HISTORY = 100;
+
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+cv.width = N*CELL; cv.height = N*CELL;
+
+// ---- build the canonical template for an archetype ----
+function template(a){
+  const closed = new Set(ARCH[a].closed);
+  const g = [];
+  for(let y=0;y<N;y++){ g.push(new Array(N).fill(FLOOR)); }
+  // edges
+  for(let i=0;i<N;i++){
+    const door = DOOR.has(i);
+    // N (row 0) / S (row N-1)
+    g[0][i]     = (closed.has("N") || !door) ? WALL : FLOOR;
+    g[N-1][i]   = (closed.has("S") || !door) ? WALL : FLOOR;
+    // W (col 0) / E (col N-1)
+    g[i][0]     = (closed.has("W") || !door) ? WALL : FLOOR;
+    g[i][N-1]   = (closed.has("E") || !door) ? WALL : FLOOR;
+  }
+  return g;
+}
+
+function setArch(a){
+  arch = a;
+  document.querySelectorAll(".arch-btn").forEach(b=>b.classList.toggle("active", b.dataset.a===a));
+  document.getElementById("archDesc").textContent = ARCH[a].name + " — " + ARCH[a].desc;
+  updateSaveName();
+}
+
+function resetTemplate(){
+  grid = template(arch);
+  history = [];
+  draw(); validate();
+}
+
+// ---- undo ----
+function snapshot(){ return grid.map(row=>row.slice()); }
+function pushHistory(){
+  history.push(snapshot());
+  if(history.length>MAX_HISTORY) history.shift();
+}
+function undo(){
+  if(history.length===0) return;
+  grid = history.pop();
+  hoverCell = null;
+  draw(); validate();
+}
+
+// ---- drawing the canvas ----
+function draw(){
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+    ctx.fillStyle = COLORS[grid[y][x]];
+    ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
+  }
+  // grid lines
+  ctx.strokeStyle = "rgba(255,255,255,0.07)"; ctx.lineWidth=1;
+  for(let i=0;i<=N;i++){
+    ctx.beginPath(); ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,N*CELL); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,i*CELL); ctx.lineTo(N*CELL,i*CELL); ctx.stroke();
+  }
+  // highlight expected doorways for current archetype (faint accent)
+  ctx.fillStyle = "rgba(216,197,96,0.18)";
+  const closed = new Set(ARCH[arch].closed);
+  for(const i of DOOR){
+    if(!closed.has("N")) ctx.fillRect(i*CELL,0,CELL,CELL);
+    if(!closed.has("S")) ctx.fillRect(i*CELL,(N-1)*CELL,CELL,CELL);
+    if(!closed.has("W")) ctx.fillRect(0,i*CELL,CELL,CELL);
+    if(!closed.has("E")) ctx.fillRect((N-1)*CELL,i*CELL,CELL,CELL);
+  }
+  // hover preview: show the cell you'll paint, filled faintly in the paint
+  // color with a bright outline.
+  if(hoverCell){
+    const hx=hoverCell.x*CELL, hy=hoverCell.y*CELL;
+    ctx.fillStyle = paintVal===WALL ? "rgba(20,20,20,0.55)" : "rgba(255,255,255,0.55)";
+    ctx.fillRect(hx,hy,CELL,CELL);
+    ctx.strokeStyle = "var(--accent)";
+    ctx.strokeStyle = "#d8c560";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(hx+1,hy+1,CELL-2,CELL-2);
+  }
+}
+
+function cellAt(ev){
+  const r = cv.getBoundingClientRect();
+  const x = Math.floor((ev.clientX-r.left)/ (r.width/N));
+  const y = Math.floor((ev.clientY-r.top) / (r.height/N));
+  if(x<0||y<0||x>=N||y>=N) return null;
+  return {x,y};
+}
+function paintAt(ev, val){
+  const c = cellAt(ev); if(!c) return;
+  if(grid[c.y][c.x]!==val){ grid[c.y][c.x]=val; draw(); validate(); }
+  document.getElementById("coords").textContent = `(${c.x}, ${c.y})`;
+}
+
+cv.addEventListener("mousedown", e=>{
+  e.preventDefault(); painting=true;
+  pushHistory();
+  paintAt(e, e.button===2 ? WALL : paintVal);
+});
+cv.addEventListener("mousemove", e=>{
+  const c=cellAt(e);
+  hoverCell = c;
+  if(c) document.getElementById("coords").textContent=`(${c.x}, ${c.y})`;
+  if(painting && c) paintAt(e, paintVal);
+  else draw();
+});
+cv.addEventListener("mouseleave", ()=>{ hoverCell=null; draw(); });
+window.addEventListener("mouseup", ()=>painting=false);
+cv.addEventListener("contextmenu", e=>e.preventDefault());
+
+// Ctrl+Z / Cmd+Z to undo
+window.addEventListener("keydown", e=>{
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="z"){
+    e.preventDefault(); undo();
+  }
+});
+
+// ---- validation: edge contract + connectivity ----
+function validate(){
+  const el = document.getElementById("status");
+  const closed = new Set(ARCH[arch].closed);
+  const problems = [];
+
+  // edges
+  function checkEdge(side){
+    for(let i=0;i<N;i++){
+      let v;
+      if(side==="N") v=grid[0][i];
+      else if(side==="S") v=grid[N-1][i];
+      else if(side==="W") v=grid[i][0];
+      else v=grid[i][N-1];
+      const door = DOOR.has(i);
+      if(closed.has(side)){
+        if(v!==WALL){ problems.push(`${side} edge must be solid wall (cell ${i})`); break; }
+      } else {
+        const want = door ? FLOOR : WALL;
+        if(v!==want){ problems.push(`${side} edge: cell ${i} should be ${want===FLOOR?"floor (doorway)":"wall"}`); break; }
+      }
+    }
+  }
+  ["N","S","W","E"].forEach(checkEdge);
+
+  // connectivity: every floor cell reachable from any open doorway
+  const doors=[];
+  if(!closed.has("N")) for(const i of DOOR) doors.push([i,0]);
+  if(!closed.has("S")) for(const i of DOOR) doors.push([i,N-1]);
+  if(!closed.has("W")) for(const i of DOOR) doors.push([0,i]);
+  if(!closed.has("E")) for(const i of DOOR) doors.push([N-1,i]);
+
+  let connWarn = null;
+  if(doors.length){
+    const seen = Array.from({length:N},()=>new Array(N).fill(false));
+    const q=[];
+    for(const [dx,dy] of doors){ if(grid[dy][dx]===FLOOR && !seen[dy][dx]){ seen[dy][dx]=true; q.push([dx,dy]); } }
+    while(q.length){
+      const [cx,cy]=q.pop();
+      for(const [ox,oy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const nx=cx+ox, ny=cy+oy;
+        if(nx>=0&&ny>=0&&nx<N&&ny<N&&!seen[ny][nx]&&grid[ny][nx]===FLOOR){ seen[ny][nx]=true; q.push([nx,ny]); }
+      }
+    }
+    let total=0, reached=0;
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++) if(grid[y][x]===FLOOR){ total++; if(seen[y][x]) reached++; }
+    if(reached<total) connWarn = `${total-reached} floor cell(s) walled off from doorways`;
+  }
+
+  if(problems.length===0 && !connWarn){
+    el.className="ok"; el.textContent="✓ Valid tile — edges & connectivity OK";
+  } else {
+    el.className="bad";
+    el.textContent = (problems.slice(0,2).join("\n")) + (connWarn ? ("\n"+connWarn) : "");
+  }
+}
+
+// ---- archetype buttons ----
+const archBtns = document.getElementById("archBtns");
+["A","B","C","D","E"].forEach(a=>{
+  const b=document.createElement("button");
+  b.className="arch-btn"; b.dataset.a=a; b.textContent=a;
+  b.onclick=()=>{ setArch(a); resetTemplate(); };
+  archBtns.appendChild(b);
+});
+
+// ---- palette ----
+document.querySelectorAll(".swatch").forEach(s=>{
+  s.onclick=()=>{
+    document.querySelectorAll(".swatch").forEach(o=>o.classList.remove("active"));
+    s.classList.add("active"); paintVal=parseInt(s.dataset.val);
+  };
+});
+
+// ---- buttons ----
+document.getElementById("clearBtn").onclick = resetTemplate;
+document.getElementById("undoBtn").onclick = undo;
+
+document.getElementById("saveBtn").onclick = ()=>{
+  // export at native 15x15 (1px per cell) so it loads cleanly into the game
+  const out = document.createElement("canvas");
+  out.width=N; out.height=N;
+  const o=out.getContext("2d");
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    o.fillStyle = grid[y][x]===WALL ? "#000000" : "#ffffff";
+    o.fillRect(x,y,1,1);
+  }
+  const a=document.createElement("a");
+  a.download = `${arch}${variantNum}.png`;
+  a.href = out.toDataURL("image/png");
+  a.click();
+};
+
+document.getElementById("loadBtn").onclick = ()=>document.getElementById("fileIn").click();
+document.getElementById("fileIn").onchange = (e)=>{
+  const f=e.target.files[0]; if(!f) return;
+  // try to infer archetype + variant from filename like "A3.png"
+  const m=f.name.match(/^([A-Ea-e])(\d+)/);
+  if(m){ setArch(m[1].toUpperCase()); variantNum=parseInt(m[2]); }
+  const img=new Image();
+  img.onload=()=>{
+    const tmp=document.createElement("canvas"); tmp.width=N; tmp.height=N;
+    const tc=tmp.getContext("2d"); tc.drawImage(img,0,0,N,N);
+    const d=tc.getImageData(0,0,N,N).data;
+    grid=[];
+    for(let y=0;y<N;y++){ const row=[]; for(let x=0;x<N;x++){
+      const i=(y*N+x)*4; const r=d[i],g=d[i+1],b=d[i+2],al=d[i+3];
+      const wall = al<128 || (r<100&&g<100&&b<100);
+      row.push(wall?WALL:FLOOR);
+    } grid.push(row); }
+    history=[]; updateSaveName(); draw(); validate();
+  };
+  img.src=URL.createObjectURL(f);
+};
+
+function updateSaveName(){
+  document.getElementById("saveName").textContent = `→ ${arch}${variantNum}.png`;
+}
+
+// init
+setArch("A");
+resetTemplate();
+</script>
+</body>
+</html>
